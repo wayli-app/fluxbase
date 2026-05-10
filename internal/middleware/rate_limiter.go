@@ -590,7 +590,25 @@ func MigrationAPILimiterWithConfig(serviceRoleRateLimit int, serviceRoleRateWind
 
 	// Cache for per-key rate limiters (keyed by key ID + limit config)
 	perKeyLimiters := make(map[string]fiber.Handler)
+	perKeyLimiterTimes := make(map[string]time.Time)
 	var limiterMu sync.RWMutex
+
+	// Periodically evict stale per-key limiters to prevent unbounded growth
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			limiterMu.Lock()
+			now := time.Now()
+			for k, t := range perKeyLimiterTimes {
+				if now.Sub(t) > time.Hour {
+					delete(perKeyLimiters, k)
+					delete(perKeyLimiterTimes, k)
+				}
+			}
+			limiterMu.Unlock()
+		}
+	}()
 
 	return func(c fiber.Ctx) error {
 		role := c.Locals("user_role")
@@ -660,6 +678,7 @@ func MigrationAPILimiterWithConfig(serviceRoleRateLimit int, serviceRoleRateWind
 			// Cache the limiter
 			limiterMu.Lock()
 			perKeyLimiters[cacheKey] = limiter
+			perKeyLimiterTimes[cacheKey] = time.Now()
 			limiterMu.Unlock()
 		}
 

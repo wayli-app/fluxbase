@@ -44,15 +44,21 @@ type slowQueryTracker struct {
 	mu      sync.Mutex
 	entries map[string]*slowQueryEntry
 	maxAge  time.Duration
+	stopCh  chan struct{}
 }
 
 func newSlowQueryTracker() *slowQueryTracker {
 	t := &slowQueryTracker{
 		entries: make(map[string]*slowQueryEntry),
 		maxAge:  1 * time.Hour,
+		stopCh:  make(chan struct{}),
 	}
 	go t.cleanupLoop()
 	return t
+}
+
+func (t *slowQueryTracker) stop() {
+	close(t.stopCh)
 }
 
 func (t *slowQueryTracker) record(queryKey string) int {
@@ -72,15 +78,20 @@ func (t *slowQueryTracker) record(queryKey string) int {
 func (t *slowQueryTracker) cleanupLoop() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		t.mu.Lock()
-		now := time.Now()
-		for k, e := range t.entries {
-			if now.Sub(e.firstSeen) > t.maxAge {
-				delete(t.entries, k)
+	for {
+		select {
+		case <-ticker.C:
+			t.mu.Lock()
+			now := time.Now()
+			for k, e := range t.entries {
+				if now.Sub(e.firstSeen) > t.maxAge {
+					delete(t.entries, k)
+				}
 			}
+			t.mu.Unlock()
+		case <-t.stopCh:
+			return
 		}
-		t.mu.Unlock()
 	}
 }
 

@@ -2,9 +2,6 @@ package jobs
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -14,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
-	"github.com/nimbleflux/fluxbase/internal/runtime"
 )
 
 type Storage struct {
@@ -519,17 +515,6 @@ func (s *Storage) EnqueueJobWithTenant(ctx context.Context, tenantID string, job
 	})
 }
 
-// ComputeDeduplicationKey generates a deduplication key from job parameters
-// The key is a hash of namespace + job_name + payload (if any)
-func ComputeDeduplicationKey(namespace, jobName string, payload *string) string {
-	data := namespace + ":" + jobName
-	if payload != nil && *payload != "" {
-		data += ":" + *payload
-	}
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
-}
-
 // IsDuplicateJob checks if a pending or running job with the same parameters exists
 func (s *Storage) IsDuplicateJob(ctx context.Context, namespace, jobName string, payload *string) (bool, *uuid.UUID, error) {
 	// Check for pending or running jobs with matching namespace, job_name, and payload
@@ -557,25 +542,6 @@ func (s *Storage) IsDuplicateJob(ctx context.Context, namespace, jobName string,
 	}
 
 	return true, &existingID, nil
-}
-
-// EnqueueJobWithDedup enqueues a job with deduplication check
-// If a pending or running job with the same parameters exists, returns ErrDuplicateJob
-func (s *Storage) EnqueueJobWithDedup(ctx context.Context, job *Job) error {
-	// Check for duplicates
-	isDup, existingID, err := s.IsDuplicateJob(ctx, job.Namespace, job.JobName, job.Payload)
-	if err != nil {
-		return fmt.Errorf("failed to check for duplicate jobs: %w", err)
-	}
-
-	if isDup {
-		// Store the existing job ID in the deduplication key field for reference
-		existingIDStr := existingID.String()
-		job.DeduplicationKey = &existingIDStr
-		return ErrDuplicateJob
-	}
-
-	return s.EnqueueJob(ctx, job)
 }
 
 // ClaimNextJob claims the next available job for a worker (using SELECT FOR UPDATE SKIP LOCKED)
@@ -1494,37 +1460,6 @@ func (s *Storage) ListJobNamespaces(ctx context.Context) ([]string, error) {
 	}
 
 	return namespaces, nil
-}
-
-// ========== Helper Functions ==========
-
-// ProgressToJSON converts a Progress struct to JSON string
-func ProgressToJSON(p *runtime.Progress) (*string, error) {
-	if p == nil {
-		return nil, nil
-	}
-
-	data, err := json.Marshal(p)
-	if err != nil {
-		return nil, err
-	}
-
-	str := string(data)
-	return &str, nil
-}
-
-// JSONToProgress converts a JSON string to Progress struct
-func JSONToProgress(s *string) (*runtime.Progress, error) {
-	if s == nil || *s == "" {
-		return nil, nil
-	}
-
-	var p runtime.Progress
-	if err := json.Unmarshal([]byte(*s), &p); err != nil {
-		return nil, err
-	}
-
-	return &p, nil
 }
 
 // ListAllScheduledJobFunctions lists all enabled scheduled job functions across all tenants.

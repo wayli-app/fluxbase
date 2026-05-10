@@ -237,6 +237,9 @@ func (c *Connection) Close() {
 	p := c.pool
 	c.pool = nil
 	c.poolMu.Unlock()
+	if c.slowQueryTracker != nil {
+		c.slowQueryTracker.stop()
+	}
 	if p != nil {
 		p.Close()
 	}

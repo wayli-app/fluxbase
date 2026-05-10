@@ -24,6 +24,7 @@ type endpointRateLimiter struct {
 	mu       sync.Mutex
 	requests map[string][]time.Time // webhook URL -> list of request timestamps
 	limit    int                    // requests per minute per endpoint
+	stopCh   chan struct{}
 }
 
 // newEndpointRateLimiter creates a new endpoint rate limiter
@@ -34,8 +35,8 @@ func newEndpointRateLimiter(limitPerMin int) *endpointRateLimiter {
 	rl := &endpointRateLimiter{
 		requests: make(map[string][]time.Time),
 		limit:    limitPerMin,
+		stopCh:   make(chan struct{}),
 	}
-	// Start cleanup goroutine
 	go rl.cleanup()
 	return rl
 }
@@ -82,25 +83,30 @@ func (rl *endpointRateLimiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		rl.mu.Lock()
-		now := time.Now()
-		windowStart := now.Add(-time.Minute)
+	for {
+		select {
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			windowStart := now.Add(-time.Minute)
 
-		for key, times := range rl.requests {
-			var valid []time.Time
-			for _, t := range times {
-				if t.After(windowStart) {
-					valid = append(valid, t)
+			for key, times := range rl.requests {
+				var valid []time.Time
+				for _, t := range times {
+					if t.After(windowStart) {
+						valid = append(valid, t)
+					}
+				}
+				if len(valid) == 0 {
+					delete(rl.requests, key)
+				} else {
+					rl.requests[key] = valid
 				}
 			}
-			if len(valid) == 0 {
-				delete(rl.requests, key)
-			} else {
-				rl.requests[key] = valid
-			}
+			rl.mu.Unlock()
+		case <-rl.stopCh:
+			return
 		}
-		rl.mu.Unlock()
 	}
 }
 
@@ -275,6 +281,11 @@ func (s *TriggerService) Stop() {
 	}
 
 	close(s.stopChan)
+
+	// Stop the rate limiter cleanup goroutine
+	if s.rateLimiter != nil {
+		close(s.rateLimiter.stopCh)
+	}
 
 	// Wait for workers to finish processing (with timeout to prevent hanging)
 	done := make(chan struct{})

@@ -332,9 +332,7 @@ func (s *Server) handleGetTableSchema(c fiber.Ctx) error {
 	table := c.Params("table")
 
 	if schema == "" || table == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Schema and table parameters are required",
-		})
+		return SendBadRequest(c, "Schema and table parameters are required", ErrCodeMissingField)
 	}
 
 	var tableInfo *database.TableInfo
@@ -345,9 +343,7 @@ func (s *Server) handleGetTableSchema(c fiber.Ctx) error {
 		tableInfo, err = s.db.Inspector().GetTableInfo(ctx, schema, table)
 	}
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table not found: %s.%s", schema, table),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table not found: %s.%s", schema, table))
 	}
 
 	return c.JSON(tableInfo)
@@ -402,7 +398,7 @@ func (s *Server) handleGetSchemas(c fiber.Ctx) error {
 }
 
 func (s *Server) handleExecuteQuery(c fiber.Ctx) error {
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "Not implemented"})
+	return SendError(c, fiber.StatusNotImplemented, "Not implemented")
 }
 
 // InvalidateSchemaCache invalidates the REST API schema cache.
@@ -425,17 +421,12 @@ func (s *Server) handleRefreshSchema(c fiber.Ctx) error {
 
 	schemaCache := s.rest.SchemaCache()
 	if schemaCache == nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Schema cache not initialized",
-		})
+		return SendInternalError(c, "Schema cache not initialized")
 	}
 
 	if err := schemaCache.Refresh(c.RequestCtx()); err != nil {
 		log.Error().Err(err).Msg("Failed to refresh schema cache")
-		return c.Status(500).JSON(fiber.Map{
-			"error":   "Failed to refresh schema cache",
-			"details": err.Error(),
-		})
+		return SendInternalError(c, "Failed to refresh schema cache")
 	}
 
 	s.graphCache.Invalidate()
@@ -694,9 +685,7 @@ func customErrorHandler(c fiber.Ctx, err error) error {
 func (s *Server) handleRealtimeStats(c fiber.Ctx) error {
 	role, _ := c.Locals("user_role").(string)
 	if role != "admin" && role != "instance_admin" && role != "tenant_admin" && role != "service_role" && role != "tenant_service" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required to view realtime stats",
-		})
+		return SendForbidden(c, "Admin access required to view realtime stats", ErrCodeAccessDenied)
 	}
 
 	const defaultLimit = 25

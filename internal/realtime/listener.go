@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/nimbleflux/fluxbase/internal/pubsub"
-	"github.com/nimbleflux/fluxbase/internal/runtime"
 	"github.com/nimbleflux/fluxbase/internal/storage"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -38,7 +37,13 @@ type RealtimeListener interface {
 	Stop()
 }
 
-// Listener handles PostgreSQL LISTEN/NOTIFY and PubSub log events
+// Listener handles PostgreSQL LISTEN/NOTIFY and PubSub log events.
+//
+// NOTE: This file has substantial duplication with listener_pool.go (PubSub log listeners,
+// processLogEvent, processAllLogsEvent, enrichJobWithETA). Both implement the
+// RealtimeListener interface. The enrichJobWithETA logic has been extracted to
+// listener_helpers.go. A full unification of the remaining duplicated code is
+// deferred to avoid risk.
 type Listener struct {
 	pool       *pgxpool.Pool
 	handler    *RealtimeHandler
@@ -236,51 +241,8 @@ func (l *Listener) processNotification(notification *pgconn.Notification) {
 	}
 }
 
-// enrichJobWithETA computes ETA fields for job queue events and adds them to the record
 func (l *Listener) enrichJobWithETA(event *ChangeEvent) {
-	// Parse progress directly from the record (it comes as a JSON object from pg_notify, not a string)
-	progressData, ok := event.Record["progress"].(map[string]interface{})
-	if !ok || progressData == nil {
-		return
-	}
-
-	// Extract progress fields
-	var progress runtime.Progress
-	if percent, ok := progressData["percent"].(float64); ok {
-		progress.Percent = int(percent)
-	}
-	if message, ok := progressData["message"].(string); ok {
-		progress.Message = message
-	}
-	if etaSeconds, ok := progressData["estimated_seconds_left"].(float64); ok {
-		eta := int(etaSeconds)
-		progress.EstimatedSecondsLeft = &eta
-	}
-
-	// Get job status and started_at for ETA calculation
-	status, _ := event.Record["status"].(string)
-	startedAtStr, _ := event.Record["started_at"].(string)
-
-	// Calculate ETA if not already present and job is running
-	if progress.EstimatedSecondsLeft == nil && status == "running" && progress.Percent > 0 && progress.Percent < 100 {
-		if startedAt, err := time.Parse(time.RFC3339, startedAtStr); err == nil {
-			elapsed := time.Since(startedAt).Seconds()
-			if elapsed > 0 {
-				remainingPercent := float64(100 - progress.Percent)
-				etaSeconds := int((elapsed / float64(progress.Percent)) * remainingPercent)
-				progress.EstimatedSecondsLeft = &etaSeconds
-			}
-		}
-	}
-
-	// Add computed fields to the record
-	event.Record["progress_percent"] = progress.Percent
-	if progress.Message != "" {
-		event.Record["progress_message"] = progress.Message
-	}
-	if progress.EstimatedSecondsLeft != nil {
-		event.Record["estimated_seconds_left"] = *progress.EstimatedSecondsLeft
-	}
+	enrichJobWithETA(event)
 }
 
 // Stop stops the listener
