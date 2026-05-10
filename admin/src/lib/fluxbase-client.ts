@@ -1,6 +1,7 @@
 import { createClient } from "@nimbleflux/fluxbase-sdk";
 import { useAuthStore } from "@/stores/auth-store";
 import { useTenantStore } from "@/stores/tenant-store";
+import { useImpersonationStore } from "@/stores/impersonation-store";
 
 // Declare the runtime config type injected by the server
 declare global {
@@ -22,7 +23,7 @@ const API_BASE_URL =
 const API_KEY = import.meta.env.VITE_API_KEY || "anonymous";
 
 const getImpersonationToken = (): string | null => {
-  return localStorage.getItem("fluxbase_impersonation_token");
+  return useImpersonationStore.getState().impersonationToken;
 };
 
 const getActiveToken = (): string | null => {

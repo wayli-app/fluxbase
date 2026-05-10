@@ -56,6 +56,10 @@ export class FluxbaseFetch {
     this.debug = options.debug ?? false;
   }
 
+  getBaseUrl(): string { return this.baseUrl }
+
+  getDefaultHeaders(): Record<string, string> { return { ...this.defaultHeaders } }
+
   /**
    * Register a callback to refresh the token when a 401 error occurs
    * The callback should return true if refresh was successful, false otherwise
@@ -226,7 +230,7 @@ export class FluxbaseFetch {
         throw err;
       }
 
-      throw new Error("Unknown error occurred");
+      throw new Error(err instanceof Error ? err.message : String(err) || "Unknown error occurred");
     }
   }
 
@@ -453,7 +457,7 @@ export class FluxbaseFetch {
         throw err;
       }
 
-      throw new Error("Unknown error occurred");
+      throw new Error(err instanceof Error ? err.message : String(err) || "Unknown error occurred");
     }
   }
 }

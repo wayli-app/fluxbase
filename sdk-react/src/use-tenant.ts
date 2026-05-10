@@ -4,7 +4,8 @@
  * @module use-tenant
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFluxbaseClient } from "./context";
 import type {
   Tenant,
@@ -98,58 +99,55 @@ export interface UseTenantsReturn {
 export function useTenants(options: UseTenantsOptions = {}): UseTenantsReturn {
   const { autoFetch = true } = options;
   const client = useFluxbaseClient();
+  const queryClient = useQueryClient();
 
-  const [tenants, setTenants] = useState<TenantWithRole[]>([]);
-  const [isLoading, setIsLoading] = useState(autoFetch);
-  const [error, setError] = useState<Error | null>(null);
   const [currentTenantId, setCurrentTenantId] = useState<string | undefined>(
     client.getTenantId(),
   );
 
-  const fetchTenants = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const { data, error: fetchError } = await client.tenant.listMine();
-      if (fetchError) {
-        setError(fetchError);
-      } else {
-        setTenants(data || []);
-      }
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [client]);
+  const query = useQuery({
+    queryKey: ["fluxbase", "tenants", "mine"],
+    queryFn: async () => {
+      const { data, error } = await client.tenant.listMine();
+      if (error) throw error;
+      return data || ([] as TenantWithRole[]);
+    },
+    enabled: autoFetch,
+  });
 
   const createTenant = useCallback(
     async (opts: CreateTenantOptions): Promise<Tenant> => {
       const { data, error: createError } = await client.tenant.create(opts);
       if (createError) throw createError;
-      await fetchTenants();
+      await queryClient.invalidateQueries({
+        queryKey: ["fluxbase", "tenants"],
+      });
       return data!;
     },
-    [client, fetchTenants],
+    [client, queryClient],
   );
 
   const updateTenant = useCallback(
     async (id: string, opts: UpdateTenantOptions): Promise<Tenant> => {
       const { data, error: updateError } = await client.tenant.update(id, opts);
       if (updateError) throw updateError;
-      await fetchTenants();
+      await queryClient.invalidateQueries({
+        queryKey: ["fluxbase", "tenants"],
+      });
       return data!;
     },
-    [client, fetchTenants],
+    [client, queryClient],
   );
 
   const deleteTenant = useCallback(
     async (id: string): Promise<void> => {
       const { error: deleteError } = await client.tenant.delete(id);
       if (deleteError) throw deleteError;
-      await fetchTenants();
+      await queryClient.invalidateQueries({
+        queryKey: ["fluxbase", "tenants"],
+      });
     },
-    [client, fetchTenants],
+    [client, queryClient],
   );
 
   const setCurrentTenant = useCallback(
@@ -160,17 +158,13 @@ export function useTenants(options: UseTenantsOptions = {}): UseTenantsReturn {
     [client],
   );
 
-  useEffect(() => {
-    if (autoFetch) {
-      fetchTenants();
-    }
-  }, [autoFetch, fetchTenants]);
-
   return {
-    tenants,
-    isLoading,
-    error,
-    refetch: fetchTenants,
+    tenants: query.data ?? [],
+    isLoading: autoFetch ? query.isLoading : false,
+    error: query.error,
+    refetch: async () => {
+      await query.refetch();
+    },
     createTenant,
     updateTenant,
     deleteTenant,
@@ -249,31 +243,17 @@ export interface UseTenantReturn {
 export function useTenant(options: UseTenantOptions): UseTenantReturn {
   const { tenantId, autoFetch = true } = options;
   const client = useFluxbaseClient();
+  const queryClient = useQueryClient();
 
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [isLoading, setIsLoading] = useState(autoFetch);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchTenant = useCallback(async () => {
-    if (!tenantId) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      const { data, error: fetchError } = await client.tenant.get(tenantId);
-      if (fetchError) {
-        setError(fetchError);
-        setTenant(null);
-      } else {
-        setTenant(data);
-      }
-    } catch (err) {
-      setError(err as Error);
-      setTenant(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [client, tenantId]);
+  const query = useQuery({
+    queryKey: ["fluxbase", "tenant", tenantId],
+    queryFn: async () => {
+      const { data, error } = await client.tenant.get(tenantId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: autoFetch && !!tenantId,
+  });
 
   const update = useCallback(
     async (opts: UpdateTenantOptions): Promise<Tenant> => {
@@ -282,29 +262,29 @@ export function useTenant(options: UseTenantOptions): UseTenantReturn {
         opts,
       );
       if (updateError) throw updateError;
-      setTenant(data);
+      await queryClient.invalidateQueries({
+        queryKey: ["fluxbase", "tenant", tenantId],
+      });
       return data!;
     },
-    [client, tenantId],
+    [client, tenantId, queryClient],
   );
 
   const remove = useCallback(async (): Promise<void> => {
     const { error: deleteError } = await client.tenant.delete(tenantId);
     if (deleteError) throw deleteError;
-    setTenant(null);
-  }, [client, tenantId]);
-
-  useEffect(() => {
-    if (autoFetch && tenantId) {
-      fetchTenant();
-    }
-  }, [autoFetch, fetchTenant, tenantId]);
+    await queryClient.invalidateQueries({
+      queryKey: ["fluxbase", "tenant", tenantId],
+    });
+  }, [client, tenantId, queryClient]);
 
   return {
-    tenant,
-    isLoading,
-    error,
-    refetch: fetchTenant,
+    tenant: query.data ?? null,
+    isLoading: autoFetch ? query.isLoading : false,
+    error: query.error,
+    refetch: async () => {
+      await query.refetch();
+    },
     update,
     remove,
   };

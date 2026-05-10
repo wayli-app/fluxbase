@@ -10,6 +10,7 @@ import {
   Info,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/get-error-message";
 import {
   captchaSettingsApi,
   type CaptchaSettingsResponse,
@@ -104,7 +105,7 @@ function SecuritySettingsPage() {
         const err = error as {
           response?: {
             status?: number;
-            data?: { code?: string; error?: string };
+            data?: { code?: string };
           };
         };
         if (
@@ -116,12 +117,8 @@ function SecuritySettingsPage() {
           );
           return;
         }
-        if (err.response?.data?.error) {
-          toast.error(err.response.data.error);
-          return;
-        }
       }
-      toast.error("Failed to update captcha settings");
+      toast.error(getErrorMessage(error));
     },
   });
 
