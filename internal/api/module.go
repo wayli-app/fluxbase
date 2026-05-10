@@ -7,6 +7,7 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/pubsub"
 )
 
 type Module interface {
@@ -19,6 +20,7 @@ type ServiceRegistry struct {
 	services map[reflect.Type]interface{}
 	Config   *config.Config
 	DB       *database.Connection
+	PubSub   pubsub.PubSub
 }
 
 func NewServiceRegistry(cfg *config.Config, db *database.Connection) *ServiceRegistry {

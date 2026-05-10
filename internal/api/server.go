@@ -13,14 +13,12 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
-	"github.com/nimbleflux/fluxbase/internal/email"
 	"github.com/nimbleflux/fluxbase/internal/logging"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 	"github.com/nimbleflux/fluxbase/internal/observability"
 	"github.com/nimbleflux/fluxbase/internal/pubsub"
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 	"github.com/nimbleflux/fluxbase/internal/realtime"
-	"github.com/nimbleflux/fluxbase/internal/secrets"
 	"github.com/nimbleflux/fluxbase/internal/storage"
 	"github.com/nimbleflux/fluxbase/internal/webhook"
 )
@@ -77,19 +75,6 @@ type Server struct {
 
 	// Schema graph cache (per-tenant, TTL-based)
 	graphCache *schemaGraphCache
-
-	// Cross-init method dependencies
-	authService           *auth.Service
-	emailManager          *email.Manager
-	emailService          email.Service
-	storageManager        *storage.Manager
-	storageService        *storage.Service
-	loggingService        *logging.Service
-	captchaService        *auth.CaptchaService
-	systemSettingsService *auth.SystemSettingsService
-	userMgmtService       *auth.UserManagementService
-	invitationService     *auth.InvitationService
-	secretsStorage        *secrets.Storage
 
 	// Cached middleware instances (created once during init)
 	requireAuth  fiber.Handler
@@ -191,23 +176,12 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		log.Fatal().Err(err).Msg("Failed to initialize modules")
 	}
 
-	s.emailManager = emailMod.Manager
-	s.emailService = emailMod.Service
-	s.secretsStorage = secretsMod.Storage
 	s.Secrets.Storage = secretsMod.Storage
 	s.Secrets.Handler = secretsMod.Handler
-	s.storageManager = storageMod.Manager
-	s.storageService = storageMod.Service
 	s.Storage.Handler = storageMod.Handler
-	s.loggingService = loggingMod.Service
 	s.Logging.Service = loggingMod.Service
 	s.Logging.Handler = loggingMod.Handler
 	s.Logging.Retention = loggingMod.Retention
-	s.authService = authMod.Service
-	s.captchaService = authMod.CaptchaService
-	s.systemSettingsService = authMod.SystemSettingsService
-	s.userMgmtService = authMod.UserMgmtService
-	s.invitationService = authMod.InvitationService
 	s.Auth = authMod.Handlers
 	s.sqlHandler = authMod.SQLHandler
 	s.requireAuth = authMod.RequireAuth
