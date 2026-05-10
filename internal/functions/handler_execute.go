@@ -191,12 +191,11 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	}
 
 	// Build permissions
-	perms := runtime.Permissions{
-		AllowNet:   fn.AllowNet,
-		AllowEnv:   fn.AllowEnv,
-		AllowRead:  fn.AllowRead,
-		AllowWrite: fn.AllowWrite,
-	}
+	perms := runtime.DefaultFunctionPermissions()
+	perms.AllowNet = fn.AllowNet
+	perms.AllowEnv = fn.AllowEnv
+	perms.AllowRead = fn.AllowRead
+	perms.AllowWrite = fn.AllowWrite
 
 	// Log function invocation
 	reqID := apperrors.GetRequestID(c)

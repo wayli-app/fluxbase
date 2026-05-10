@@ -253,12 +253,6 @@ func (c *Connection) Pool() *pgxpool.Pool {
 	return c.pool
 }
 
-// NewConnectionFromPool creates a minimal Connection wrapping an existing pool.
-// Intended for tests only.
-func NewConnectionFromPool(pool *pgxpool.Pool) *Connection {
-	return &Connection{pool: pool}
-}
-
 // RecreatePool closes the current pool and creates a new one.
 // This is safer than Reset() as it ensures a completely fresh pool state.
 // Use this after schema changes (migrations) to avoid prepared statement cache issues.

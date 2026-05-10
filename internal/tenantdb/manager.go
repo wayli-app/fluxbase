@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -406,15 +408,46 @@ func (m *Manager) migrateAllTenants(ctx context.Context) {
 }
 
 func (m *Manager) hasPendingMigrations(ctx context.Context, pool *pgxpool.Pool) (bool, error) {
-	var currentVersion int
-	err := pool.QueryRow(ctx, `
-		SELECT COALESCE(MAX(version), 0)::int FROM platform.fluxbase_migrations
-	`).Scan(&currentVersion)
-	if err != nil {
-		return true, nil
+	const migrationsDir = "/migrations"
+	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
+		return false, nil
 	}
 
-	return false, nil
+	var currentVersion int
+	if err := pool.QueryRow(ctx, `
+		SELECT COALESCE(MAX(version), 0)::int FROM platform.fluxbase_migrations
+	`).Scan(&currentVersion); err != nil {
+		return true, fmt.Errorf("failed to query migration version: %w", err)
+	}
+
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return true, fmt.Errorf("failed to read migrations directory: %w", err)
+	}
+
+	var latestVersion int
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".up.sql") {
+			continue
+		}
+		prefix := strings.SplitN(entry.Name(), "_", 2)[0]
+		v, parseErr := strconv.Atoi(prefix)
+		if parseErr != nil {
+			continue
+		}
+		if v > latestVersion {
+			latestVersion = v
+		}
+	}
+
+	if latestVersion == 0 {
+		return false, nil
+	}
+
+	return latestVersion > currentVersion, nil
 }
 
 func (m *Manager) runSystemMigrationsForDB(ctx context.Context, dbName string) error {

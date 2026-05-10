@@ -16,6 +16,7 @@ type PresenceInfo struct {
 	State    PresenceState
 	UserID   *string
 	ConnID   string
+	TenantID string
 	JoinedAt time.Time
 }
 
@@ -37,7 +38,7 @@ func NewPresenceManager() *PresenceManager {
 }
 
 // Track adds or updates presence for a given channel and key
-func (pm *PresenceManager) Track(channel, key string, state PresenceState, userID *string, connID string) (*PresenceInfo, bool) {
+func (pm *PresenceManager) Track(channel, key string, state PresenceState, userID *string, connID string, tenantID string) (*PresenceInfo, bool) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -55,6 +56,7 @@ func (pm *PresenceManager) Track(channel, key string, state PresenceState, userI
 		State:    state,
 		UserID:   userID,
 		ConnID:   connID,
+		TenantID: tenantID,
 		JoinedAt: time.Now(),
 	}
 

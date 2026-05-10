@@ -224,7 +224,7 @@ func TestGenerateClientKey(t *testing.T) {
 	db := getSharedTestDB(t)
 	// Note: Don't close db as it's shared across all tests in the package
 
-	service := NewClientKeyService(database.NewConnectionFromPool(db), nil)
+	service := NewClientKeyService(database.NewConnectionWithPool(db), nil)
 	ctx := context.Background()
 
 	defaultScopes := []string{"tables:read", "tables:write", "storage:read", "storage:write", "functions:read", "functions:execute"}
@@ -304,7 +304,7 @@ func TestValidateClientKey(t *testing.T) {
 	db := getSharedTestDB(t)
 	// Note: Don't close db as it's shared across all tests in the package
 
-	service := NewClientKeyService(database.NewConnectionFromPool(db), nil)
+	service := NewClientKeyService(database.NewConnectionWithPool(db), nil)
 	ctx := context.Background()
 
 	// Default scopes used in tests
@@ -387,7 +387,7 @@ func TestListClientKeys(t *testing.T) {
 	db := getSharedTestDB(t)
 	// Note: Don't close db as it's shared across all tests in the package
 
-	service := NewClientKeyService(database.NewConnectionFromPool(db), nil)
+	service := NewClientKeyService(database.NewConnectionWithPool(db), nil)
 	ctx := context.Background()
 
 	// Default scopes used in tests
@@ -446,7 +446,7 @@ func TestRevokeClientKey(t *testing.T) {
 	db := getSharedTestDB(t)
 	// Note: Don't close db as it's shared across all tests in the package
 
-	service := NewClientKeyService(database.NewConnectionFromPool(db), nil)
+	service := NewClientKeyService(database.NewConnectionWithPool(db), nil)
 	ctx := context.Background()
 
 	// Default scopes used in tests
@@ -492,7 +492,7 @@ func TestDeleteClientKey(t *testing.T) {
 	db := getSharedTestDB(t)
 	// Note: Don't close db as it's shared across all tests in the package
 
-	service := NewClientKeyService(database.NewConnectionFromPool(db), nil)
+	service := NewClientKeyService(database.NewConnectionWithPool(db), nil)
 	ctx := context.Background()
 
 	// Default scopes used in tests
@@ -531,7 +531,7 @@ func TestUpdateClientKey(t *testing.T) {
 	db := getSharedTestDB(t)
 	// Note: Don't close db as it's shared across all tests in the package
 
-	service := NewClientKeyService(database.NewConnectionFromPool(db), nil)
+	service := NewClientKeyService(database.NewConnectionWithPool(db), nil)
 	ctx := context.Background()
 
 	// Default scopes used in tests
@@ -611,7 +611,7 @@ func TestClientKeyServiceNewClientKeyService(t *testing.T) {
 
 	db := getSharedTestDB(t)
 
-	service := NewClientKeyService(database.NewConnectionFromPool(db), nil)
+	service := NewClientKeyService(database.NewConnectionWithPool(db), nil)
 	assert.NotNil(t, service)
 	assert.NotNil(t, service.db)
 }

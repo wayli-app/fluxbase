@@ -18,6 +18,12 @@ import (
 
 var rateLimiterMetrics *observability.Metrics
 
+var (
+	serviceRoleLimiter     fiber.Handler
+	serviceRoleLimiterCfg  RateLimiterConfig
+	serviceRoleLimiterMu   sync.Mutex
+)
+
 // SetRateLimiterMetrics sets the metrics instance for rate limiter
 func SetRateLimiterMetrics(m *observability.Metrics) {
 	rateLimiterMetrics = m
@@ -204,7 +210,11 @@ func AuthRefreshLimiterWithConfig(max int, expiration time.Duration, storage ...
 				RefreshToken string `json:"refresh_token"`
 			}
 			if err := c.Bind().Body(&req); err == nil && req.RefreshToken != "" {
-				return "refresh:" + req.RefreshToken[:20] // Use first 20 chars as key
+				prefix := req.RefreshToken
+				if len(prefix) > 20 {
+					prefix = prefix[:20]
+				}
+				return "refresh:" + prefix
 			}
 			// Fallback to IP if no token found
 			return "refresh:" + c.IP()
@@ -320,17 +330,13 @@ func DynamicGlobalAPILimiter(settingsCache *auth.SettingsCache, storage ...fiber
 
 			// For service_role, check if rate limiting is configured
 			if ok && roleStr == "service_role" {
-				// Check if service_role rate limiting is enabled
 				ctx := c.RequestCtx()
 				serviceRoleRateLimit := settingsCache.GetInt(ctx, "app.security.service_role_rate_limit", 0)
 				if serviceRoleRateLimit <= 0 {
-					// No rate limiting for service_role (default)
-					log.Debug().Msg("Rate limiter: bypassing for service_role (no rate limit configured)")
 					return c.Next()
 				}
-				// Apply service_role rate limiting with shared storage if available
 				rateWindow := settingsCache.GetDuration(ctx, "app.security.service_role_rate_window", 1*time.Minute)
-				serviceRoleLimiterCfg := RateLimiterConfig{
+				cfg := RateLimiterConfig{
 					Name:       "service_role",
 					Max:        serviceRoleRateLimit,
 					Expiration: rateWindow,
@@ -339,16 +345,19 @@ func DynamicGlobalAPILimiter(settingsCache *auth.SettingsCache, storage ...fiber
 					},
 					Message: fmt.Sprintf("Service role rate limit exceeded. Maximum %d requests per %s allowed.", serviceRoleRateLimit, rateWindow.String()),
 				}
-				// Add shared storage if provided
 				if len(storage) > 0 && storage[0] != nil {
-					serviceRoleLimiterCfg.Storage = storage[0]
+					cfg.Storage = storage[0]
 				}
-				serviceRoleLimiter := NewRateLimiter(serviceRoleLimiterCfg)
-				log.Debug().
-					Int("limit", serviceRoleRateLimit).
-					Str("window", rateWindow.String()).
-					Msg("Rate limiter: applying service_role rate limit")
-				return serviceRoleLimiter(c)
+
+				serviceRoleLimiterMu.Lock()
+				if serviceRoleLimiter == nil || serviceRoleLimiterCfg.Max != cfg.Max || serviceRoleLimiterCfg.Expiration != cfg.Expiration {
+					serviceRoleLimiter = NewRateLimiter(cfg)
+					serviceRoleLimiterCfg = cfg
+				}
+				limiter := serviceRoleLimiter
+				serviceRoleLimiterMu.Unlock()
+
+				return limiter(c)
 			}
 		}
 

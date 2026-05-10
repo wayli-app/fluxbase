@@ -969,28 +969,6 @@ func TestAllLogsSubscription_Struct(t *testing.T) {
 	})
 }
 
-func TestSubscriptionFilter_Struct(t *testing.T) {
-	t.Run("zero value", func(t *testing.T) {
-		var filter SubscriptionFilter
-
-		assert.Empty(t, filter.Column)
-		assert.Empty(t, filter.Operator)
-		assert.Nil(t, filter.Value)
-	})
-
-	t.Run("all fields set", func(t *testing.T) {
-		filter := SubscriptionFilter{
-			Column:   "status",
-			Operator: "eq",
-			Value:    "active",
-		}
-
-		assert.Equal(t, "status", filter.Column)
-		assert.Equal(t, "eq", filter.Operator)
-		assert.Equal(t, "active", filter.Value)
-	})
-}
-
 func TestRLSCacheConfig_Struct(t *testing.T) {
 	t.Run("zero value", func(t *testing.T) {
 		var config RLSCacheConfig

@@ -276,7 +276,7 @@ func (r *DenoRuntime) Execute(
 	if cmdErr != nil {
 		result.Success = false
 
-		if r.runtimeType == RuntimeTypeJob && strings.Contains(cmdErr.Error(), "signal: killed") {
+		if strings.Contains(cmdErr.Error(), "signal: killed") {
 			result.Error = r.buildOOMErrorMessage(memoryLimitMB, availableMemoryMB)
 			log.Error().
 				Str("id", req.ID.String()).

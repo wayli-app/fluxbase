@@ -174,7 +174,7 @@ func (t *InvokeFunctionTool) Execute(ctx context.Context, args map[string]any, a
 		Msg("MCP: Invoking function")
 
 	// Set up default permissions for MCP function invocation
-	perms := runtime.DefaultPermissions()
+	perms := runtime.DefaultFunctionPermissions()
 
 	// Execute function with default timeout and no secrets for MCP calls
 	resp, err := t.runtime.Execute(ctx, fn.Code, req, perms, nil, nil, nil)

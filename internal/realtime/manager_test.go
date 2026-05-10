@@ -601,11 +601,11 @@ func TestManager_BroadcastGlobal(t *testing.T) {
 			Payload: map[string]interface{}{"test": "data"},
 		}
 
-		err := manager.BroadcastGlobal("test-channel", message)
+		err := manager.BroadcastGlobal("test-channel", "", message)
 		assert.NoError(t, err)
 
 		// Verify the message was broadcast locally
-		count := manager.BroadcastToChannel("test-channel", message)
+		count := manager.BroadcastToChannel("test-channel", "", message)
 		assert.Equal(t, 1, count)
 	})
 
@@ -622,7 +622,7 @@ func TestManager_BroadcastGlobal(t *testing.T) {
 			Payload: map[string]interface{}{"test": "data"},
 		}
 
-		err := manager.BroadcastGlobal("test-channel", message)
+		err := manager.BroadcastGlobal("test-channel", "", message)
 		assert.NoError(t, err)
 
 		// Verify message was published to pubsub

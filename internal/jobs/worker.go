@@ -573,8 +573,8 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 				Int("max_retries", job.MaxRetries).
 				Msg("Requeueing job for retry")
 
-			if err := w.Storage.RequeueJob(ctx, job.ID); err != nil {
-				log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to requeue job")
+			if err := w.Storage.RequeueJob(ctx, job.ID, errorMsg); err != nil {
+				log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to requeue job, marking as failed")
 				_ = w.Storage.FailJob(ctx, job.ID, errorMsg)
 			}
 		} else {

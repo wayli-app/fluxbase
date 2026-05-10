@@ -446,10 +446,11 @@ func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFi
 		RETURNING created_at
 	`
 
-	return s.DB.Pool().QueryRow(
-		ctx, query,
-		file.ID, file.JobFunctionID, file.FilePath, file.Content,
-	).Scan(&file.CreatedAt)
+	return s.WithTenant(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			file.ID, file.JobFunctionID, file.FilePath, file.Content,
+		).Scan(&file.CreatedAt)
+	})
 }
 
 // ListJobFunctionFiles lists all files for a job function
@@ -461,29 +462,33 @@ func (s *Storage) ListJobFunctionFiles(ctx context.Context, jobFunctionID uuid.U
 		ORDER BY file_path
 	`
 
-	rows, err := s.DB.Pool().Query(ctx, query, jobFunctionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var files []*JobFunctionFile
-	for rows.Next() {
-		var file JobFunctionFile
-		if err := rows.Scan(&file.ID, &file.JobFunctionID, &file.FilePath, &file.Content, &file.CreatedAt); err != nil {
-			return nil, err
+	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, jobFunctionID)
+		if err != nil {
+			return err
 		}
-		files = append(files, &file)
-	}
+		defer rows.Close()
 
-	return files, rows.Err()
+		for rows.Next() {
+			var file JobFunctionFile
+			if err := rows.Scan(&file.ID, &file.JobFunctionID, &file.FilePath, &file.Content, &file.CreatedAt); err != nil {
+				return err
+			}
+			files = append(files, &file)
+		}
+		return rows.Err()
+	})
+	return files, err
 }
 
 // DeleteJobFunctionFiles deletes all files for a job function
 func (s *Storage) DeleteJobFunctionFiles(ctx context.Context, jobFunctionID uuid.UUID) error {
 	query := `DELETE FROM jobs.function_files WHERE function_id = $1`
-	_, err := s.DB.Pool().Exec(ctx, query, jobFunctionID)
-	return err
+	return s.WithTenant(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, jobFunctionID)
+		return err
+	})
 }
 
 // ========== Job Queue ==========
@@ -747,14 +752,20 @@ func (s *Storage) InterruptJob(ctx context.Context, jobID uuid.UUID, reason stri
 	return nil
 }
 
-// RequeueJob requeues a failed job for retry with exponential backoff.
-// The backoff delay is: 5s * 2^retry_count (5s, 10s, 20s, 40s, ...), capped at ~5min.
-// Error message is preserved from the last attempt for debugging.
-func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
+func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID, errorMsg string) error {
+	return s.requeueJobWithStatus(ctx, jobID, JobStatusRunning, errorMsg)
+}
+
+func (s *Storage) RequeueFailedJob(ctx context.Context, jobID uuid.UUID) error {
+	return s.requeueJobWithStatus(ctx, jobID, JobStatusFailed, "")
+}
+
+func (s *Storage) requeueJobWithStatus(ctx context.Context, jobID uuid.UUID, currentStatus JobStatus, errorMsg string) error {
 	query := `
 		UPDATE jobs.queue
 		SET status = $1, retry_count = retry_count + 1, worker_id = NULL,
 		    started_at = NULL, last_progress_at = NULL, completed_at = NULL,
+		    error_message = CASE WHEN $5 != '' THEN $5 ELSE error_message END,
 		    scheduled_at = NOW() + make_interval(secs => 5.0 * POWER(2::float8, LEAST(retry_count, 6)))
 		WHERE id = $2 AND status = $3 AND retry_count < max_retries AND (tenant_id = $4 OR ($4 IS NULL AND tenant_id IS NULL))
 	`
@@ -762,7 +773,11 @@ func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
 	var result pgconn.CommandTag
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		var execErr error
-		result, execErr = tx.Exec(ctx, query, JobStatusPending, jobID, JobStatusFailed, database.TenantOrNil(database.TenantFromContext(ctx)))
+		result, execErr = tx.Exec(ctx, query,
+			JobStatusPending, jobID, currentStatus,
+			database.TenantOrNil(database.TenantFromContext(ctx)),
+			errorMsg,
+		)
 		return execErr
 	})
 	if err != nil {
@@ -770,7 +785,7 @@ func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
 	}
 
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("job not found, not failed, or max retries reached: %s", jobID)
+		return fmt.Errorf("job not found, not %s, or max retries reached: %s", string(currentStatus), jobID)
 	}
 
 	return nil

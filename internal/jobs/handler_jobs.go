@@ -487,7 +487,7 @@ func (h *Handler) RetryJob(c fiber.Ctx) error {
 		})
 	}
 
-	if err := h.storage.RequeueJob(middleware.CtxWithTenant(c), jobID); err != nil {
+	if err := h.storage.RequeueFailedJob(middleware.CtxWithTenant(c), jobID); err != nil {
 		reqID := apperrors.GetRequestID(c)
 		log.Error().
 			Err(err).
@@ -572,7 +572,7 @@ func (h *Handler) RetryJobAdmin(c fiber.Ctx) error {
 		})
 	}
 
-	if err := h.storage.RequeueJob(middleware.CtxWithTenant(c), jobID); err != nil {
+	if err := h.storage.RequeueFailedJob(middleware.CtxWithTenant(c), jobID); err != nil {
 		reqID := apperrors.GetRequestID(c)
 		log.Error().
 			Err(err).

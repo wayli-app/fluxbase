@@ -402,7 +402,7 @@ func (s *Server) handleGetSchemas(c fiber.Ctx) error {
 }
 
 func (s *Server) handleExecuteQuery(c fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Execute query endpoint - to be implemented"})
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "Not implemented"})
 }
 
 // InvalidateSchemaCache invalidates the REST API schema cache.

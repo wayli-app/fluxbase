@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -14,11 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shirou/gopsutil/v4/mem"
 )
-
-type execContext struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-}
 
 type denoArgsConfig struct {
 	RuntimeType   RuntimeType
@@ -82,10 +76,10 @@ func buildDenoArgs(cfg denoArgsConfig, permissions Permissions, secrets map[stri
 		args = append(args, fmt.Sprintf("--allow-env=%s", allowedEnvVars(cfg.RuntimeType, secretNames)))
 	}
 	if permissions.AllowRead {
-		args = append(args, "--allow-read")
+		args = append(args, "--allow-read=/tmp")
 	}
 	if permissions.AllowWrite {
-		args = append(args, "--allow-write")
+		args = append(args, "--allow-write=/tmp")
 	}
 
 	args = append(args, tmpPath)

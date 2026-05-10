@@ -197,11 +197,11 @@ func (m *Manager) handleGlobalBroadcasts() {
 
 // GlobalBroadcast represents a message broadcast across instances
 type GlobalBroadcast struct {
-	Channel string        `json:"channel"` // The realtime channel to broadcast to
-	Message ServerMessage `json:"message"` // The message to send
+	Channel  string        `json:"channel"`
+	TenantID string        `json:"tenant_id,omitempty"`
+	Message  ServerMessage `json:"message"`
 }
 
-// handleGlobalMessage processes a message received from another instance
 func (m *Manager) handleGlobalMessage(msg pubsub.Message) {
 	var broadcast GlobalBroadcast
 	if err := json.Unmarshal(msg.Payload, &broadcast); err != nil {
@@ -209,24 +209,19 @@ func (m *Manager) handleGlobalMessage(msg pubsub.Message) {
 		return
 	}
 
-	// Deliver to local connections subscribed to the channel
-	m.BroadcastToChannel(broadcast.Channel, broadcast.Message)
+	m.BroadcastToChannel(broadcast.Channel, broadcast.TenantID, broadcast.Message)
 }
 
-// BroadcastGlobal sends a message to all connections across all instances.
-// If pub/sub is configured, it publishes to the broadcast channel.
-// Otherwise, it only broadcasts to local connections.
-func (m *Manager) BroadcastGlobal(channel string, message ServerMessage) error {
+func (m *Manager) BroadcastGlobal(channel string, tenantID string, message ServerMessage) error {
 	if m.ps == nil {
-		// No pub/sub configured - broadcast locally only
-		m.BroadcastToChannel(channel, message)
+		m.BroadcastToChannel(channel, tenantID, message)
 		return nil
 	}
 
-	// Publish to pub/sub for cross-instance delivery
 	broadcast := GlobalBroadcast{
-		Channel: channel,
-		Message: message,
+		Channel:  channel,
+		TenantID: tenantID,
+		Message:  message,
 	}
 
 	payload, err := json.Marshal(broadcast)
@@ -411,12 +406,15 @@ func (m *Manager) GetConnectionCount() int {
 }
 
 // BroadcastToChannel sends a message to all connections subscribed to a channel
-func (m *Manager) BroadcastToChannel(channel string, message ServerMessage) int {
+func (m *Manager) BroadcastToChannel(channel string, tenantID string, message ServerMessage) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	sentCount := 0
 	for _, conn := range m.connections {
+		if conn.TenantID != tenantID {
+			continue
+		}
 		if conn.IsSubscribed(channel) {
 			if err := conn.SendMessage(message); err != nil {
 				log.Error().
@@ -516,7 +514,7 @@ func (m *Manager) BroadcastConnectionEvent(event ConnectionEvent) {
 	message := event.ToServerMessage()
 
 	// Use global broadcast to ensure all instances receive the event
-	if err := m.BroadcastGlobal(AdminConnectionsChannel, message); err != nil {
+	if err := m.BroadcastGlobal(AdminConnectionsChannel, "", message); err != nil {
 		log.Error().
 			Err(err).
 			Str("event_type", string(event.Type)).

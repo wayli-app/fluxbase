@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"time"
@@ -228,7 +229,12 @@ func (h *MonitoringHandler) getStorageStats(c fiber.Ctx) (*StorageStats, error) 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
-	jwtClaims := fmt.Sprintf(`{"sub":"%s","role":"%s"}`, userID, role)
+	claimsMap := map[string]string{"sub": userID, "role": role}
+	jwtClaimsBytes, err := json.Marshal(claimsMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal JWT claims: %w", err)
+	}
+	jwtClaims := string(jwtClaimsBytes)
 	if _, err := tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims); err != nil {
 		return nil, fmt.Errorf("failed to set JWT claims: %w", err)
 	}

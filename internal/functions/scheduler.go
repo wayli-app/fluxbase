@@ -210,12 +210,11 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID s
 	s.logCounters.Store(executionID, &executionLogContext{tenantID: tenantID})
 	defer s.logCounters.Delete(executionID)
 
-	perms := runtime.Permissions{
-		AllowNet:   fn.AllowNet,
-		AllowEnv:   fn.AllowEnv,
-		AllowRead:  fn.AllowRead,
-		AllowWrite: fn.AllowWrite,
-	}
+	perms := runtime.DefaultJobPermissions()
+	perms.AllowNet = fn.AllowNet
+	perms.AllowEnv = fn.AllowEnv
+	perms.AllowRead = fn.AllowRead
+	perms.AllowWrite = fn.AllowWrite
 
 	var timeoutOverride *time.Duration
 	if fn.TimeoutSeconds > 0 {

@@ -463,7 +463,7 @@ func TestRealtimeWebSocketProtocol_Integration_Broadcasting(t *testing.T) {
 			},
 		}
 
-		sentCount := manager.BroadcastToChannel("test:channel", message)
+		sentCount := manager.BroadcastToChannel("test:channel", "", message)
 		assert.Equal(t, 2, sentCount)
 
 		// Cleanup
@@ -483,7 +483,7 @@ func TestRealtimeWebSocketProtocol_Integration_Broadcasting(t *testing.T) {
 			Payload: map[string]interface{}{},
 		}
 
-		sentCount := manager.BroadcastToChannel("empty:channel", message)
+		sentCount := manager.BroadcastToChannel("empty:channel", "", message)
 		assert.Equal(t, 0, sentCount)
 
 		manager.RemoveConnection(connID)

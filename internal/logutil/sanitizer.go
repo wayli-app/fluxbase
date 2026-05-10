@@ -7,6 +7,16 @@ import (
 	"strings"
 )
 
+var (
+	singleQuoteRe = regexp.MustCompile(`'(?:[^']|'')*'`)
+	paramRe       = regexp.MustCompile(`\$\d+`)
+	dollarQuoteRe = regexp.MustCompile(`\$\$[^$]*\$\$`)
+	dollarTagRe   = regexp.MustCompile(`\$[a-zA-Z0-9_]+\$.*?\$[a-zA-Z0-9_]+\$`)
+	numericRe     = regexp.MustCompile(`\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b`)
+	ipRe          = regexp.MustCompile(`\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`)
+	uuidRe        = regexp.MustCompile(`\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b`)
+)
+
 // SanitizeSQL removes sensitive data from SQL queries by replacing literal values
 // with placeholders. This prevents passwords, PII, and other sensitive data from
 // appearing in logs.
@@ -23,57 +33,30 @@ import (
 //	SELECT * FROM users WHERE email = 'user@example.com' AND id = 123
 //	=> SELECT * FROM users WHERE email = '<redacted>' AND id = <num>
 func SanitizeSQL(query string) string {
-	// Order matters - process from most specific to least specific
+	query = singleQuoteRe.ReplaceAllString(query, "'<redacted>'")
 
-	// 1. Remove single-quoted string literals (including escaped quotes)
-	// This handles: 'value', 'it''s', 'O''Reilly', 'hello\nworld'
-	singleQuotePattern := regexp.MustCompile(`'(?:[^']|'')*'`)
-	query = singleQuotePattern.ReplaceAllString(query, "'<redacted>'")
-
-	// 2. Preserve PostgreSQL parameter placeholders ($1, $2, etc.)
-	// Replace them with temporary markers to avoid numeric replacement
-	paramPattern := regexp.MustCompile(`\$\d+`)
-	params := paramPattern.FindAllString(query, -1)
+	params := paramRe.FindAllString(query, -1)
 	for i, param := range params {
 		query = strings.Replace(query, param, "\x00PARAM"+fmt.Sprint(i)+"\x00", 1)
 	}
 
-	// 3. Remove dollar-quoted string literals (PostgreSQL specific)
-	// $$value$$ or $$any string here$$
-	// Must be BEFORE $tag$ pattern to avoid $$ being matched as $tag$
-	// Note: In Go regex replacement, $$ is a literal $, so we use $$$$ for $$
-	dollarQuotePattern := regexp.MustCompile(`\$\$[^$]*\$\$`)
-	query = dollarQuotePattern.ReplaceAllString(query, "$$$$<redacted>$$$$")
+	query = dollarQuoteRe.ReplaceAllString(query, "$$$$<redacted>$$$$")
 
-	// 4. Remove dollar-tagged string literals: $tag$...$tag$
-	// e.g., $function$CREATE FUNCTION...$function$
-	// Requires at least one character in the tag name (won't match $$)
-	// Note: In Go regex replacement, $$ is a literal $, so we use $$ for $
-	dollarTagPattern := regexp.MustCompile(`\$[a-zA-Z0-9_]+\$.*?\$[a-zA-Z0-9_]+\$`)
-	query = dollarTagPattern.ReplaceAllString(query, "$$<redacted>$$")
+	query = dollarTagRe.ReplaceAllString(query, "$$<redacted>$$")
 
-	// 5. Replace numeric literals (but keep parameter placeholders like $1, $2)
-	// This handles integers, floats, scientific notation, hex numbers
-	numericPattern := regexp.MustCompile(`\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b`)
-	query = numericPattern.ReplaceAllString(query, "<num>")
+	query = numericRe.ReplaceAllString(query, "<num>")
 
-	// 6. Restore parameter placeholders
 	for i, param := range params {
 		query = strings.Replace(query, "\x00PARAM"+fmt.Sprint(i)+"\x00", param, 1)
 	}
 
-	// 5. Replace boolean and special keywords
 	query = strings.ReplaceAll(query, " TRUE", " <bool>")
 	query = strings.ReplaceAll(query, " FALSE", " <bool>")
 	query = strings.ReplaceAll(query, " NULL", " <null>")
 
-	// 6. Remove IPv4 addresses
-	ipPattern := regexp.MustCompile(`\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`)
-	query = ipPattern.ReplaceAllString(query, "<ip>")
+	query = ipRe.ReplaceAllString(query, "<ip>")
 
-	// 7. Remove UUIDs (but keep common function names like uuid_generate)
-	uuidPattern := regexp.MustCompile(`\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b`)
-	query = uuidPattern.ReplaceAllString(query, "<uuid>")
+	query = uuidRe.ReplaceAllString(query, "<uuid>")
 
 	return query
 }

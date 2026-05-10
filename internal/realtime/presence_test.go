@@ -21,7 +21,7 @@ func TestPresenceManager_Track(t *testing.T) {
 		userID := "user-123"
 		state := PresenceState{"status": "online"}
 
-		info, isNew := pm.Track("room:1", "user:123", state, &userID, "conn-1")
+		info, isNew := pm.Track("room:1", "user:123", state, &userID, "conn-1", "")
 
 		require.NotNil(t, info)
 		assert.True(t, isNew)
@@ -39,8 +39,8 @@ func TestPresenceManager_Track(t *testing.T) {
 		state1 := PresenceState{"status": "online"}
 		state2 := PresenceState{"status": "busy"}
 
-		info1, isNew1 := pm.Track("room:1", "user:123", state1, &userID, "conn-1")
-		info2, isNew2 := pm.Track("room:1", "user:123", state2, &userID, "conn-1")
+		info1, isNew1 := pm.Track("room:1", "user:123", state1, &userID, "conn-1", "")
+		info2, isNew2 := pm.Track("room:1", "user:123", state2, &userID, "conn-1", "")
 
 		assert.True(t, isNew1)
 		assert.False(t, isNew2)
@@ -54,7 +54,7 @@ func TestPresenceManager_Track(t *testing.T) {
 
 		state := PresenceState{"name": "anonymous"}
 
-		info, isNew := pm.Track("room:1", "anon:1", state, nil, "conn-1")
+		info, isNew := pm.Track("room:1", "anon:1", state, nil, "conn-1", "")
 
 		require.NotNil(t, info)
 		assert.True(t, isNew)
@@ -64,9 +64,9 @@ func TestPresenceManager_Track(t *testing.T) {
 	t.Run("tracks multiple presences in same channel", func(t *testing.T) {
 		pm := NewPresenceManager()
 
-		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1")
-		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2")
-		pm.Track("room:1", "user:3", PresenceState{}, nil, "conn-3")
+		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1", "")
+		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2", "")
+		pm.Track("room:1", "user:3", PresenceState{}, nil, "conn-3", "")
 
 		count := pm.GetChannelPresenceCount("room:1")
 		assert.Equal(t, 3, count)
@@ -75,8 +75,8 @@ func TestPresenceManager_Track(t *testing.T) {
 	t.Run("tracks presences across multiple channels", func(t *testing.T) {
 		pm := NewPresenceManager()
 
-		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1")
-		pm.Track("room:2", "user:1", PresenceState{}, nil, "conn-1")
+		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1", "")
+		pm.Track("room:2", "user:1", PresenceState{}, nil, "conn-1", "")
 
 		assert.Equal(t, 1, pm.GetChannelPresenceCount("room:1"))
 		assert.Equal(t, 1, pm.GetChannelPresenceCount("room:2"))
@@ -89,7 +89,7 @@ func TestPresenceManager_Untrack(t *testing.T) {
 
 		userID := "user-123"
 		state := PresenceState{"status": "online"}
-		pm.Track("room:1", "user:123", state, &userID, "conn-1")
+pm.Track("room:1", "user:123", state, &userID, "conn-1", "")
 
 		info := pm.Untrack("room:1", "user:123", "conn-1")
 
@@ -111,7 +111,7 @@ func TestPresenceManager_Untrack(t *testing.T) {
 	t.Run("cleans up empty channel map", func(t *testing.T) {
 		pm := NewPresenceManager()
 
-		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1")
+		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1", "")
 		pm.Untrack("room:1", "user:1", "conn-1")
 
 		// The channel should be removed from the map
@@ -134,8 +134,8 @@ func TestPresenceManager_GetPresenceState(t *testing.T) {
 	t.Run("returns presence state for channel", func(t *testing.T) {
 		pm := NewPresenceManager()
 
-		pm.Track("room:1", "user:1", PresenceState{"status": "online"}, nil, "conn-1")
-		pm.Track("room:1", "user:2", PresenceState{"status": "away"}, nil, "conn-2")
+		pm.Track("room:1", "user:1", PresenceState{"status": "online"}, nil, "conn-1", "")
+		pm.Track("room:1", "user:2", PresenceState{"status": "away"}, nil, "conn-2", "")
 
 		state := pm.GetPresenceState("room:1")
 
@@ -152,12 +152,12 @@ func TestPresenceManager_CleanupConnection(t *testing.T) {
 		pm := NewPresenceManager()
 
 		// Track presence in multiple channels for the same connection
-		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1")
-		pm.Track("room:2", "user:1", PresenceState{}, nil, "conn-1")
-		pm.Track("room:3", "user:1", PresenceState{}, nil, "conn-1")
+		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1", "")
+		pm.Track("room:2", "user:1", PresenceState{}, nil, "conn-1", "")
+		pm.Track("room:3", "user:1", PresenceState{}, nil, "conn-1", "")
 
 		// Another connection in room:1
-		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2")
+		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2", "")
 
 		removed := pm.CleanupConnection("conn-1")
 
@@ -183,7 +183,7 @@ func TestPresenceManager_CleanupConnection(t *testing.T) {
 	t.Run("cleans up connection tracking", func(t *testing.T) {
 		pm := NewPresenceManager()
 
-		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1")
+		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1", "")
 		pm.CleanupConnection("conn-1")
 
 		pm.mu.RLock()
@@ -204,8 +204,8 @@ func TestPresenceManager_GetChannelPresenceCount(t *testing.T) {
 	t.Run("returns correct count", func(t *testing.T) {
 		pm := NewPresenceManager()
 
-		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1")
-		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2")
+		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1", "")
+		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2", "")
 
 		count := pm.GetChannelPresenceCount("room:1")
 		assert.Equal(t, 2, count)
@@ -214,8 +214,8 @@ func TestPresenceManager_GetChannelPresenceCount(t *testing.T) {
 	t.Run("updates count after untrack", func(t *testing.T) {
 		pm := NewPresenceManager()
 
-		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1")
-		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2")
+		pm.Track("room:1", "user:1", PresenceState{}, nil, "conn-1", "")
+		pm.Track("room:1", "user:2", PresenceState{}, nil, "conn-2", "")
 		pm.Untrack("room:1", "user:1", "conn-1")
 
 		count := pm.GetChannelPresenceCount("room:1")

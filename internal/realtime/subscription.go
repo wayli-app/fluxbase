@@ -343,13 +343,6 @@ func copyClaims(claims map[string]interface{}) map[string]interface{} {
 	return copied
 }
 
-// SubscriptionFilter represents filters for a subscription
-type SubscriptionFilter struct {
-	Column   string      `json:"column"`
-	Operator string      `json:"operator"` // eq, neq, gt, lt, gte, lte, in
-	Value    interface{} `json:"value"`
-}
-
 // LogSubscription represents a subscription to execution logs
 type LogSubscription struct {
 	ID            string

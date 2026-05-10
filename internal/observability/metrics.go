@@ -21,7 +21,44 @@ import (
 var (
 	uuidPattern    = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	numericPattern = regexp.MustCompile(`^\d+$`)
+	slugPattern    = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{2,}$`)
 )
+
+var knownSegments = map[string]bool{
+	"api": true, "v1": true, "v2": true, "admin": true, "auth": true,
+	"storage": true, "functions": true, "jobs": true, "tenants": true,
+	"health": true, "metrics": true, "mcp": true, "graphql": true,
+	"rpc": true, "webhooks": true, "branches": true, "branch": true,
+	"secrets": true, "ai": true, "realtime": true, "ws": true,
+	"public": true, "schema": true, "migrations": true, "settings": true,
+	"extensions": true, "invite": true, "invitations": true,
+	"login": true, "logout": true, "setup": true, "token": true,
+	"refresh": true, "verify": true, "reset": true, "callback": true,
+	"upload": true, "download": true, "signed": true, "render": true,
+	"buckets": true, "objects": true, "list": true, "invoke": true,
+	"logs": true, "execute": true, "cancel": true, "retry": true,
+	"schedule": true, "schedules": true, "progress": true,
+	"apply": true, "rollback": true, "sync": true, "pending": true,
+	"content": true, "status": true, "diff": true, "dump": true,
+	"chatbots": true, "knowledge-bases": true, "documents": true,
+	"embeddings": true, "search": true, "chat": true,
+	"subscribe": true, "unsubscribe": true, "presence": true,
+	"ping": true, "pong": true, "ready": true, "live": true,
+	"connect": true, "close": true, "me": true, "user": true,
+	"users": true, "sessions": true, "identities": true,
+	"roles": true, "permissions": true, "keys": true,
+	"service-keys": true, "members": true, "impersonate": true,
+	"otp": true, "mfa": true, "factors": true, "enroll": true,
+	"challenge": true, "magiclink": true, "saml": true, "sso": true,
+	"oidc": true, "oauth": true, "providers": true,
+	"github": true, "webhook": true, "events": true,
+	"deliveries": true, "redeliver": true, "test": true,
+	"resources": true, "tools": true, "prompts": true,
+	"capabilities": true, "completion": true, "initialize": true,
+	"notifications": true, "export": true, "import": true,
+	"bulk": true, "csv": true, "json": true,
+	"dashboard": true, "config": true, "info": true,
+}
 
 var (
 	metricsOnce     sync.Once
@@ -602,6 +639,8 @@ func normalizePath(path string) string {
 	segments := strings.Split(path, "/")
 	for i, seg := range segments {
 		if uuidPattern.MatchString(seg) || numericPattern.MatchString(seg) {
+			segments[i] = ":id"
+		} else if slugPattern.MatchString(seg) && !knownSegments[strings.ToLower(seg)] {
 			segments[i] = ":id"
 		}
 	}

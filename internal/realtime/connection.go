@@ -382,3 +382,9 @@ func (c *Connection) UpdateAuth(userID *string, role string, claims map[string]i
 		Str("role", role).
 		Msg("Updated connection auth")
 }
+
+func (c *Connection) GetRoleAndClaims() (string, map[string]interface{}) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Role, c.Claims
+}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -97,12 +98,17 @@ func (h *StorageHandler) setRLSContext(ctx context.Context, tx pgx.Tx, c fiber.C
 		}
 	}
 
-	var jwtClaims string
+	var claimsMap map[string]string
 	if userIDStr != "" {
-		jwtClaims = fmt.Sprintf(`{"sub":"%s","role":"%s"}`, userIDStr, roleStr)
+		claimsMap = map[string]string{"sub": userIDStr, "role": roleStr}
 	} else {
-		jwtClaims = fmt.Sprintf(`{"role":"%s"}`, roleStr)
+		claimsMap = map[string]string{"role": roleStr}
 	}
+	jwtClaimsBytes, err := json.Marshal(claimsMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JWT claims: %w", err)
+	}
+	jwtClaims := string(jwtClaimsBytes)
 
 	if _, err := tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims); err != nil {
 		return fmt.Errorf("failed to set request.jwt.claims: %w", err)
