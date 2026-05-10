@@ -47,7 +47,7 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	m.Tenant = NewTenantSettingsHandler(unifiedSettingsService, tenantStorage)
 
 	tenantConfigResolver := NewTenantConfigResolver(db, cfg, unifiedSettingsService)
-	SetGlobalResolver(tenantConfigResolver)
+	registry.Register(tenantConfigResolver)
 	log.Info().Msg("Tenant config resolver initialized for dynamic settings")
 
 	m.System = NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())

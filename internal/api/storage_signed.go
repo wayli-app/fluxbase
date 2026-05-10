@@ -14,14 +14,6 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/storage"
 )
 
-// signedURLRateLimiter provides simple IP-based rate limiting for signed URL downloads
-// This prevents DoS attacks via shared signed URLs
-var signedURLRateLimiter = &ipRateLimiter{
-	requests: make(map[string]*rateLimitEntry),
-	limit:    100,             // 100 requests per window
-	window:   time.Minute * 1, // 1 minute window
-}
-
 type ipRateLimiter struct {
 	mu       sync.Mutex
 	requests map[string]*rateLimitEntry
@@ -133,7 +125,7 @@ func (h *StorageHandler) GenerateSignedURL(c fiber.Ctx) error {
 func (h *StorageHandler) DownloadSignedObject(c fiber.Ctx) error {
 	// Rate limit by IP to prevent DoS via shared signed URLs
 	clientIP := c.IP()
-	if !signedURLRateLimiter.allow(clientIP) {
+	if !h.signedURLLimiter.allow(clientIP) {
 		log.Warn().Str("ip", clientIP).Msg("Rate limit exceeded for signed URL download")
 		return SendErrorWithCode(c, fiber.StatusTooManyRequests, "Rate limit exceeded, please try again later", ErrCodeRateLimited)
 	}

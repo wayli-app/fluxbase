@@ -24,8 +24,9 @@ type MonitoringHandler struct {
 	db              *database.Connection
 	realtimeHandler *realtime.RealtimeHandler
 	storageProvider storage.Provider
-	loggingService  *logging.Service // Optional - may be nil if logging not configured
-	jobsStorage     *jobs.Storage    // Optional - may be nil if jobs not enabled
+	loggingService  *logging.Service
+	jobsStorage     *jobs.Storage
+	startTime       time.Time
 }
 
 // NewMonitoringHandler creates a new monitoring handler
@@ -34,6 +35,7 @@ func NewMonitoringHandler(db *database.Connection, realtimeHandler *realtime.Rea
 		db:              db,
 		realtimeHandler: realtimeHandler,
 		storageProvider: storageProvider,
+		startTime:       time.Now(),
 	}
 }
 
@@ -114,10 +116,6 @@ type SystemHealth struct {
 	Services map[string]HealthStatus `json:"services"`
 }
 
-var startTime = time.Now()
-
-// GetMetrics returns system metrics
-// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetMetrics(c fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -149,7 +147,7 @@ func (h *MonitoringHandler) GetMetrics(c fiber.Ctx) error {
 	}
 
 	metrics := SystemMetrics{
-		Uptime:       int64(time.Since(startTime).Seconds()),
+		Uptime:       int64(time.Since(h.startTime).Seconds()),
 		GoVersion:    runtime.Version(),
 		NumGoroutine: runtime.NumGoroutine(),
 

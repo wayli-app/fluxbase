@@ -17,6 +17,11 @@ func (s *Server) setupMiddlewares() {
 	log.Debug().Msg("Adding requestid middleware")
 	s.app.Use(requestid.New())
 
+	if resolver := GetService[*TenantConfigResolver](s.registry); resolver != nil {
+		log.Debug().Msg("Adding tenant config resolver middleware")
+		s.app.Use(TenantConfigResolverMiddleware(resolver))
+	}
+
 	if s.config.Tracing.Enabled && s.tracer != nil && s.tracer.IsEnabled() {
 		log.Debug().Msg("Adding OpenTelemetry tracing middleware")
 		s.app.Use(middleware.TracingMiddleware(middleware.TracingConfig{
