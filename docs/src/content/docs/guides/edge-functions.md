@@ -111,10 +111,11 @@ Edge functions can import and use the Fluxbase SDK for database operations, auth
 import { createClient } from "@nimbleflux/fluxbase-sdk";
 
 async function handler(req) {
-  // Create a service client with elevated permissions
+  // Create a service client using the per-request token
+  // Edge functions receive FLUXBASE_SERVICE_TOKEN (tenant-scoped) automatically
   const client = createClient(
     Deno.env.get("FLUXBASE_BASE_URL")!,
-    Deno.env.get("FLUXBASE_SERVICE_ROLE_KEY")!,
+    Deno.env.get("FLUXBASE_SERVICE_TOKEN")!,
   );
 
   // Query the database

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Filter represents a Supabase-compatible filter for realtime subscriptions
+// Filter represents a realtime subscription filter
 // Format: column=operator.value
 // Examples:
 //   - created_by=eq.user123
@@ -21,11 +21,11 @@ type Filter struct {
 	Value    string
 }
 
-// filterRegex matches the Supabase filter format: column=operator.value
+// filterRegex matches the filter format: column=operator.value
 // Supports JSONB path operators (-> and ->>) in column names
 var filterRegex = regexp.MustCompile(`^([\w]+(?:->?>?[\w]+)*)=(eq|neq|gt|gte|lt|lte|like|ilike|is|in)\.(.+)$`)
 
-// ParseFilter parses a Supabase-compatible filter string
+// ParseFilter parses a filter string
 // Returns nil if filterStr is empty (no filter)
 func ParseFilter(filterStr string) (*Filter, error) {
 	if filterStr == "" {
@@ -225,7 +225,7 @@ func (f *Filter) matchesIn(recordValue interface{}, filterValue string) bool {
 }
 
 // matchesPattern matches LIKE/ILIKE patterns
-// Supabase uses * as wildcard (converted to SQL %)
+	// * as wildcard (converted to SQL %)
 func (f *Filter) matchesPattern(recordValue interface{}, pattern string, caseInsensitive bool) bool {
 	recordStr := fmt.Sprint(recordValue)
 
@@ -234,9 +234,9 @@ func (f *Filter) matchesPattern(recordValue interface{}, pattern string, caseIns
 		pattern = strings.ToLower(pattern)
 	}
 
-	// Convert Supabase wildcard (*) to regex pattern
+	// Convert wildcard (*) to regex pattern
 	// * -> .*
-	// ? -> . (optional, not in Supabase spec but commonly used)
+	// ? -> . (optional)
 	regexPattern := regexp.QuoteMeta(pattern)
 	regexPattern = strings.ReplaceAll(regexPattern, `\*`, ".*")
 	regexPattern = "^" + regexPattern + "$"

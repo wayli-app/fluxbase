@@ -16,9 +16,9 @@ import (
 
 var ErrTenantDBUnavailable = errors.New("tenant database unavailable")
 
-// TenantStore provides the storage methods the tenant DB middleware needs.
+// TenantRepository provides the storage methods the tenant DB middleware needs.
 // Defined at the consumer side per Go convention. *tenantdb.Storage satisfies this.
-type TenantStore interface {
+type TenantRepository interface {
 	GetTenant(ctx context.Context, id string) (*tenantdb.Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (*tenantdb.Tenant, error)
 	GetDefaultTenant(ctx context.Context) (*tenantdb.Tenant, error)
@@ -33,13 +33,13 @@ type UserTenantLister interface {
 
 // Compile-time interface satisfaction checks
 var (
-	_ TenantStore      = (*tenantdb.Storage)(nil)
-	_ UserTenantLister = (*tenantdb.Storage)(nil)
+	_ TenantRepository = (*tenantdb.Repository)(nil)
+	_ UserTenantLister = (*tenantdb.Repository)(nil)
 )
 
 type TenantDBConfig struct {
 	Router  *tenantdb.Router
-	Storage TenantStore
+	Repository TenantRepository
 }
 
 func TenantDBMiddleware(cfg TenantDBConfig) fiber.Handler {
@@ -66,11 +66,11 @@ func TenantDBMiddleware(cfg TenantDBConfig) fiber.Handler {
 			tenantID = existingTenantID
 			tenantSource = existingSource
 		} else {
-			tenantID, tenantSource = resolveTenantID(c, userID, isInstanceAdmin, claims, cfg.Storage)
+			tenantID, tenantSource = resolveTenantID(c, userID, isInstanceAdmin, claims, cfg.Repository)
 		}
 
 		if tenantID != "" && !isInstanceAdmin && userRole != "tenant_service" && tenantRole != "tenant_service" && userID != "" {
-			hasAccess, err := cfg.Storage.IsUserAssignedToTenant(c.Context(), userID, tenantID)
+			hasAccess, err := cfg.Repository.IsUserAssignedToTenant(c.Context(), userID, tenantID)
 			if err != nil {
 				log.Debug().Err(err).Msg("Failed to check tenant access")
 				return fiber.NewError(fiber.StatusInternalServerError, "failed to verify tenant access")
@@ -87,8 +87,8 @@ func TenantDBMiddleware(cfg TenantDBConfig) fiber.Handler {
 		// Fetch tenant record and set DB context only for tenants with separate databases.
 		// For default tenants (UsesMainDatabase), tenant_db stays nil so handlers fall back
 		// to their default main pool — preserving backward compatibility.
-		if tenantID != "" && cfg.Storage != nil {
-			if tenant, err := cfg.Storage.GetTenant(c.Context(), tenantID); err == nil {
+		if tenantID != "" && cfg.Repository != nil {
+			if tenant, err := cfg.Repository.GetTenant(c.Context(), tenantID); err == nil {
 				c.Locals("tenant_slug", tenant.Slug)
 				if !tenant.UsesMainDatabase() {
 					c.Locals("tenant_db_name", *tenant.DBName)
@@ -102,7 +102,7 @@ func TenantDBMiddleware(cfg TenantDBConfig) fiber.Handler {
 			}
 		}
 
-		if userID != "" && tenantID != "" && cfg.Storage != nil {
+		if userID != "" && tenantID != "" && cfg.Repository != nil {
 			if claims != nil && claims.TenantID != nil && *claims.TenantID == tenantID && claims.TenantRole != "" {
 				c.Locals("tenant_role", claims.TenantRole)
 			}
@@ -120,7 +120,7 @@ func TenantDBMiddleware(cfg TenantDBConfig) fiber.Handler {
 	}
 }
 
-func resolveTenantID(c fiber.Ctx, userID string, isInstanceAdmin bool, claims *auth.TokenClaims, storage TenantStore) (string, string) {
+func resolveTenantID(c fiber.Ctx, userID string, isInstanceAdmin bool, claims *auth.TokenClaims, storage TenantRepository) (string, string) {
 	if headerTenant := c.Get("X-FB-Tenant"); headerTenant != "" {
 		if storage != nil {
 			if tenant, err := storage.GetTenantBySlug(c.Context(), headerTenant); err == nil {

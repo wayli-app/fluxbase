@@ -21,8 +21,9 @@ import (
 // DDLHandler handles Database Definition Language (DDL) operations
 // for schema and table management
 type DDLHandler struct {
-	db          *database.Connection
-	schemaCache *database.SchemaCache
+	db                   *database.Connection
+	schemaCache          *database.SchemaCache
+	graphQLInvalidator   func()
 }
 
 // NewDDLHandler creates a new DDL handler
@@ -40,6 +41,10 @@ func (h *DDLHandler) requireDB(c fiber.Ctx) error {
 // SetSchemaCache sets the schema cache for invalidation after DDL operations
 func (h *DDLHandler) SetSchemaCache(cache *database.SchemaCache) {
 	h.schemaCache = cache
+}
+
+func (h *DDLHandler) SetGraphQLInvalidator(invalidator func()) {
+	h.graphQLInvalidator = invalidator
 }
 
 // Validation patterns
@@ -576,6 +581,9 @@ func (h *DDLHandler) executeWithAdminRole(ctx context.Context, c fiber.Ctx, fn f
 func (h *DDLHandler) invalidateCache(ctx context.Context) {
 	if h.schemaCache != nil {
 		h.schemaCache.InvalidateAll(ctx)
+	}
+	if h.graphQLInvalidator != nil {
+		h.graphQLInvalidator()
 	}
 }
 

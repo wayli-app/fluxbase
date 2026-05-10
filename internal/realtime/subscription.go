@@ -325,7 +325,7 @@ type Subscription struct {
 	Table  string
 	Schema string
 	Event  string  // INSERT, UPDATE, DELETE, or * for all
-	Filter *Filter // Supabase-compatible filter (column=operator.value)
+	Filter *Filter // Filter (column=operator.value)
 	ConnID string  // Connection ID this subscription belongs to
 }
 
@@ -420,7 +420,7 @@ func (sm *SubscriptionManager) CreateSubscription(
 		return nil, fmt.Errorf("table %s.%s not enabled for realtime", schema, table)
 	}
 
-	// Parse Supabase-compatible filter
+	// Parse filter
 	filter, err := ParseFilter(filterStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid filter: %w", err)
@@ -577,7 +577,7 @@ func (sm *SubscriptionManager) FilterEventForSubscribers(ctx context.Context, ev
 
 		// Check RLS access with copied claims
 		if sm.checkRLSAccess(ctx, sub, event, claims) {
-			// Check Supabase-compatible filter
+			// Check filter
 			if sm.matchesFilter(event, sub) {
 				result[sub.ConnID] = event
 			}
@@ -597,7 +597,7 @@ func (sm *SubscriptionManager) matchesEvent(eventType, subEvent string) bool {
 
 // matchesFilter checks if an event matches the subscription filter
 func (sm *SubscriptionManager) matchesFilter(event *ChangeEvent, sub *Subscription) bool {
-	// Use new Supabase-compatible filter if present
+	// Use filter if present
 	if sub.Filter != nil {
 		record := event.Record
 		if record == nil {

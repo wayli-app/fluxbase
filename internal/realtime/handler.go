@@ -48,7 +48,7 @@ type ClientMessage struct {
 	Event          string          `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
 	Schema         string          `json:"schema,omitempty"`
 	Table          string          `json:"table,omitempty"`
-	Filter         string          `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
+	Filter         string          `json:"filter,omitempty"` // Filter: column=operator.value
 	Payload        json.RawMessage `json:"payload,omitempty"`
 	Config         json.RawMessage `json:"config,omitempty"` // Raw config - can be PostgresChangesConfig or LogSubscriptionConfig
 	SubscriptionID string          `json:"subscription_id,omitempty"`
@@ -653,7 +653,7 @@ func (h *RealtimeHandler) handleBroadcast(conn *Connection, msg ClientMessage) {
 		},
 	})
 
-	// Send acknowledgment if messageId is present (Supabase-compatible broadcast acks)
+	// Send acknowledgment if messageId is present
 	if msg.MessageID != "" {
 		_ = conn.SendMessage(ServerMessage{
 			Type: MessageTypeAck,
