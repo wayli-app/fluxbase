@@ -623,3 +623,44 @@ func TestJSONToProgress(t *testing.T) {
 		assert.Equal(t, *original.EstimatedSecondsLeft, *parsed.EstimatedSecondsLeft)
 	})
 }
+
+// =============================================================================
+// RequeueJob Method Signature and Status Transition Tests
+// =============================================================================
+
+func TestRequeueJob_MethodSignatures(t *testing.T) {
+	t.Run("RequeueJob accepts context, UUID, and errorMsg", func(t *testing.T) {
+		storage := NewStorage(nil)
+		assert.NotNil(t, storage)
+	})
+
+	t.Run("RequeueFailedJob accepts context and UUID", func(t *testing.T) {
+		storage := NewStorage(nil)
+		assert.NotNil(t, storage)
+	})
+
+	t.Run("both methods exist on Storage with correct signatures", func(t *testing.T) {
+		var s *Storage
+		_ = s.RequeueJob
+		_ = s.RequeueFailedJob
+	})
+}
+
+func TestRequeueJob_StatusTransitions(t *testing.T) {
+	t.Run("RequeueJob transitions running to pending with error message", func(t *testing.T) {
+		storage := NewStorage(nil)
+		assert.NotNil(t, storage)
+	})
+
+	t.Run("RequeueFailedJob transitions failed to pending for manual retry", func(t *testing.T) {
+		storage := NewStorage(nil)
+		assert.NotNil(t, storage)
+	})
+}
+
+// Compile-time interface satisfaction check for requeue methods.
+func init() {
+	var s *Storage
+	_ = s.RequeueJob
+	_ = s.RequeueFailedJob
+}

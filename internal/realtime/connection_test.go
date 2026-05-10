@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -422,4 +423,63 @@ func BenchmarkConnection_GetQueueStats(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = connection.GetQueueStats()
 	}
+}
+
+// =============================================================================
+// GetRoleAndClaims Tests (H4)
+// =============================================================================
+
+func TestConnection_GetRoleAndClaims_Initial(t *testing.T) {
+	claims := map[string]interface{}{"sub": "user-123", "role": "authenticated"}
+	conn := NewConnection("test", nil, nil, "anon", claims, "", nil)
+	defer func() { _ = conn.Close() }()
+
+	role, gotClaims := conn.GetRoleAndClaims()
+	assert.Equal(t, "anon", role)
+	assert.Equal(t, claims, gotClaims)
+}
+
+func TestConnection_UpdateAuth_UpdatesRoleAndClaims(t *testing.T) {
+	conn := NewConnection("test", nil, nil, "anon", map[string]interface{}{"initial": true}, "", nil)
+	defer func() { _ = conn.Close() }()
+
+	role, claims := conn.GetRoleAndClaims()
+	assert.Equal(t, "anon", role)
+	assert.Equal(t, map[string]interface{}{"initial": true}, claims)
+
+	newClaims := map[string]interface{}{"sub": "user-456", "email": "test@example.com"}
+	conn.UpdateAuth(nil, "authenticated", newClaims)
+
+	role, claims = conn.GetRoleAndClaims()
+	assert.Equal(t, "authenticated", role)
+	assert.Equal(t, newClaims, claims)
+}
+
+func TestConnection_GetRoleAndClaims_ConcurrentSafe(t *testing.T) {
+	conn := NewConnection("test", nil, nil, "anon", map[string]interface{}{"initial": true}, "", nil)
+	defer func() { _ = conn.Close() }()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			conn.UpdateAuth(nil, fmt.Sprintf("role-%d", i), map[string]interface{}{"i": i})
+		}
+	}()
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				role, claims := conn.GetRoleAndClaims()
+				_ = role
+				_ = claims
+			}
+		}()
+	}
+
+	wg.Wait()
 }

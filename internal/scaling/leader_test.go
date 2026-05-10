@@ -330,3 +330,88 @@ func BenchmarkIsLeader_Concurrent(b *testing.B) {
 		}
 	})
 }
+
+// =============================================================================
+// Start/Stop Idempotency and Safety Tests
+// =============================================================================
+
+func TestLeaderElector_StartIdempotent(t *testing.T) {
+	t.Run("Start is idempotent", func(t *testing.T) {
+		elector := NewLeaderElector(nil, JobsSchedulerLockID, "test")
+
+		assert.False(t, elector.started, "should not be started initially")
+
+		elector.Start(func() {}, func() {})
+		assert.True(t, elector.started, "started should be true after first Start")
+
+		elector.Start(func() {}, func() {})
+		assert.True(t, elector.started, "started should still be true after second Start")
+
+		elector.cancel()
+	})
+}
+
+func TestLeaderElector_StopSafety(t *testing.T) {
+	t.Run("Stop is safe when not started", func(t *testing.T) {
+		elector := NewLeaderElector(nil, JobsSchedulerLockID, "test")
+
+		assert.NotPanics(t, func() {
+			elector.Stop()
+		})
+	})
+
+	t.Run("Stop clears leadership state", func(t *testing.T) {
+		elector := NewLeaderElector(nil, JobsSchedulerLockID, "test")
+
+		elector.isLeaderMu.Lock()
+		elector.isLeader = true
+		elector.isLeaderMu.Unlock()
+		assert.True(t, elector.IsLeader())
+
+		elector.Stop()
+
+		assert.False(t, elector.IsLeader(), "Stop should clear leadership")
+	})
+
+	t.Run("Stop is safe to call multiple times", func(t *testing.T) {
+		elector := NewLeaderElector(nil, JobsSchedulerLockID, "test")
+
+		assert.NotPanics(t, func() {
+			elector.Stop()
+			elector.Stop()
+			elector.Stop()
+		})
+	})
+}
+
+func TestLeaderElector_ReleaseLockSafety(t *testing.T) {
+	t.Run("releaseLock is safe with nil dedicatedConn", func(t *testing.T) {
+		elector := NewLeaderElector(nil, JobsSchedulerLockID, "test")
+
+		assert.NotPanics(t, func() {
+			elector.releaseLock()
+		})
+	})
+
+	t.Run("releaseLock clears isLeader", func(t *testing.T) {
+		elector := NewLeaderElector(nil, JobsSchedulerLockID, "test")
+
+		elector.isLeaderMu.Lock()
+		elector.isLeader = true
+		elector.isLeaderMu.Unlock()
+
+		elector.releaseLock()
+
+		assert.False(t, elector.IsLeader())
+	})
+
+	t.Run("releaseLock is safe to call multiple times", func(t *testing.T) {
+		elector := NewLeaderElector(nil, JobsSchedulerLockID, "test")
+
+		assert.NotPanics(t, func() {
+			elector.releaseLock()
+			elector.releaseLock()
+			elector.releaseLock()
+		})
+	})
+}
