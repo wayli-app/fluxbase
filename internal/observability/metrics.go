@@ -27,6 +27,7 @@ var (
 var knownSegments = map[string]bool{
 	"api": true, "v1": true, "v2": true, "admin": true, "auth": true,
 	"storage": true, "functions": true, "jobs": true, "tenants": true,
+	"tables": true, "records": true, "posts": true,
 	"health": true, "metrics": true, "mcp": true, "graphql": true,
 	"rpc": true, "webhooks": true, "branches": true, "branch": true,
 	"secrets": true, "ai": true, "realtime": true, "ws": true,
