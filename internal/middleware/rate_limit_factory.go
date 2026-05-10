@@ -64,10 +64,10 @@ func NewRateLimitFactory(security *config.SecurityConfig, storage fiber.Storage,
 
 // Create returns a rate limiter middleware by name.
 // It looks up the definition in the registry and applies any config overrides.
-func (f *RateLimitFactory) Create(name string) fiber.Handler {
+func (f *RateLimitFactory) Create(name string) (fiber.Handler, error) {
 	def, ok := f.registry[name]
 	if !ok {
-		panic(fmt.Sprintf("unknown rate limiter: %s", name))
+		return nil, fmt.Errorf("unknown rate limiter: %s", name)
 	}
 
 	max := def.DefaultMax
@@ -79,26 +79,26 @@ func (f *RateLimitFactory) Create(name string) fiber.Handler {
 		window = f.getConfigDuration(def.ConfigWindowField, window)
 	}
 
-	return f.createLimiter(def, max, window)
+	return f.createLimiter(def, max, window), nil
 }
 
 // CreateWithOverride returns a rate limiter with custom max and window values.
 // This is useful when you need to override the defaults without modifying the registry.
-func (f *RateLimitFactory) CreateWithOverride(name string, max int, window time.Duration) fiber.Handler {
+func (f *RateLimitFactory) CreateWithOverride(name string, max int, window time.Duration) (fiber.Handler, error) {
 	def, ok := f.registry[name]
 	if !ok {
-		panic(fmt.Sprintf("unknown rate limiter: %s", name))
+		return nil, fmt.Errorf("unknown rate limiter: %s", name)
 	}
 
-	return f.createLimiter(def, max, window)
+	return f.createLimiter(def, max, window), nil
 }
 
 // CreateFromConfig creates a rate limiter using values from the settings cache.
 // This enables dynamic rate limit configuration at runtime.
-func (f *RateLimitFactory) CreateFromConfig(name string, settingsCache *auth.SettingsCache) fiber.Handler {
+func (f *RateLimitFactory) CreateFromConfig(name string, settingsCache *auth.SettingsCache) (fiber.Handler, error) {
 	def, ok := f.registry[name]
 	if !ok {
-		panic(fmt.Sprintf("unknown rate limiter: %s", name))
+		return nil, fmt.Errorf("unknown rate limiter: %s", name)
 	}
 
 	max := def.DefaultMax
@@ -116,7 +116,7 @@ func (f *RateLimitFactory) CreateFromConfig(name string, settingsCache *auth.Set
 		_ = windowKey
 	}
 
-	return f.createLimiter(def, max, window)
+	return f.createLimiter(def, max, window), nil
 }
 
 // createLimiter creates a rate limiter from a definition with the given max and window.
@@ -271,10 +271,10 @@ func (f *RateLimitFactory) getConfigDuration(fieldName string, defaultVal time.D
 // - anonMax: Maximum requests for anonymous (IP-based) users
 // - userMax: Maximum requests for authenticated users
 // - clientKeyMax: Maximum requests for client key users
-func (f *RateLimitFactory) CreateTieredLimiter(name string, anonMax, userMax, clientKeyMax int, window time.Duration) fiber.Handler {
+func (f *RateLimitFactory) CreateTieredLimiter(name string, anonMax, userMax, clientKeyMax int, window time.Duration) (fiber.Handler, error) {
 	def, ok := f.registry[name]
 	if !ok {
-		panic(fmt.Sprintf("unknown rate limiter: %s", name))
+		return nil, fmt.Errorf("unknown rate limiter: %s", name)
 	}
 
 	prefix := def.KeyPrefix
@@ -308,15 +308,15 @@ func (f *RateLimitFactory) CreateTieredLimiter(name string, anonMax, userMax, cl
 		},
 		Message: "Rate limit exceeded. Please try again later.",
 		Storage: f.storage,
-	})
+	}), nil
 }
 
 // CreateEmailBasedLimiter creates a rate limiter keyed by email from request body.
 // This is useful for operations like password reset where email is the primary identifier.
-func (f *RateLimitFactory) CreateEmailBasedLimiter(name string, max int, window time.Duration) fiber.Handler {
+func (f *RateLimitFactory) CreateEmailBasedLimiter(name string, max int, window time.Duration) (fiber.Handler, error) {
 	def, ok := f.registry[name]
 	if !ok {
-		panic(fmt.Sprintf("unknown rate limiter: %s", name))
+		return nil, fmt.Errorf("unknown rate limiter: %s", name)
 	}
 
 	prefix := def.KeyPrefix
@@ -339,5 +339,5 @@ func (f *RateLimitFactory) CreateEmailBasedLimiter(name string, max int, window 
 		},
 		Message: "Too many requests. Please try again later.",
 		Storage: f.storage,
-	})
+	}), nil
 }

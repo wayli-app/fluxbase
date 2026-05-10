@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/nimbleflux/fluxbase/internal/database"
 )
 
 // SecurityEventType represents the type of security event
@@ -63,13 +65,16 @@ func NewSecurityLogger() *SecurityLogger {
 // All security events are logged at INFO level with a "security_event" marker
 // so they can be easily filtered and monitored
 func (s *SecurityLogger) Log(ctx context.Context, event SecurityEvent) {
-	// Use log.Info() directly to ensure we use the current global logger writer
-	// (which may have been replaced by the logging service after package init)
 	logEvent := log.Info().
 		Str("component", "security").
 		Str("security_event", string(event.Type)).
 		Str("event_type", string(event.Type))
 
+	if ctx != nil {
+		if tenantID := database.TenantFromContext(ctx); tenantID != "" {
+			logEvent = logEvent.Str("tenant_id", tenantID)
+		}
+	}
 	if event.UserID != "" {
 		logEvent = logEvent.Str("user_id", event.UserID)
 	}
@@ -91,12 +96,16 @@ func (s *SecurityLogger) Log(ctx context.Context, event SecurityEvent) {
 
 // LogWarning logs a warning-level security event (suspicious activity)
 func (s *SecurityLogger) LogWarning(ctx context.Context, event SecurityEvent) {
-	// Use log.Warn() directly to ensure we use the current global logger writer
 	logEvent := log.Warn().
 		Str("component", "security").
 		Str("security_event", string(event.Type)).
 		Str("event_type", string(event.Type))
 
+	if ctx != nil {
+		if tenantID := database.TenantFromContext(ctx); tenantID != "" {
+			logEvent = logEvent.Str("tenant_id", tenantID)
+		}
+	}
 	if event.UserID != "" {
 		logEvent = logEvent.Str("user_id", event.UserID)
 	}

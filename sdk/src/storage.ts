@@ -125,7 +125,7 @@ export class StorageBucket {
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const url = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
+      const url = `${this.fetch.getBaseUrl()}/api/v1/storage/${this.bucketName}/${path}`;
 
       // Track upload progress
       xhr.upload.addEventListener("progress", (event) => {
@@ -171,7 +171,7 @@ export class StorageBucket {
       xhr.open("POST", url);
 
       // Set authorization header if present
-      const headers = this.fetch["defaultHeaders"];
+      const headers = this.fetch.getDefaultHeaders();
       for (const [key, value] of Object.entries(headers)) {
         // Don't set Content-Type header - let browser handle it for FormData
         if (key.toLowerCase() !== "content-type") {
@@ -232,7 +232,7 @@ export class StorageBucket {
 
       // Build headers for streaming upload
       const headers: Record<string, string> = {
-        ...this.fetch["defaultHeaders"],
+        ...this.fetch.getDefaultHeaders(),
         "Content-Length": String(size),
       };
 
@@ -278,7 +278,7 @@ export class StorageBucket {
       // Use fetch with streaming body
       // Note: duplex: 'half' is required for streaming request bodies
       const response = await fetch(
-        `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/stream/${path}`,
+        `${this.fetch.getBaseUrl()}/api/v1/storage/${this.bucketName}/stream/${path}`,
         {
           method: "POST",
           headers,
@@ -407,9 +407,9 @@ export class StorageBucket {
 
       try {
         const response = await fetch(
-          `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`,
+          `${this.fetch.getBaseUrl()}/api/v1/storage/${this.bucketName}/${path}`,
           {
-            headers: this.fetch["defaultHeaders"],
+            headers: this.fetch.getDefaultHeaders(),
             signal: controller.signal,
           },
         );
@@ -491,8 +491,8 @@ export class StorageBucket {
       const retryDelayMs = options?.retryDelayMs ?? 1000;
       const chunkTimeout = options?.chunkTimeout ?? 30000;
 
-      const url = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
-      const headers = this.fetch["defaultHeaders"];
+      const url = `${this.fetch.getBaseUrl()}/api/v1/storage/${this.bucketName}/${path}`;
+      const headers = this.fetch.getDefaultHeaders();
 
       // Check if already aborted
       if (options?.signal?.aborted) {
@@ -730,8 +730,8 @@ export class StorageBucket {
         return { data: null, error: new Error("Upload aborted") };
       }
 
-      const baseUrl = this.fetch["baseUrl"];
-      const headers = this.fetch["defaultHeaders"];
+      const baseUrl = this.fetch.getBaseUrl();
+      const headers = this.fetch.getDefaultHeaders();
 
       // 1. Initialize or resume session
       let sessionId = options?.resumeSessionId;
@@ -970,8 +970,8 @@ export class StorageBucket {
     sessionId: string,
   ): Promise<{ error: Error | null }> {
     try {
-      const baseUrl = this.fetch["baseUrl"];
-      const headers = this.fetch["defaultHeaders"];
+      const baseUrl = this.fetch.getBaseUrl();
+      const headers = this.fetch.getDefaultHeaders();
 
       const response = await fetch(
         `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/${sessionId}`,
@@ -1002,8 +1002,8 @@ export class StorageBucket {
     sessionId: string,
   ): Promise<{ data: ChunkedUploadSession | null; error: Error | null }> {
     try {
-      const baseUrl = this.fetch["baseUrl"];
-      const headers = this.fetch["defaultHeaders"];
+      const baseUrl = this.fetch.getBaseUrl();
+      const headers = this.fetch.getDefaultHeaders();
 
       const response = await fetch(
         `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/${sessionId}/status`,
@@ -1167,7 +1167,7 @@ export class StorageBucket {
    * @param path - The file path
    */
   getPublicUrl(path: string): { data: { publicUrl: string } } {
-    const publicUrl = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
+    const publicUrl = `${this.fetch.getBaseUrl()}/api/v1/storage/${this.bucketName}/${path}`;
     return { data: { publicUrl } };
   }
 
@@ -1223,7 +1223,7 @@ export class StorageBucket {
    * ```
    */
   getTransformUrl(path: string, transform: TransformOptions): string {
-    const baseUrl = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
+    const baseUrl = `${this.fetch.getBaseUrl()}/api/v1/storage/${this.bucketName}/${path}`;
     const queryString = this.buildTransformQuery(transform);
     return queryString ? `${baseUrl}?${queryString}` : baseUrl;
   }

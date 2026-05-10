@@ -36,7 +36,7 @@ func buildTenantDBURL(baseURL, dbName string) string {
 // middlewareTestEnv holds all resources needed for a middleware integration test.
 type middlewareTestEnv struct {
 	mainPool   *pgxpool.Pool
-	storage    *tenantdb.Storage
+	storage    *tenantdb.Repository
 	router     *tenantdb.Router
 	adminPool  *pgxpool.Pool
 	dbURL      string
@@ -67,7 +67,7 @@ func setupMiddlewareIntegration(t *testing.T) *middlewareTestEnv {
 	require.NoError(t, err, "Failed to create admin pool")
 
 	// Create Storage
-	storage := tenantdb.NewStorage(mainPool)
+	storage := tenantdb.NewRepository(mainPool)
 
 	// Create a default tenant (no separate DB)
 	defaultTenant := &tenantdb.Tenant{

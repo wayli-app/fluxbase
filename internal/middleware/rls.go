@@ -14,6 +14,16 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/database"
 )
 
+// TestTransactionMiddleware returns a Fiber middleware that injects a test transaction
+// into the request context. When set, WrapWithRLS reuses this transaction instead of
+// beginning a new one, enabling HTTP-level tests with transaction isolation.
+func TestTransactionMiddleware(tx pgx.Tx) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		c.Locals("test_tx", tx)
+		return c.Next()
+	}
+}
+
 // quoteIdentifier safely quotes a PostgreSQL identifier to prevent SQL injection.
 // It wraps the identifier in double quotes and escapes any embedded double quotes.
 func quoteIdentifier(identifier string) string {
@@ -164,12 +174,12 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, c
 		Str("db_role", dbRole).
 		Msg("SET LOCAL ROLE executed successfully")
 
-	// Build Supabase-compatible JWT claims JSON
+	// Build JWT claims JSON
 	// IMPORTANT: Store the ORIGINAL application role (not the mapped database role)
 	// This allows RLS policies to check fine-grained application roles like 'admin', 'moderator', etc.
 	jwtClaims := map[string]interface{}{
-		"sub":  userID, // Supabase uses 'sub' for user ID
-		"role": role,   // Original application role (admin, user, etc.) - NOT the database role
+		"sub":  userID,
+		"role": role, // Original application role (admin, user, etc.) - NOT the database role
 	}
 
 	// Add optional fields if claims are provided
@@ -208,7 +218,7 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, c
 		return fmt.Errorf("failed to marshal JWT claims: %w", err)
 	}
 
-	// Set request.jwt.claims session variable (Supabase format)
+	// Set request.jwt.claims session variable
 	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to set request.jwt.claims")
@@ -251,7 +261,6 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, c
 
 // WrapWithServiceRole wraps a database operation with service_role context
 // Used for privileged operations like auth, admin tasks, and webhooks
-// This is equivalent to how Supabase's auth service (GoTrue) uses supabase_auth_admin
 func WrapWithServiceRole(ctx context.Context, conn *database.Connection, fn func(tx pgx.Tx) error) error {
 	// Start transaction
 	tx, err := conn.Pool().Begin(ctx)
@@ -261,7 +270,7 @@ func WrapWithServiceRole(ctx context.Context, conn *database.Connection, fn func
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// SET LOCAL ROLE service_role - bypasses RLS for privileged operations
-	// This provides the same security model as Supabase's separate admin connections
+	// This provides the same security model as separate admin connections
 	// Using quoteIdentifier for consistent security practices
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", quoteIdentifier("service_role")))
 	if err != nil {
@@ -289,6 +298,35 @@ func WrapWithServiceRole(ctx context.Context, conn *database.Connection, fn func
 // The target schema is determined by GetTargetSchema(c), which callers can set
 // via SetTargetSchema before calling this function.
 func WrapWithRLS(ctx context.Context, conn *database.Connection, c fiber.Ctx, fn func(tx pgx.Tx) error) error {
+	if testTx, ok := c.Locals("test_tx").(pgx.Tx); ok && testTx != nil {
+		role := c.Locals("rls_role")
+		if role == nil {
+			role = "anon"
+		}
+		var userIDStr string
+		if userID := c.Locals("rls_user_id"); userID != nil {
+			userIDStr = fmt.Sprintf("%v", userID)
+		}
+		var claims *auth.TokenClaims
+		if jwtClaims := c.Locals("jwt_claims"); jwtClaims != nil {
+			if tc, ok := jwtClaims.(*auth.TokenClaims); ok {
+				claims = tc
+			}
+		}
+		roleStr := role.(string)
+		tenantID, hasTenant := c.Locals("tenant_id").(string)
+		isDefaultTenant, _ := c.Locals("is_default_tenant").(bool)
+		if hasTenant && tenantID != "" && !isDefaultTenant {
+			if roleStr == "instance_admin" || roleStr == "service_role" {
+				roleStr = "tenant_service"
+			}
+		}
+		if err := SetRLSContext(ctx, testTx, userIDStr, roleStr, claims); err != nil {
+			return err
+		}
+		return fn(testTx)
+	}
+
 	pool := GetPoolForSchema(c, GetTargetSchema(c), conn.Pool())
 
 	// Start transaction

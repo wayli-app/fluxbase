@@ -50,7 +50,7 @@ func TestTOTPSetupResponse_JSONFormat(t *testing.T) {
 		t.Error("URI should be an otpauth URI")
 	}
 
-	// Verify JSON structure matches Supabase format
+	// Verify JSON structure
 	var jsonMap map[string]interface{}
 	if err := json.Unmarshal(jsonData, &jsonMap); err != nil {
 		t.Fatalf("Failed to unmarshal to map: %v", err)
@@ -86,8 +86,7 @@ func TestTOTPSetupResponse_JSONFormat(t *testing.T) {
 	t.Logf("  JSON preview: %s", string(jsonData[:200])+"...")
 }
 
-func TestTOTPSetupResponse_SupabaseCompatibility(t *testing.T) {
-	// This test verifies the response matches Supabase's mfa.enroll() response format
+func TestTOTPSetupResponse_FieldNames(t *testing.T) {
 	secret, qrCodeDataURI, otpauthURI, _ := GenerateTOTPSecret("Fluxbase", "user@example.com")
 
 	response := &TOTPSetupResponse{
@@ -100,31 +99,16 @@ func TestTOTPSetupResponse_SupabaseCompatibility(t *testing.T) {
 
 	jsonData, _ := json.Marshal(response)
 
-	// Expected Supabase format:
-	// {
-	//   "id": "uuid",
-	//   "type": "totp",
-	//   "totp": {
-	//     "qr_code": "data:image/svg+xml;...",  // or PNG in our case
-	//     "secret": "...",
-	//     "uri": "otpauth://..."
-	//   }
-	// }
-
 	var result map[string]interface{}
 	_ = json.Unmarshal(jsonData, &result)
 
-	// Verify exact field names (Supabase uses snake_case in JSON)
 	if result["type"] != "totp" {
 		t.Error("Type field should be 'totp'")
 	}
 
 	totpObj := result["totp"].(map[string]interface{})
 
-	// Verify qr_code field exists (not qrCode or qr-code)
 	if _, ok := totpObj["qr_code"]; !ok {
 		t.Error("TOTP object should have 'qr_code' field with underscore")
 	}
-
-	t.Logf("✓ Response is Supabase-compatible")
 }

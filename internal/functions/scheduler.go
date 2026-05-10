@@ -118,7 +118,8 @@ func (s *Scheduler) ScheduleFunction(fn EdgeFunctionSummary) error {
 		funcTenantID = *fn.TenantID
 	}
 
-	entryID, err := s.inner.AddFunc(fn.Name, *fn.CronSchedule, func() {
+	key := funcNamespace + "/" + funcName
+	entryID, err := s.inner.AddFunc(key, *fn.CronSchedule, func() {
 		s.executeScheduledFunction(funcName, funcNamespace, funcTenantID)
 	})
 	if err != nil {
@@ -139,15 +140,16 @@ func (s *Scheduler) ScheduleFunction(fn EdgeFunctionSummary) error {
 	return nil
 }
 
-func (s *Scheduler) UnscheduleFunction(functionName string) {
-	if s.inner.IsScheduled(functionName) {
-		s.inner.Remove(functionName)
-		log.Info().Str("function", functionName).Msg("Function unscheduled")
+func (s *Scheduler) UnscheduleFunction(namespace, functionName string) {
+	key := namespace + "/" + functionName
+	if s.inner.IsScheduled(key) {
+		s.inner.Remove(key)
+		log.Info().Str("function", functionName).Str("namespace", namespace).Msg("Function unscheduled")
 	}
 }
 
 func (s *Scheduler) RescheduleFunction(fn EdgeFunctionSummary) error {
-	s.UnscheduleFunction(fn.Name)
+	s.UnscheduleFunction(fn.Namespace, fn.Name)
 	if fn.Enabled && fn.CronSchedule != nil && *fn.CronSchedule != "" {
 		return s.ScheduleFunction(fn)
 	}
@@ -155,7 +157,8 @@ func (s *Scheduler) RescheduleFunction(fn EdgeFunctionSummary) error {
 }
 
 func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID string) {
-	if !s.inner.Guard.Acquire(funcName) {
+	key := funcNamespace + "/" + funcName
+	if !s.inner.Guard.Acquire(key) {
 		return
 	}
 	defer s.inner.Guard.Release()
@@ -210,12 +213,11 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID s
 	s.logCounters.Store(executionID, &executionLogContext{tenantID: tenantID})
 	defer s.logCounters.Delete(executionID)
 
-	perms := runtime.Permissions{
-		AllowNet:   fn.AllowNet,
-		AllowEnv:   fn.AllowEnv,
-		AllowRead:  fn.AllowRead,
-		AllowWrite: fn.AllowWrite,
-	}
+	perms := runtime.DefaultJobPermissions()
+	perms.AllowNet = fn.AllowNet
+	perms.AllowEnv = fn.AllowEnv
+	perms.AllowRead = fn.AllowRead
+	perms.AllowWrite = fn.AllowWrite
 
 	var timeoutOverride *time.Duration
 	if fn.TimeoutSeconds > 0 {
@@ -308,10 +310,10 @@ func (s *Scheduler) GetScheduledFunctions() []string {
 	return functions
 }
 
-func (s *Scheduler) GetScheduleInfo(functionName string) (string, bool) {
-	return s.inner.GetScheduleInfo(functionName)
+func (s *Scheduler) GetScheduleInfo(namespace, functionName string) (string, bool) {
+	return s.inner.GetScheduleInfo(namespace + "/" + functionName)
 }
 
-func (s *Scheduler) IsScheduled(functionName string) bool {
-	return s.inner.IsScheduled(functionName)
+func (s *Scheduler) IsScheduled(namespace, functionName string) bool {
+	return s.inner.IsScheduled(namespace + "/" + functionName)
 }

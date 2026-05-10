@@ -562,9 +562,7 @@ func (m *JWTManager) GenerateAnonymousRefreshToken(userID string) (string, error
 }
 
 // ValidateServiceRoleToken validates a JWT that contains a role claim (anon, service_role, authenticated)
-// This is used for Supabase-compatible client keys which are JWTs with role claims.
 // Unlike user tokens, these don't require user lookup or revocation checks.
-// Accepts issuers: "fluxbase", "supabase-demo", "supabase"
 func (m *JWTManager) ValidateServiceRoleToken(tokenString string) (*TokenClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Verify signing method
@@ -587,7 +585,7 @@ func (m *JWTManager) ValidateServiceRoleToken(tokenString string) (*TokenClaims,
 
 	// Validate issuer - accept tokens from known issuers or no issuer
 	issuer := claims.Issuer
-	if issuer != "" && issuer != "fluxbase" && issuer != "supabase-demo" && issuer != "supabase" {
+	if issuer != "" && issuer != "fluxbase" {
 		return nil, ErrInvalidToken
 	}
 

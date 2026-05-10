@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MailPlus, Send, Copy, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/get-error-message";
 import { userManagementApi } from "@/lib/api";
 import { useTenantStore } from "@/stores/tenant-store";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -137,17 +138,8 @@ export function UsersInviteDialog({
       }
     },
     onError: (error: unknown) => {
-      const errorMessage =
-        error instanceof Error && "response" in error
-          ? (
-              error as {
-                response?: { data?: { error?: string } };
-                message?: string;
-              }
-            ).response?.data?.error || (error as Error).message
-          : "Unknown error";
       toast.error("Failed to invite user", {
-        description: errorMessage,
+        description: getErrorMessage(error),
       });
     },
   });

@@ -186,7 +186,7 @@ func setGraphQLRLSContext(ctx context.Context, tx pgx.Tx, rlsCtx *RLSContext) er
 		return fmt.Errorf("failed to marshal JWT claims: %w", err)
 	}
 
-	// Set request.jwt.claims session variable (Supabase format)
+	// Set request.jwt.claims session variable
 	if _, err := tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON)); err != nil {
 		log.Error().Err(err).Msg("GraphQL: Failed to set request.jwt.claims")
 		return fmt.Errorf("failed to set request.jwt.claims: %w", err)

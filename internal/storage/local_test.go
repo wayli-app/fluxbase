@@ -905,7 +905,7 @@ func TestLocalStorage_GetChunkedUploadSession(t *testing.T) {
 func TestLocalStorage_GetChunkedUploadSession_NotFound(t *testing.T) {
 	storage, _ := setupLocalStorage(t)
 
-	_, err := storage.GetChunkedUploadSession("nonexistent-upload-id")
+	_, err := storage.GetChunkedUploadSession("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }

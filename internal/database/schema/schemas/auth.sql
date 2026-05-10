@@ -4629,6 +4629,7 @@ SET search_path = public
 AS $$
 DECLARE
     ctx_tenant TEXT;
+    v_tenant_id UUID;
 BEGIN
     BEGIN
         ctx_tenant := current_setting('app.current_tenant_id', true);
@@ -4640,7 +4641,8 @@ BEGIN
     END;
 
     IF NEW.tenant_id IS NULL AND NEW.client_key_id IS NOT NULL THEN
-        SELECT tenant_id INTO NEW.tenant_id FROM auth.client_keys WHERE id = NEW.client_key_id;
+        EXECUTE format('SELECT tenant_id FROM %I.%I WHERE id = $1', 'auth', 'client_keys') INTO v_tenant_id USING NEW.client_key_id;
+        NEW.tenant_id := v_tenant_id;
     END IF;
 
     RETURN NEW;
@@ -4656,6 +4658,7 @@ SET search_path = public
 AS $$
 DECLARE
     ctx_tenant TEXT;
+    v_tenant_id UUID;
 BEGIN
     BEGIN
         ctx_tenant := current_setting('app.current_tenant_id', true);
@@ -4667,7 +4670,8 @@ BEGIN
     END;
 
     IF NEW.tenant_id IS NULL AND NEW.key_id IS NOT NULL THEN
-        SELECT tenant_id INTO NEW.tenant_id FROM auth.service_keys WHERE id = NEW.key_id;
+        EXECUTE format('SELECT tenant_id FROM %I.%I WHERE id = $1', 'auth', 'service_keys') INTO v_tenant_id USING NEW.key_id;
+        NEW.tenant_id := v_tenant_id;
     END IF;
 
     RETURN NEW;

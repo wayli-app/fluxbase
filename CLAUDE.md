@@ -1,6 +1,6 @@
 # Fluxbase Codebase Guide
 
-Fluxbase is a single-binary Backend-as-a-Service (BaaS) - a lightweight Supabase alternative. PostgreSQL is the only external dependency.
+Fluxbase is a single-binary Backend-as-a-Service (BaaS). PostgreSQL is the only external dependency.
 
 ## Stack
 
@@ -12,7 +12,15 @@ Fluxbase is a single-binary Backend-as-a-Service (BaaS) - a lightweight Supabase
 ## Directory Structure
 
 ```
-cmd/fluxbase/main.go     # Server entry point
+cmd/fluxbase/main.go     # Server entry point (setup + server creation)
+internal/api/module.go   # Module interface + ServiceRegistry (dependency injection)
+internal/api/module_*.go # 19 business logic modules (one per domain)
+internal/api/server.go   # Server struct, NewServer, module wiring
+internal/api/server_init.go # Infrastructure: initCore, setupMiddlewares, setupRoutes
+internal/database/retry.go      # ConnectWithRetry extracted from main.go
+internal/tenantdb/bootstrap_keys.go # EnsureDefaultTenantAndKeys, EnsureServiceKey
+internal/tenantdb/backfill.go   # BackfillTenantIDToDefault
+internal/runtime/execute_helpers.go # buildDenoArgs, startAndStreamOutput
 cli/cmd/                 # CLI commands (auth, functions, jobs, migrations, secrets)
 internal/                # Core backend modules (see below)
 admin/src/routes/        # Admin dashboard pages (file-based routing)
@@ -58,6 +66,18 @@ test/e2e/                # End-to-end tests
 | `testutil/`      | Test utilities and helpers                                                                                  |
 | `webhook/`       | Webhook system for database events (INSERT, UPDATE, DELETE)                                                 |
 
+### Module System (`internal/api/module_*.go`)
+
+Server initialization uses a module-based dependency injection system:
+
+- **`Module` interface** — `Name()` + `Init(ctx, *ServiceRegistry) error`
+- **`ServiceRegistry`** — stores config, DB, PubSub, and registered services; modules read dependencies via `GetService[T]()`
+- **19 modules** in dependency order: Email → Secrets → Storage → Logging → Auth → Webhook → Extensions → Tenancy → Settings → Schema → Functions → Jobs → RPC → AI → Realtime → Branching → GraphQL → MCP → Metrics
+- `GetService[T]()` uses `reflect.TypeOf` — only works with concrete pointer types (e.g., `*auth.Service`), not interfaces. Use `registry.PubSub` field for `pubsub.PubSub`
+- Modules register outputs via `registry.Register()` so downstream modules can find them
+
+**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring), `server_init.go` (remaining infrastructure: initCore, initBackgroundServices, setupMiddlewares, setupRoutes)
+
 ## Database Schemas
 
 - `auth.*` - Users, sessions, identities, client keys
@@ -77,8 +97,9 @@ test/e2e/                # End-to-end tests
 **Authentication:**
 
 - `internal/auth/service.go` - Main auth logic
-- `internal/auth/jwt.go` - Token management
-- `internal/auth/scopes.go` - Authorization scopes
+- `internal/auth/jwt.go` - Token management (only "fluxbase" issuer accepted)
+- `internal/auth/scopes.go` - Authorization scopes (JWT auth bypasses scopes; scopes are for API keys only)
+- `internal/auth/security_events.go` - Security event logging (extracts tenant_id from context)
 - `internal/api/auth_*.go` - Auth HTTP handlers
 
 **REST API:**
@@ -483,14 +504,15 @@ Git pre-commit hooks automatically run:
 
 ### Admin UI Auth
 
-- **Single source of truth**: Zustand store (`admin/src/stores/auth-store.ts`) manages tokens. Axios interceptor reads/writes via Zustand
-- **Retry guard**: Both success and error interceptors use `_retry` flag to prevent infinite refresh loops
+- **Single source of truth**: Zustand store (`admin/src/stores/auth-store.ts`) manages tokens with safe cookie parsing (try/catch with cleanup on malformed cookies)
+- **Retry guard**: Consolidated `refreshAndRetry()` helper handles all auth refresh paths (401, auth-like response body) with deduplication via `failedQueue`
+- **Error helper**: `admin/src/lib/get-error-message.ts` centralizes error extraction from Axios responses
 
 ### Path Safety
 
 - **Log file paths**: `internal/storage/log_local.go` validates components via `validatePathComponent` (rejects `..`, `/`, null bytes, absolute paths)
 - **SQL substitution**: `internal/database/bootstrap/substitute.go` validates `APP_USER` identifier with `^[a-zA-Z_][a-zA-Z0-9_]*$` before SQL substitution
-- **Prometheus metrics**: `normalizePath` replaces UUIDs (case-insensitive) and numeric IDs with `:id` to prevent cardinality explosion
+- **Prometheus metrics**: `normalizePath` replaces UUIDs, numeric IDs, and slug-like segments with `:id` to prevent cardinality explosion
 
 ### SAML
 
@@ -500,6 +522,22 @@ Git pre-commit hooks automatically run:
 ### Email
 
 - **HTML escaping**: All dynamic values in email templates pass through `html.EscapeString` to prevent injection
+
+### SSRF Protection
+
+- **BlockedDomains**: `DefaultFunctionPermissions()` and `DefaultJobPermissions()` include blocked domains for metadata endpoints (`169.254.169.254`, `metadata.google.internal`, etc.). Applied to all function, job, and MCP executions
+- **Filesystem restriction**: `--allow-read` and `--allow-write` are restricted to `/tmp` (not full filesystem)
+
+### Realtime Tenant Isolation
+
+- **Broadcast filtering**: `BroadcastToChannel` and `BroadcastGlobal` filter by `TenantID` — messages only delivered to connections of the same tenant
+- **Presence filtering**: Presence join/leave/sync events scoped by tenant
+- **GlobalBroadcast**: Includes `TenantID` field for cross-instance propagation via pub/sub
+
+### Leader Election
+
+- **Dedicated connection**: `internal/scaling/leader.go` uses a dedicated `*pgxpool.Conn` (not the pool) for advisory locks, preventing premature lock release
+- **Idempotent start**: `Start()` guarded by `started` flag to prevent duplicate election loops
 
 ## Migrations
 

@@ -595,7 +595,7 @@ func (h *AuthHandler) SendMagicLink(c fiber.Ctx) error {
 		return SendBadRequest(c, "Failed to send magic link", ErrCodeInvalidInput)
 	}
 
-	// Return Supabase-compatible OTP response
+	// Return standard OTP response
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"user":    nil,
 		"session": nil,
@@ -679,7 +679,7 @@ func (h *AuthHandler) RequestPasswordReset(c fiber.Ctx) error {
 		// Don't reveal if user exists - always return success
 	}
 
-	// Return Supabase-compatible OTP response
+	// Return standard OTP response
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"user":    nil,
 		"session": nil,
@@ -713,7 +713,7 @@ func (h *AuthHandler) ResetPassword(c fiber.Ctx) error {
 		return SendBadRequest(c, "Invalid or expired reset token", ErrCodeInvalidInput)
 	}
 
-	// Generate new tokens for the user (Supabase-compatible)
+	// Generate new tokens for the user
 	resp, err := h.authService.GenerateTokensForUser(middleware.CtxWithTenant(c), userID)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to generate tokens after password reset")
@@ -825,13 +825,6 @@ func (h *AuthHandler) ResendVerificationEmail(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Verification email sent. Please check your inbox.",
 	})
-}
-
-// SignInAnonymous is deprecated and disabled for security reasons
-// Anonymous sign-in reduces security by allowing anyone to get tokens
-// Use regular signup/signin flow instead
-func (h *AuthHandler) SignInAnonymous(c fiber.Ctx) error {
-	return SendErrorWithCode(c, 410, "Anonymous sign-in has been disabled for security reasons", "GONE")
 }
 
 // GetCSRFToken returns the current CSRF token for the client
@@ -1174,7 +1167,7 @@ func (h *AuthHandler) SendOTP(c fiber.Ctx) error {
 		return SendInternalError(c, "Failed to send OTP code")
 	}
 
-	// Return Supabase-compatible OTP response
+	// Return standard OTP response
 	// For send requests, user and session are both nil (OTP delivered but not verified yet)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"user":    nil,

@@ -25,13 +25,19 @@ interface AuthState {
   }
 }
 
+function parseCookieToken(name: string): string {
+  try {
+    const raw = getCookie(name)
+    return raw ? JSON.parse(raw) : ''
+  } catch {
+    removeCookie(name)
+    return ''
+  }
+}
+
 export const useAuthStore = create<AuthState>()((set) => {
-  const cookieState = getCookie(AUTH_COOKIE_NAME)
-  const initToken = cookieState ? JSON.parse(cookieState) : ''
-  const refreshCookieState = getCookie(REFRESH_COOKIE_NAME)
-  const initRefreshToken = refreshCookieState
-    ? JSON.parse(refreshCookieState)
-    : ''
+  const initToken = parseCookieToken(AUTH_COOKIE_NAME)
+  const initRefreshToken = parseCookieToken(REFRESH_COOKIE_NAME)
 
   if (initToken) {
     setFluxbaseAuthToken(initToken)

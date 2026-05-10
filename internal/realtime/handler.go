@@ -48,7 +48,7 @@ type ClientMessage struct {
 	Event          string          `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
 	Schema         string          `json:"schema,omitempty"`
 	Table          string          `json:"table,omitempty"`
-	Filter         string          `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
+	Filter         string          `json:"filter,omitempty"` // Filter: column=operator.value
 	Payload        json.RawMessage `json:"payload,omitempty"`
 	Config         json.RawMessage `json:"config,omitempty"` // Raw config - can be PostgresChangesConfig or LogSubscriptionConfig
 	SubscriptionID string          `json:"subscription_id,omitempty"`
@@ -234,7 +234,7 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 			removed := h.presenceManager.CleanupConnection(connectionID)
 			// Notify other clients about presence leaving
 			for channel, info := range removed {
-				h.notifyPresenceLeave(channel, info)
+				h.notifyPresenceLeave(channel, info.TenantID, info)
 			}
 		}
 		// Clean up RLS-aware subscriptions
@@ -359,7 +359,13 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 			}
 
 		case msg := <-msgChan:
-			// Handle message from read goroutine
+			if !connection.AllowMessage() {
+				_ = connection.SendMessage(ServerMessage{
+					Type:  MessageTypeError,
+					Error: "rate limit exceeded",
+				})
+				continue
+			}
 			h.handleMessage(connection, msg)
 
 		case err := <-errChan:
@@ -383,7 +389,8 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		if isAdminChannel || isFluxbaseChannel {
 			// Admin channels require admin role
 			if isAdminChannel {
-				if conn.Role != "admin" && conn.Role != "instance_admin" && conn.Role != "service_role" {
+				role, _ := conn.GetRoleAndClaims()
+				if role != "admin" && role != "instance_admin" && role != "service_role" {
 					_ = conn.SendMessage(ServerMessage{
 						Type:  MessageTypeError,
 						Error: "admin access required to subscribe to admin channels",
@@ -394,7 +401,13 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 
 			// Subscribe connection to channel (broadcast-only, no database subscription)
 			if !conn.IsSubscribed(msg.Channel) {
-				conn.Subscribe(msg.Channel)
+				if !conn.Subscribe(msg.Channel) {
+					_ = conn.SendMessage(ServerMessage{
+						Type:  MessageTypeError,
+						Error: "subscription limit exceeded",
+					})
+					return
+				}
 			}
 
 			// Send acknowledgment
@@ -459,8 +472,7 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		}
 
 		// Get user's role and claims from connection
-		role := conn.Role
-		claims := conn.Claims
+		role, claims := conn.GetRoleAndClaims()
 
 		// Create RLS-aware subscription
 		subID := uuid.New().String()
@@ -645,7 +657,7 @@ func (h *RealtimeHandler) handleBroadcast(conn *Connection, msg ClientMessage) {
 	}
 
 	// Broadcast to all connections subscribed to this channel
-	h.manager.BroadcastToChannel(msg.Channel, ServerMessage{
+	h.manager.BroadcastToChannel(msg.Channel, conn.TenantID, ServerMessage{
 		Type:    MessageTypeBroadcast,
 		Channel: msg.Channel,
 		Payload: map[string]interface{}{
@@ -653,7 +665,7 @@ func (h *RealtimeHandler) handleBroadcast(conn *Connection, msg ClientMessage) {
 		},
 	})
 
-	// Send acknowledgment if messageId is present (Supabase-compatible broadcast acks)
+	// Send acknowledgment if messageId is present
 	if msg.MessageID != "" {
 		_ = conn.SendMessage(ServerMessage{
 			Type: MessageTypeAck,
@@ -719,14 +731,13 @@ func (h *RealtimeHandler) handlePresence(conn *Connection, msg ClientMessage) {
 			presencePayload.State,
 			conn.UserID,
 			conn.ID,
+			conn.TenantID,
 		)
 
-		// Notify all clients in the channel about the new/updated presence
 		if isNew {
-			h.notifyPresenceJoin(msg.Channel, info)
+			h.notifyPresenceJoin(msg.Channel, conn.TenantID, info)
 		} else {
-			// For updates, send sync event
-			h.notifyPresenceSync(msg.Channel)
+			h.notifyPresenceSync(msg.Channel, conn.TenantID)
 		}
 
 	case "untrack":
@@ -741,7 +752,7 @@ func (h *RealtimeHandler) handlePresence(conn *Connection, msg ClientMessage) {
 		// Untrack presence
 		info := h.presenceManager.Untrack(msg.Channel, presencePayload.Key, conn.ID)
 		if info != nil {
-			h.notifyPresenceLeave(msg.Channel, info)
+			h.notifyPresenceLeave(msg.Channel, conn.TenantID, info)
 		}
 
 	default:
@@ -753,7 +764,7 @@ func (h *RealtimeHandler) handlePresence(conn *Connection, msg ClientMessage) {
 }
 
 // notifyPresenceJoin broadcasts a presence join event to all clients in the channel
-func (h *RealtimeHandler) notifyPresenceJoin(channel string, info *PresenceInfo) {
+func (h *RealtimeHandler) notifyPresenceJoin(channel string, tenantID string, info *PresenceInfo) {
 	presenceState := h.presenceManager.GetPresenceState(channel)
 
 	payload := map[string]interface{}{
@@ -763,7 +774,7 @@ func (h *RealtimeHandler) notifyPresenceJoin(channel string, info *PresenceInfo)
 		"currentPresences": presenceState,
 	}
 
-	h.manager.BroadcastToChannel(channel, ServerMessage{
+	h.manager.BroadcastToChannel(channel, tenantID, ServerMessage{
 		Type:    MessageTypePresence,
 		Channel: channel,
 		Payload: map[string]interface{}{
@@ -772,8 +783,7 @@ func (h *RealtimeHandler) notifyPresenceJoin(channel string, info *PresenceInfo)
 	})
 }
 
-// notifyPresenceLeave broadcasts a presence leave event to all clients in the channel
-func (h *RealtimeHandler) notifyPresenceLeave(channel string, info *PresenceInfo) {
+func (h *RealtimeHandler) notifyPresenceLeave(channel string, tenantID string, info *PresenceInfo) {
 	presenceState := h.presenceManager.GetPresenceState(channel)
 
 	payload := map[string]interface{}{
@@ -783,7 +793,7 @@ func (h *RealtimeHandler) notifyPresenceLeave(channel string, info *PresenceInfo
 		"currentPresences": presenceState,
 	}
 
-	h.manager.BroadcastToChannel(channel, ServerMessage{
+	h.manager.BroadcastToChannel(channel, tenantID, ServerMessage{
 		Type:    MessageTypePresence,
 		Channel: channel,
 		Payload: map[string]interface{}{
@@ -792,8 +802,7 @@ func (h *RealtimeHandler) notifyPresenceLeave(channel string, info *PresenceInfo
 	})
 }
 
-// notifyPresenceSync broadcasts a presence sync event to all clients in the channel
-func (h *RealtimeHandler) notifyPresenceSync(channel string) {
+func (h *RealtimeHandler) notifyPresenceSync(channel string, tenantID string) {
 	presenceState := h.presenceManager.GetPresenceState(channel)
 
 	payload := map[string]interface{}{
@@ -801,7 +810,7 @@ func (h *RealtimeHandler) notifyPresenceSync(channel string) {
 		"currentPresences": presenceState,
 	}
 
-	h.manager.BroadcastToChannel(channel, ServerMessage{
+	h.manager.BroadcastToChannel(channel, tenantID, ServerMessage{
 		Type:    MessageTypePresence,
 		Channel: channel,
 		Payload: map[string]interface{}{

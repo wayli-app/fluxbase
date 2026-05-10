@@ -93,7 +93,7 @@ func (s *DashboardAuthService) CreateUser(ctx context.Context, email, password, 
 	}
 
 	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), DefaultBcryptCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -389,7 +389,7 @@ func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.U
 	}
 
 	// Hash new password
-	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), DefaultBcryptCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -552,7 +552,7 @@ func (s *DashboardAuthService) EnableTOTP(ctx context.Context, userID uuid.UUID,
 		backupCodes[i] = code
 
 		// Hash the backup code
-		hash, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
+		hash, err := bcrypt.GenerateFromPassword([]byte(code), DefaultBcryptCost)
 		if err != nil {
 			return nil, fmt.Errorf("failed to hash backup code: %w", err)
 		}
@@ -1072,7 +1072,7 @@ func (s *DashboardAuthService) ResetPassword(ctx context.Context, token, newPass
 	}
 
 	// Hash new password
-	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), DefaultBcryptCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}

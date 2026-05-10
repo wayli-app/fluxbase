@@ -99,7 +99,7 @@ func TestSetupFDW_CreatesForeignServerAndTables(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := SetupFDW(ctx, tenantPool, cfg, nil)
+	err := SetupFDW(ctx, tenantPool, cfg)
 	require.NoError(t, err, "SetupFDW should succeed")
 
 	// Verify foreign server exists
@@ -157,14 +157,14 @@ func TestSetupFDW_CreatesForeignServerAndTables(t *testing.T) {
 	assert.True(t, mainUsersExists, "Main DB should have auth.users table")
 }
 
-func TestSetupFDW_CustomTableList(t *testing.T) {
+func TestSetupFDW_ImportsAllSchemas(t *testing.T) {
 	_, tenantPool, cfg, cleanup := setupFDWTest(t)
 	defer cleanup()
 
 	ctx := context.Background()
 
-	err := SetupFDW(ctx, tenantPool, cfg, []string{"users"})
-	require.NoError(t, err, "SetupFDW with custom table list should succeed")
+	err := SetupFDW(ctx, tenantPool, cfg)
+	require.NoError(t, err, "SetupFDW should succeed")
 
 	var foreignTableCount int
 	err = tenantPool.QueryRow(ctx, `
@@ -172,7 +172,7 @@ func TestSetupFDW_CustomTableList(t *testing.T) {
 		WHERE foreign_table_schema = 'auth'
 	`).Scan(&foreignTableCount)
 	require.NoError(t, err)
-	assert.Equal(t, 1, foreignTableCount, "Should import only the specified table")
+	assert.GreaterOrEqual(t, foreignTableCount, 1, "Should import at least auth.users")
 }
 
 func TestSetupFDW_IsIdempotent(t *testing.T) {
@@ -182,11 +182,11 @@ func TestSetupFDW_IsIdempotent(t *testing.T) {
 	ctx := context.Background()
 
 	// First call
-	err := SetupFDW(ctx, tenantPool, cfg, nil)
+	err := SetupFDW(ctx, tenantPool, cfg)
 	require.NoError(t, err, "First SetupFDW should succeed")
 
 	// Second call (should succeed due to IF NOT EXISTS)
-	err = SetupFDW(ctx, tenantPool, cfg, nil)
+	err = SetupFDW(ctx, tenantPool, cfg)
 	require.NoError(t, err, "Second SetupFDW should succeed (idempotent)")
 
 	// Verify tables still exist and aren't duplicated
@@ -206,7 +206,7 @@ func TestTeardownFDW_RemovesAllArtifacts(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up FDW first
-	err := SetupFDW(ctx, tenantPool, cfg, nil)
+	err := SetupFDW(ctx, tenantPool, cfg)
 	require.NoError(t, err)
 
 	// Teardown
@@ -260,7 +260,7 @@ func TestSetupFDW_DropsLocalTablesBeforeImport(t *testing.T) {
 	assert.True(t, localExists, "Local auth.users should exist before FDW setup")
 
 	// SetupFDW should drop the local table and replace with foreign table
-	err = SetupFDW(ctx, tenantPool, cfg, []string{"users"})
+	err = SetupFDW(ctx, tenantPool, cfg)
 	require.NoError(t, err, "SetupFDW should succeed even with pre-existing local tables")
 
 	// Verify it's now a foreign table (not a base table)
@@ -292,7 +292,7 @@ func TestFDW_CrossDBQueryWorks(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup FDW
-	err := SetupFDW(ctx, tenantPool, cfg, []string{"users"})
+	err := SetupFDW(ctx, tenantPool, cfg)
 	require.NoError(t, err, "SetupFDW should succeed")
 
 	// Insert a user in the main database's auth.users table
@@ -333,7 +333,7 @@ func TestFDW_CrossDBQueryWithTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := SetupFDW(ctx, tenantPool, cfg, []string{"users"})
+	err := SetupFDW(ctx, tenantPool, cfg)
 	require.NoError(t, err, "SetupFDW should succeed with timeout context")
 
 	// Query should work within the timeout

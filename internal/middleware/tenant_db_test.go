@@ -326,36 +326,36 @@ func TestRequireTenantRole_TenantAdmin_InstanceAdminJWTSource_WithRole(t *testin
 // Phase 3: Mock-based TenantDBMiddleware tests
 // ---------------------------------------------------------------------------
 
-// mockTenantStore implements TenantStore for testing.
-type mockTenantStore struct {
+// mockTenantRepository implements TenantStore for testing.
+type mockTenantRepository struct {
 	getTenantFunc        func(ctx context.Context, id string) (*tenantdb.Tenant, error)
 	getTenantBySlugFunc  func(ctx context.Context, slug string) (*tenantdb.Tenant, error)
 	getDefaultTenantFunc func(ctx context.Context) (*tenantdb.Tenant, error)
 	isUserAssignedFunc   func(ctx context.Context, userID, tenantID string) (bool, error)
 }
 
-func (m *mockTenantStore) GetTenant(ctx context.Context, id string) (*tenantdb.Tenant, error) {
+func (m *mockTenantRepository) GetTenant(ctx context.Context, id string) (*tenantdb.Tenant, error) {
 	if m.getTenantFunc != nil {
 		return m.getTenantFunc(ctx, id)
 	}
 	return nil, tenantdb.ErrTenantNotFound
 }
 
-func (m *mockTenantStore) GetTenantBySlug(ctx context.Context, slug string) (*tenantdb.Tenant, error) {
+func (m *mockTenantRepository) GetTenantBySlug(ctx context.Context, slug string) (*tenantdb.Tenant, error) {
 	if m.getTenantBySlugFunc != nil {
 		return m.getTenantBySlugFunc(ctx, slug)
 	}
 	return nil, tenantdb.ErrTenantNotFound
 }
 
-func (m *mockTenantStore) GetDefaultTenant(ctx context.Context) (*tenantdb.Tenant, error) {
+func (m *mockTenantRepository) GetDefaultTenant(ctx context.Context) (*tenantdb.Tenant, error) {
 	if m.getDefaultTenantFunc != nil {
 		return m.getDefaultTenantFunc(ctx)
 	}
 	return nil, tenantdb.ErrNoDefaultTenant
 }
 
-func (m *mockTenantStore) IsUserAssignedToTenant(ctx context.Context, userID, tenantID string) (bool, error) {
+func (m *mockTenantRepository) IsUserAssignedToTenant(ctx context.Context, userID, tenantID string) (bool, error) {
 	if m.isUserAssignedFunc != nil {
 		return m.isUserAssignedFunc(ctx, userID, tenantID)
 	}
@@ -376,7 +376,7 @@ func (m *mockUserTenantLister) GetTenantsForUser(ctx context.Context, userID str
 
 func TestTenantDBMiddleware_DefaultTenant_SetsNoPool(t *testing.T) {
 	// Default tenant (DBName=nil) should NOT set tenant_db
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getDefaultTenantFunc: func(ctx context.Context) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{
 				ID:        "default-id",
@@ -389,7 +389,7 @@ func TestTenantDBMiddleware_DefaultTenant_SetsNoPool(t *testing.T) {
 
 	app := fiber.New()
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: store,
+		Repository: store,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		tenantID, _ := c.Locals("tenant_id").(string)
@@ -409,7 +409,7 @@ func TestTenantDBMiddleware_SeparateDBTenant_SetsPool(t *testing.T) {
 	tenantPool := &pgxpool.Pool{}
 	dbName := "tenant_acme"
 
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getTenantBySlugFunc: func(ctx context.Context, slug string) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{
 				ID:     "acme-id",
@@ -432,7 +432,7 @@ func TestTenantDBMiddleware_SeparateDBTenant_SetsPool(t *testing.T) {
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: store,
+		Repository: store,
 		// Router is nil — we can't test pool creation here,
 		// that's covered by integration tests
 	}))
@@ -453,7 +453,7 @@ func TestTenantDBMiddleware_SeparateDBTenant_SetsPool(t *testing.T) {
 }
 
 func TestTenantDBMiddleware_UserNotAssigned_ReturnsForbidden(t *testing.T) {
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getTenantBySlugFunc: func(ctx context.Context, slug string) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{
 				ID:   "t-123",
@@ -472,7 +472,7 @@ func TestTenantDBMiddleware_UserNotAssigned_ReturnsForbidden(t *testing.T) {
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: store,
+		Repository: store,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("OK")
@@ -487,7 +487,7 @@ func TestTenantDBMiddleware_UserNotAssigned_ReturnsForbidden(t *testing.T) {
 
 func TestTenantDBMiddleware_InstanceAdmin_SkipsAccessCheck(t *testing.T) {
 	accessChecked := false
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getTenantBySlugFunc: func(ctx context.Context, slug string) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{ID: "t-123", Slug: slug}, nil
 		},
@@ -504,7 +504,7 @@ func TestTenantDBMiddleware_InstanceAdmin_SkipsAccessCheck(t *testing.T) {
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: store,
+		Repository: store,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("OK")
@@ -519,14 +519,14 @@ func TestTenantDBMiddleware_InstanceAdmin_SkipsAccessCheck(t *testing.T) {
 }
 
 func TestTenantDBMiddleware_ResolveFromHeader(t *testing.T) {
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getTenantBySlugFunc: func(ctx context.Context, slug string) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{ID: "h-id", Slug: slug}, nil
 		},
 	}
 
 	app := fiber.New()
-	app.Use(TenantDBMiddleware(TenantDBConfig{Storage: store}))
+	app.Use(TenantDBMiddleware(TenantDBConfig{Repository: store}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		source, _ := c.Locals("tenant_source").(string)
 		assert.Equal(t, "header", source)
@@ -541,14 +541,14 @@ func TestTenantDBMiddleware_ResolveFromHeader(t *testing.T) {
 }
 
 func TestTenantDBMiddleware_ResolveFromDefault(t *testing.T) {
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getDefaultTenantFunc: func(ctx context.Context) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{ID: "def-id", Slug: "default", IsDefault: true}, nil
 		},
 	}
 
 	app := fiber.New()
-	app.Use(TenantDBMiddleware(TenantDBConfig{Storage: store}))
+	app.Use(TenantDBMiddleware(TenantDBConfig{Repository: store}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		tenantID, _ := c.Locals("tenant_id").(string)
 		source, _ := c.Locals("tenant_source").(string)
@@ -564,14 +564,14 @@ func TestTenantDBMiddleware_ResolveFromDefault(t *testing.T) {
 }
 
 func TestTenantDBMiddleware_NoTenantAtAll(t *testing.T) {
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getDefaultTenantFunc: func(ctx context.Context) (*tenantdb.Tenant, error) {
 			return nil, tenantdb.ErrNoDefaultTenant
 		},
 	}
 
 	app := fiber.New()
-	app.Use(TenantDBMiddleware(TenantDBConfig{Storage: store}))
+	app.Use(TenantDBMiddleware(TenantDBConfig{Repository: store}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		tenantID, _ := c.Locals("tenant_id").(string)
 		assert.Empty(t, tenantID)
@@ -585,7 +585,7 @@ func TestTenantDBMiddleware_NoTenantAtAll(t *testing.T) {
 }
 
 func TestTenantDBMiddleware_ResolveFromJWT(t *testing.T) {
-	store := &mockTenantStore{}
+	store := &mockTenantRepository{}
 
 	jwtTenantID := "jwt-tenant-id"
 	app := fiber.New()
@@ -593,7 +593,7 @@ func TestTenantDBMiddleware_ResolveFromJWT(t *testing.T) {
 		c.Locals("claims", &auth.TokenClaims{TenantID: &jwtTenantID})
 		return c.Next()
 	})
-	app.Use(TenantDBMiddleware(TenantDBConfig{Storage: store}))
+	app.Use(TenantDBMiddleware(TenantDBConfig{Repository: store}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		tenantID, _ := c.Locals("tenant_id").(string)
 		source, _ := c.Locals("tenant_source").(string)
@@ -610,7 +610,7 @@ func TestTenantDBMiddleware_ResolveFromJWT(t *testing.T) {
 
 func TestTenantDBMiddleware_NilStorage_NoPanic(t *testing.T) {
 	app := fiber.New()
-	app.Use(TenantDBMiddleware(TenantDBConfig{Storage: nil}))
+	app.Use(TenantDBMiddleware(TenantDBConfig{Repository: nil}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		tenantID, _ := c.Locals("tenant_id").(string)
 		assert.Empty(t, tenantID)
@@ -625,7 +625,7 @@ func TestTenantDBMiddleware_NilStorage_NoPanic(t *testing.T) {
 
 // JWT claims set tenant_role when matching
 func TestTenantDBMiddleware_JWTClaimsSetTenantRole(t *testing.T) {
-	store := &mockTenantStore{}
+	store := &mockTenantRepository{}
 	jwtTenantID := "jwt-tenant-id"
 
 	app := fiber.New()
@@ -637,7 +637,7 @@ func TestTenantDBMiddleware_JWTClaimsSetTenantRole(t *testing.T) {
 		})
 		return c.Next()
 	})
-	app.Use(TenantDBMiddleware(TenantDBConfig{Storage: store}))
+	app.Use(TenantDBMiddleware(TenantDBConfig{Repository: store}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		role, _ := c.Locals("tenant_role").(string)
 		assert.Equal(t, "tenant_admin", role)
@@ -691,7 +691,7 @@ func TestGetUserManagedTenantIDs_StorageError(t *testing.T) {
 
 func TestResolveTenantID_ValidSlug(t *testing.T) {
 	tenantID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getTenantBySlugFunc: func(_ context.Context, slug string) (*tenantdb.Tenant, error) {
 			if slug == "acme" {
 				return &tenantdb.Tenant{ID: tenantID, Slug: "acme"}, nil
@@ -716,7 +716,7 @@ func TestResolveTenantID_ValidSlug(t *testing.T) {
 }
 
 func TestResolveTenantID_InvalidSlugReturnsEmpty(t *testing.T) {
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getTenantBySlugFunc: func(_ context.Context, _ string) (*tenantdb.Tenant, error) {
 			return nil, tenantdb.ErrTenantNotFound
 		},
@@ -744,7 +744,7 @@ func TestResolveTenantID_InvalidSlugReturnsEmpty(t *testing.T) {
 }
 
 func TestResolveTenantID_FallbackToDefault(t *testing.T) {
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getDefaultTenantFunc: func(_ context.Context) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{ID: "default-id", Slug: "default"}, nil
 		},
@@ -766,7 +766,7 @@ func TestResolveTenantID_FallbackToDefault(t *testing.T) {
 
 func TestResolveTenantID_JWTClaims(t *testing.T) {
 	tenantID := "jwt-tenant-id"
-	store := &mockTenantStore{
+	store := &mockTenantRepository{
 		getDefaultTenantFunc: func(_ context.Context) (*tenantdb.Tenant, error) {
 			return &tenantdb.Tenant{ID: "default-id", Slug: "default"}, nil
 		},

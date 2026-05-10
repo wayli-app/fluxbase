@@ -59,41 +59,4 @@ func (h *OpenAPIHandler) addRealtimeEndpoints(spec *OpenAPISpec) {
 			},
 		},
 	}
-
-	// POST /api/v1/realtime/broadcast
-	spec.Paths["/api/v1/realtime/broadcast"] = OpenAPIPath{
-		"post": OpenAPIOperation{
-			Summary:     "Broadcast message",
-			Description: "Broadcast a message to a channel",
-			OperationID: "realtime_broadcast",
-			Tags:        []string{"Realtime"},
-			Security: []map[string][]string{
-				{"bearerAuth": {}},
-			},
-			RequestBody: &OpenAPIRequestBody{
-				Required: true,
-				Content: map[string]OpenAPIMedia{
-					"application/json": {
-						Schema: map[string]string{"$ref": "#/components/schemas/BroadcastRequest"},
-					},
-				},
-			},
-			Responses: map[string]OpenAPIResponse{
-				"200": {
-					Description: "Message broadcast",
-					Content: map[string]OpenAPIMedia{
-						"application/json": {
-							Schema: map[string]interface{}{
-								"type": "object",
-								"properties": map[string]interface{}{
-									"success":    map[string]string{"type": "boolean"},
-									"recipients": map[string]string{"type": "integer"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
 }

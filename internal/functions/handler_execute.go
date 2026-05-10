@@ -129,23 +129,24 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	if impersonationToken != "" && h.authService != nil {
 		// SECURITY: Rate limit impersonation token attempts to prevent brute force attacks
 		// Limit: 5 attempts per 5 minutes per IP address
-		store := ratelimit.GetGlobalStore()
-		rateLimitKey := "impersonation:" + c.IP()
-		result, err := ratelimit.Check(middleware.CtxWithTenant(c), store, rateLimitKey, 5, 5*time.Minute)
-		if err != nil {
-			log.Error().Err(err).Str("ip", c.IP()).Msg("Failed to check impersonation rate limit")
-			// Continue on rate limit check error to avoid blocking legitimate requests
-		} else if !result.Allowed {
-			log.Warn().
-				Str("ip", c.IP()).
-				Int64("limit", result.Limit).
-				Time("reset_at", result.ResetAt).
-				Msg("SECURITY: Impersonation token rate limit exceeded - possible brute force attack")
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error":       "Rate limit exceeded",
-				"message":     "Too many impersonation attempts. Please try again in 5 minutes.",
-				"retry_after": int(time.Until(result.ResetAt).Seconds()),
-			})
+		store := h.rateLimiter
+		if store != nil {
+			rateLimitKey := "impersonation:" + c.IP()
+			result, err := ratelimit.Check(middleware.CtxWithTenant(c), store, rateLimitKey, 5, 5*time.Minute)
+			if err != nil {
+				log.Error().Err(err).Str("ip", c.IP()).Msg("Failed to check impersonation rate limit")
+			} else if !result.Allowed {
+				log.Warn().
+					Str("ip", c.IP()).
+					Int64("limit", result.Limit).
+					Time("reset_at", result.ResetAt).
+					Msg("SECURITY: Impersonation token rate limit exceeded - possible brute force attack")
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"error":       "Rate limit exceeded",
+					"message":     "Too many impersonation attempts. Please try again in 5 minutes.",
+					"retry_after": int(time.Until(result.ResetAt).Seconds()),
+				})
+			}
 		}
 
 		// Trim any whitespace that might have been added
@@ -191,12 +192,11 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	}
 
 	// Build permissions
-	perms := runtime.Permissions{
-		AllowNet:   fn.AllowNet,
-		AllowEnv:   fn.AllowEnv,
-		AllowRead:  fn.AllowRead,
-		AllowWrite: fn.AllowWrite,
-	}
+	perms := runtime.DefaultFunctionPermissions()
+	perms.AllowNet = fn.AllowNet
+	perms.AllowEnv = fn.AllowEnv
+	perms.AllowRead = fn.AllowRead
+	perms.AllowWrite = fn.AllowWrite
 
 	// Log function invocation
 	reqID := apperrors.GetRequestID(c)

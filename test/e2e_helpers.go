@@ -89,6 +89,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/middleware"
 	"github.com/nimbleflux/fluxbase/internal/pubsub"
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 )
@@ -642,6 +643,7 @@ func (tc *TestContext) Close() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = tc.Server.Shutdown(ctx)
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Only reset global state if no shared context exists
@@ -730,9 +732,9 @@ func BeginTestTx(t *testing.T) *TestContextTx {
 	tx, err := tc.DB.BeginTx(ctx)
 	require.NoError(t, err, "Failed to begin test transaction")
 
-	// Create a test-mode server with the transaction
-	// NewServerWithTx accepts *pgx.Tx directly (TxConnection is an alias for pgx.Tx)
-	testServer := api.NewServerWithTx(tc.Config, tc.DB, tx, "dev")
+	// Create a test server and inject the transaction via middleware
+	testServer := api.NewServer(tc.Config, tc.DB, "dev")
+	testServer.App().Use(middleware.TestTransactionMiddleware(tx))
 
 	return &TestContextTx{
 		TestContext: tc,
@@ -838,7 +840,7 @@ func NewTestContextWithOptions(t *testing.T, opts TestContextOptions) *TestConte
 		ratelimit.SetGlobalStore(opts.RateLimiter)
 	}
 	if opts.PubSub != nil {
-		pubsub.SetGlobalPubSub(opts.PubSub)
+		pubsub.GlobalPubSub = opts.PubSub
 	}
 
 	return newTestContextInternal(t, cfg)
@@ -979,10 +981,13 @@ func GetTestConfig() *config.Config {
 	// Allow environment variables to override defaults for CI
 	dbHost := getEnvOrDefault("FLUXBASE_DATABASE_HOST", "postgres")
 	dbUser := getEnvOrDefault("FLUXBASE_DATABASE_USER", "fluxbase_app")
-	dbAdminUser := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres") // Default to postgres for migrations
+	dbAdminUser := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres")
 	dbPassword := getEnvOrDefault("FLUXBASE_DATABASE_PASSWORD", "fluxbase_app_password")
-	dbAdminPassword := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres") // Default to postgres password
-	dbDatabase := getEnvOrDefault("FLUXBASE_DATABASE_DATABASE", "fluxbase_test")
+	dbAdminPassword := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres")
+	// Use FLUXBASE_TEST_DATABASE if set (CI), otherwise always use fluxbase_go_e2e.
+	// We intentionally do NOT fall back to FLUXBASE_DATABASE_DATABASE because
+	// .env may set it to fluxbase_dev for the running server.
+	dbDatabase := getEnvOrDefault("FLUXBASE_TEST_DATABASE", "fluxbase_go_e2e")
 	smtpHost := getEnvOrDefault("FLUXBASE_EMAIL_SMTP_HOST", "mailhog")
 	s3Endpoint := getEnvOrDefault("FLUXBASE_STORAGE_S3_ENDPOINT", "minio:9000")
 	functionsDir := getEnvOrDefault("FLUXBASE_FUNCTIONS_FUNCTIONS_DIR", "")
@@ -1004,11 +1009,11 @@ func GetTestConfig() *config.Config {
 			AdminPassword:   dbAdminPassword, // Admin password (configurable via env)
 			Database:        dbDatabase,
 			SSLMode:         "disable",
-			MaxConnections:  4,                // Reduced to allow more parallel tests (PostgreSQL has 100 max connections)
-			MinConnections:  1,                // Keep 1 warm connection for efficiency
-			MaxConnLifetime: 10 * time.Minute, // Longer lifetime to reduce connection churn
-			MaxConnIdleTime: 3 * time.Minute,  // Keep idle connections longer
-			HealthCheck:     30 * time.Second, // Must be < MaxConnIdleTime
+			MaxConnections:  3,                // Minimal pool for sequential E2E tests (PostgreSQL has 400 max connections)
+			MinConnections:  0,                // No warm connections — release immediately
+			MaxConnLifetime: 2 * time.Minute,  // Shorter lifetime to release connections faster
+			MaxConnIdleTime: 30 * time.Second, // Release idle connections quickly
+			HealthCheck:     15 * time.Second, // Must be < MaxConnIdleTime
 		},
 		Auth: config.AuthConfig{
 			JWTSecret:        "test-secret-key-for-testing-only",
@@ -1945,7 +1950,7 @@ func (tc *TestContext) QuerySQLAsRLSUser(sql string, userID string, args ...inte
 	require.NoError(tc.T, err, "Failed to set role to authenticated")
 
 	// Set RLS context variables (these affect RLS policy checks)
-	// Set request.jwt.claims with user ID and role (Supabase/Fluxbase format)
+	// Set request.jwt.claims with user ID and role
 	jwtClaims := fmt.Sprintf(`{"sub":"%s","role":"authenticated"}`, userID)
 	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims)
 	require.NoError(tc.T, err, "Failed to set request.jwt.claims")

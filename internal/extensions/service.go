@@ -596,37 +596,6 @@ func (s *Service) DisableExtensionForTenant(ctx context.Context, name string, us
 	}, nil
 }
 
-// SyncFromPostgres syncs the extension catalog with what's available in PostgreSQL
-func (s *Service) SyncFromPostgres(ctx context.Context) error {
-	rows, err := s.db.Query(ctx, `
-		SELECT name, default_version, installed_version, comment
-		FROM pg_available_extensions
-		ORDER BY name
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to query pg_available_extensions: %w", err)
-	}
-	defer rows.Close()
-
-	var pgExtensions []PostgresExtension
-	for rows.Next() {
-		var ext PostgresExtension
-		var comment *string
-		err := rows.Scan(&ext.Name, &ext.DefaultVersion, &ext.InstalledVersion, &comment)
-		if err != nil {
-			return fmt.Errorf("failed to scan extension: %w", err)
-		}
-		if comment != nil {
-			ext.Comment = *comment
-		}
-		pgExtensions = append(pgExtensions, ext)
-	}
-
-	log.Info().Int("count", len(pgExtensions)).Msg("Synced extension list from PostgreSQL")
-
-	return nil
-}
-
 // checkExtensionInstalledForPool checks if an extension is installed using the given pool.
 // When pool is nil, uses the main database pool.
 func (s *Service) checkExtensionInstalledForPool(ctx context.Context, name string, pool *pgxpool.Pool) (bool, string) {

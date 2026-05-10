@@ -40,6 +40,7 @@ type Manager struct {
 	workersMutex   sync.RWMutex
 	activeWorkers  map[uuid.UUID]bool
 	restartCounts  map[uuid.UUID]int
+	restartTimes   map[uuid.UUID]time.Time
 	restartMutex   sync.Mutex
 	targetCount    int
 	supervisorCtx  context.Context
@@ -61,6 +62,7 @@ func NewManager(cfg *config.JobsConfig, conn *database.Connection, jwtSecret, pu
 		workerErrors:   make(chan workerError, 100),
 		activeWorkers:  make(map[uuid.UUID]bool),
 		restartCounts:  make(map[uuid.UUID]int),
+		restartTimes:   make(map[uuid.UUID]time.Time),
 	}
 }
 
@@ -142,12 +144,17 @@ func (m *Manager) superviseWorkers() {
 
 			// Check if we should restart
 			m.restartMutex.Lock()
-			restartCount := m.restartCounts[err.workerID]
 			// Reset restart count after 5 minutes of stability
+			if lastTime, ok := m.restartTimes[err.workerID]; ok && time.Since(lastTime) >= 5*time.Minute {
+				delete(m.restartCounts, err.workerID)
+				delete(m.restartTimes, err.workerID)
+			}
+			restartCount := m.restartCounts[err.workerID]
 			maxRestarts := 5
 			shouldRestart := restartCount < maxRestarts
 			if shouldRestart {
 				m.restartCounts[err.workerID] = restartCount + 1
+				m.restartTimes[err.workerID] = time.Now()
 			}
 			m.restartMutex.Unlock()
 

@@ -375,7 +375,6 @@ func TestTenantMiddleware_RouteGroups(t *testing.T) {
 			TenantMiddleware:       tenantAwareHandler,
 			HandleWebSocket:        tenantAwareHandler,
 			HandleStats:            tenantAwareHandler,
-			HandleBroadcast:        tenantAwareHandler,
 		}
 
 		group := BuildRealtimeRoutes(deps)
@@ -620,7 +619,6 @@ func TestTenantMiddleware_NilMiddlewareNoPanic(t *testing.T) {
 			RequireScope:           func(...string) fiber.Handler { return tenantAwareHandler },
 			HandleWebSocket:        tenantAwareHandler,
 			HandleStats:            tenantAwareHandler,
-			HandleBroadcast:        tenantAwareHandler,
 		}
 		group := BuildRealtimeRoutes(deps)
 		require.NotNil(t, group)

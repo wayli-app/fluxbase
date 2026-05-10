@@ -1,4 +1,3 @@
-// Package scaling provides utilities for horizontal scaling of Fluxbase instances.
 package scaling
 
 import (
@@ -10,23 +9,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// LeaderLockID constants for PostgreSQL advisory locks
-// These are unique identifiers for different leader election purposes
 const (
-	// JobsSchedulerLockID is the advisory lock ID for the jobs scheduler
-	// Only one instance should run the jobs scheduler at a time
-	JobsSchedulerLockID int64 = 0x466C7578_00000001 // "Flux" + 1
-
-	// FunctionsSchedulerLockID is the advisory lock ID for the edge functions scheduler
-	FunctionsSchedulerLockID int64 = 0x466C7578_00000002 // "Flux" + 2
-
-	// RPCSchedulerLockID is the advisory lock ID for the RPC scheduler
-	RPCSchedulerLockID int64 = 0x466C7578_00000003 // "Flux" + 3
+	JobsSchedulerLockID      int64 = 0x466C7578_00000001
+	FunctionsSchedulerLockID int64 = 0x466C7578_00000002
+	RPCSchedulerLockID       int64 = 0x466C7578_00000003
 )
 
-// LeaderElector manages leader election using PostgreSQL advisory locks.
-// It uses pg_try_advisory_lock for non-blocking lock acquisition, allowing
-// the instance to gracefully handle not being the leader.
 type LeaderElector struct {
 	pool          *pgxpool.Pool
 	lockID        int64
@@ -36,10 +24,12 @@ type LeaderElector struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	checkInterval time.Duration
+
+	dedicatedConn *pgxpool.Conn
+	started       bool
+	startedMu     sync.Mutex
 }
 
-// NewLeaderElector creates a new leader elector for the given lock ID.
-// The lock name is used for logging purposes.
 func NewLeaderElector(pool *pgxpool.Pool, lockID int64, lockName string) *LeaderElector {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &LeaderElector{
@@ -53,11 +43,15 @@ func NewLeaderElector(pool *pgxpool.Pool, lockID int64, lockName string) *Leader
 	}
 }
 
-// Start begins the leader election process. It will periodically try to
-// acquire the advisory lock and update the leadership status.
-// The onBecomeLeader callback is called when this instance becomes the leader.
-// The onLoseLeadership callback is called when this instance loses leadership.
 func (le *LeaderElector) Start(onBecomeLeader, onLoseLeadership func()) {
+	le.startedMu.Lock()
+	if le.started {
+		le.startedMu.Unlock()
+		return
+	}
+	le.started = true
+	le.startedMu.Unlock()
+
 	log.Info().
 		Str("lock", le.lockName).
 		Int64("lock_id", le.lockID).
@@ -66,7 +60,6 @@ func (le *LeaderElector) Start(onBecomeLeader, onLoseLeadership func()) {
 	go le.electionLoop(onBecomeLeader, onLoseLeadership)
 }
 
-// Stop stops the leader election process and releases the lock if held.
 func (le *LeaderElector) Stop() {
 	log.Info().
 		Str("lock", le.lockName).
@@ -75,29 +68,22 @@ func (le *LeaderElector) Stop() {
 
 	le.cancel()
 
-	// Release the lock if we were the leader
-	if le.IsLeader() {
-		le.releaseLock()
-	}
+	le.releaseLock()
 }
 
-// IsLeader returns true if this instance currently holds the leader lock.
 func (le *LeaderElector) IsLeader() bool {
 	le.isLeaderMu.RLock()
 	defer le.isLeaderMu.RUnlock()
 	return le.isLeader
 }
 
-// electionLoop periodically tries to acquire/maintain the leader lock.
 func (le *LeaderElector) electionLoop(onBecomeLeader, onLoseLeadership func()) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			log.Error().
 				Interface("panic", rec).
 				Str("lock", le.lockName).
-				Str("goroutine", "electionLoop").
 				Msg("Panic in leader election loop - recovered")
-			// Restart the election loop after a delay
 			time.Sleep(5 * time.Second)
 			if le.ctx.Err() == nil {
 				go le.electionLoop(onBecomeLeader, onLoseLeadership)
@@ -108,7 +94,6 @@ func (le *LeaderElector) electionLoop(onBecomeLeader, onLoseLeadership func()) {
 	ticker := time.NewTicker(le.checkInterval)
 	defer ticker.Stop()
 
-	// Try to acquire lock immediately
 	le.tryAcquireLock(onBecomeLeader, onLoseLeadership)
 
 	for {
@@ -121,20 +106,29 @@ func (le *LeaderElector) electionLoop(onBecomeLeader, onLoseLeadership func()) {
 	}
 }
 
-// tryAcquireLock attempts to acquire the advisory lock.
-// PostgreSQL advisory locks are session-level, so we need to keep the connection alive.
 func (le *LeaderElector) tryAcquireLock(onBecomeLeader, onLoseLeadership func()) {
+	if le.dedicatedConn == nil {
+		conn, err := le.pool.Acquire(le.ctx)
+		if err != nil {
+			if le.ctx.Err() == nil {
+				log.Error().Err(err).Str("lock", le.lockName).Msg("Failed to acquire dedicated connection")
+			}
+			return
+		}
+		le.dedicatedConn = conn
+	}
+
 	ctx, cancel := context.WithTimeout(le.ctx, 5*time.Second)
 	defer cancel()
 
-	// Try to acquire the lock (non-blocking)
 	var acquired bool
-	err := le.pool.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", le.lockID).Scan(&acquired)
+	err := le.dedicatedConn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", le.lockID).Scan(&acquired)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("lock", le.lockName).
-			Msg("Failed to try advisory lock")
+		if le.ctx.Err() == nil {
+			log.Error().Err(err).Str("lock", le.lockName).Msg("Failed to try advisory lock")
+		}
+		le.dedicatedConn.Release()
+		le.dedicatedConn = nil
 		return
 	}
 
@@ -143,25 +137,21 @@ func (le *LeaderElector) tryAcquireLock(onBecomeLeader, onLoseLeadership func())
 	le.isLeader = acquired
 	le.isLeaderMu.Unlock()
 
-	// Handle state transitions
 	if acquired && !wasLeader {
-		log.Info().
-			Str("lock", le.lockName).
-			Msg("Acquired leader lock - this instance is now the leader")
+		log.Info().Str("lock", le.lockName).Msg("Acquired leader lock - this instance is now the leader")
 		if onBecomeLeader != nil {
 			le.safeCallback(onBecomeLeader, "onBecomeLeader")
 		}
 	} else if !acquired && wasLeader {
-		log.Warn().
-			Str("lock", le.lockName).
-			Msg("Lost leader lock - this instance is no longer the leader")
+		le.dedicatedConn.Release()
+		le.dedicatedConn = nil
+		log.Warn().Str("lock", le.lockName).Msg("Lost leader lock - this instance is no longer the leader")
 		if onLoseLeadership != nil {
 			le.safeCallback(onLoseLeadership, "onLoseLeadership")
 		}
 	}
 }
 
-// safeCallback executes a callback with panic recovery
 func (le *LeaderElector) safeCallback(fn func(), name string) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -175,66 +165,19 @@ func (le *LeaderElector) safeCallback(fn func(), name string) {
 	fn()
 }
 
-// releaseLock releases the advisory lock if held.
-//
-// Note: PostgreSQL advisory locks are session-level and are automatically
-// released when the connection that acquired them closes. With connection
-// pooling, we cannot guarantee that the same connection will be used to
-// release the lock that acquired it. Therefore:
-//
-// 1. We attempt to release the lock but handle failures gracefully
-// 2. The lock will be automatically released when the connection closes
-// 3. Leadership state is tracked in memory via isLeader
-// 4. If this instance was the leader, another instance will acquire the lock
 func (le *LeaderElector) releaseLock() {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	if le.dedicatedConn != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
 
-	var released bool
-	err := le.pool.QueryRow(ctx, "SELECT pg_advisory_unlock($1)", le.lockID).Scan(&released)
+		var released bool
+		_ = le.dedicatedConn.QueryRow(ctx, "SELECT pg_advisory_unlock($1)", le.lockID).Scan(&released)
 
-	// Clear local leadership state regardless of unlock result
+		le.dedicatedConn.Release()
+		le.dedicatedConn = nil
+	}
+
 	le.isLeaderMu.Lock()
-	wasLeader := le.isLeader
 	le.isLeader = false
 	le.isLeaderMu.Unlock()
-
-	if err != nil {
-		// Connection may be closed or we may be using a different connection from the pool
-		// This is expected with connection pooling - the lock will be auto-released
-		// when the original connection closes
-		log.Debug().
-			Err(err).
-			Str("lock", le.lockName).
-			Bool("was_leader", wasLeader).
-			Msg("Advisory lock release failed (connection may have closed, lock auto-released)")
-		return
-	}
-
-	if released {
-		log.Info().
-			Str("lock", le.lockName).
-			Msg("Released leader lock")
-	} else {
-		// Lock was not held by this session (connection was recycled)
-		log.Debug().
-			Str("lock", le.lockName).
-			Msg("Advisory lock not held by current session (connection was recycled)")
-	}
-}
-
-// TryAcquireOnce tries to acquire the lock once and returns immediately.
-// This is useful for one-time checks without starting the election loop.
-func (le *LeaderElector) TryAcquireOnce(ctx context.Context) (bool, error) {
-	var acquired bool
-	err := le.pool.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", le.lockID).Scan(&acquired)
-	if err != nil {
-		return false, err
-	}
-
-	le.isLeaderMu.Lock()
-	le.isLeader = acquired
-	le.isLeaderMu.Unlock()
-
-	return acquired, nil
 }

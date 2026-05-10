@@ -279,22 +279,3 @@ func (e *Executor) ApplyPendingMigrations(ctx context.Context, namespace string,
 
 	return applied, failed, nil
 }
-
-// ValidateMigration validates migration SQL without applying it (dry run)
-func (e *Executor) ValidateMigration(ctx context.Context, sql string) error {
-	// Try to prepare the statement (validates syntax)
-	err := database.WrapWithServiceRole(ctx, e.db, func(tx pgx.Tx) error {
-		// Parse and validate SQL (but don't execute)
-		// This is a simple validation - checks syntax but not semantic correctness
-		conn := tx.Conn()
-		_, err := conn.Prepare(ctx, "validate_migration", sql)
-		if err != nil {
-			return fmt.Errorf("invalid SQL: %w", err)
-		}
-		// Deallocate prepared statement
-		_, _ = tx.Exec(ctx, "DEALLOCATE validate_migration")
-		return nil
-	})
-
-	return err
-}

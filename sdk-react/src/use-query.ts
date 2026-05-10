@@ -43,17 +43,22 @@ export function useFluxbaseQuery<T = any>(
   options?: UseFluxbaseQueryOptions<T>,
 ) {
   const client = useFluxbaseClient();
+  const tenantId = client.getTenantId();
+
+  const { queryKey: customKey, ...queryOptions } = options || {};
 
   // Require queryKey for stable caching - function.toString() is not reliable
   // as it can vary between renders for inline functions
-  if (!options?.queryKey) {
+  if (!customKey) {
     console.warn(
       "[useFluxbaseQuery] No queryKey provided. This may cause cache misses. " +
         "Please provide a stable queryKey in options.",
     );
   }
 
-  const queryKey = options?.queryKey || ["fluxbase", "query", "unstable"];
+  const queryKey = customKey
+    ? ["fluxbase", tenantId ?? null, ...customKey]
+    : ["fluxbase", tenantId ?? null, "query", "unstable"];
 
   return useQuery({
     queryKey,
@@ -67,7 +72,7 @@ export function useFluxbaseQuery<T = any>(
 
       return (Array.isArray(data) ? data : data ? [data] : []) as T[];
     },
-    ...options,
+    ...queryOptions,
   });
 }
 
@@ -113,8 +118,7 @@ export function useTable<T = any>(
     },
     {
       ...options,
-      // Use table name as base key, or custom key if provided
-      queryKey: options?.queryKey || ["fluxbase", "table", table],
+      queryKey: options?.queryKey || ["table", table],
     },
   );
 }
@@ -138,8 +142,10 @@ export function useInsert<T = any>(table: string) {
       return result;
     },
     onSuccess: () => {
-      // Invalidate all queries for this table
-      queryClient.invalidateQueries({ queryKey: ["fluxbase", "table", table] });
+      const tenantId = client.getTenantId();
+      queryClient.invalidateQueries({
+        queryKey: ["fluxbase", tenantId ?? null, "table", table],
+      });
     },
   });
 }
@@ -167,7 +173,10 @@ export function useUpdate<T = any>(table: string) {
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fluxbase", "table", table] });
+      const tenantId = client.getTenantId();
+      queryClient.invalidateQueries({
+        queryKey: ["fluxbase", tenantId ?? null, "table", table],
+      });
     },
   });
 }
@@ -191,7 +200,10 @@ export function useUpsert<T = any>(table: string) {
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fluxbase", "table", table] });
+      const tenantId = client.getTenantId();
+      queryClient.invalidateQueries({
+        queryKey: ["fluxbase", tenantId ?? null, "table", table],
+      });
     },
   });
 }
@@ -216,7 +228,10 @@ export function useDelete<T = any>(table: string) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fluxbase", "table", table] });
+      const tenantId = client.getTenantId();
+      queryClient.invalidateQueries({
+        queryKey: ["fluxbase", tenantId ?? null, "table", table],
+      });
     },
   });
 }

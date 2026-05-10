@@ -29,7 +29,7 @@ import (
 type rlsTestEnv struct {
 	mainPool  *pgxpool.Pool
 	adminPool *pgxpool.Pool
-	storage   *tenantdb.Storage
+	storage   *tenantdb.Repository
 	router    *tenantdb.Router
 	tenant    *tenantdb.Tenant
 	tenantDB  string
@@ -62,7 +62,7 @@ func setupRLSIntegrationTest(t *testing.T) *rlsTestEnv {
 	require.NoError(t, err, "Failed to create admin pool")
 
 	// Create Storage.
-	storage := tenantdb.NewStorage(mainPool)
+	storage := tenantdb.NewRepository(mainPool)
 
 	// Create a tenant with a separate database.
 	tenantDBName := fmt.Sprintf("tenant_rls_%s", uuid.New().String()[:8])

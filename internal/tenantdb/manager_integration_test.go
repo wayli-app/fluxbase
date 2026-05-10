@@ -18,7 +18,7 @@ import (
 type managerTestEnv struct {
 	mainPool  *pgxpool.Pool
 	adminPool *pgxpool.Pool
-	storage   *Storage
+	storage   *Repository
 	router    *Router
 	manager   *Manager
 	dbURL     string
@@ -48,7 +48,7 @@ func setupManagerTest(t *testing.T) *managerTestEnv {
 	require.NoError(t, err, "Failed to create admin pool")
 
 	// Create Storage from main pool
-	storage := NewStorage(mainPool)
+	storage := NewRepository(mainPool)
 
 	// Count existing tenants so we can account for them in MaxTenants checks
 	existingCount, err := storage.CountTenants(ctx)

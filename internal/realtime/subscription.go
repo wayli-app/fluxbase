@@ -55,6 +55,7 @@ type rlsCache struct {
 	entries map[string]*rlsCacheEntry
 	maxSize int
 	ttl     time.Duration
+	cancel  context.CancelFunc
 }
 
 // newRLSCache creates a new RLS cache with default settings
@@ -79,8 +80,11 @@ func newRLSCacheWithConfig(config RLSCacheConfig) *rlsCache {
 		maxSize: maxSize,
 		ttl:     ttl,
 	}
-	// Start cleanup goroutine
-	go cache.cleanup()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cache.cancel = cancel
+	go cache.cleanup(ctx)
+
 	return cache
 }
 
@@ -141,14 +145,25 @@ func (c *rlsCache) evictExpiredLocked() {
 }
 
 // cleanup periodically removes expired entries
-func (c *rlsCache) cleanup() {
+func (c *rlsCache) cleanup(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		c.mu.Lock()
-		c.evictExpiredLocked()
-		c.mu.Unlock()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.mu.Lock()
+			c.evictExpiredLocked()
+			c.mu.Unlock()
+		}
+	}
+}
+
+func (c *rlsCache) stop() {
+	if c.cancel != nil {
+		c.cancel()
 	}
 }
 
@@ -325,7 +340,7 @@ type Subscription struct {
 	Table  string
 	Schema string
 	Event  string  // INSERT, UPDATE, DELETE, or * for all
-	Filter *Filter // Supabase-compatible filter (column=operator.value)
+	Filter *Filter // Filter (column=operator.value)
 	ConnID string  // Connection ID this subscription belongs to
 }
 
@@ -341,13 +356,6 @@ func copyClaims(claims map[string]interface{}) map[string]interface{} {
 		copied[k] = v
 	}
 	return copied
-}
-
-// SubscriptionFilter represents filters for a subscription
-type SubscriptionFilter struct {
-	Column   string      `json:"column"`
-	Operator string      `json:"operator"` // eq, neq, gt, lt, gte, lte, in
-	Value    interface{} `json:"value"`
 }
 
 // LogSubscription represents a subscription to execution logs
@@ -420,7 +428,7 @@ func (sm *SubscriptionManager) CreateSubscription(
 		return nil, fmt.Errorf("table %s.%s not enabled for realtime", schema, table)
 	}
 
-	// Parse Supabase-compatible filter
+	// Parse filter
 	filter, err := ParseFilter(filterStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid filter: %w", err)
@@ -577,7 +585,7 @@ func (sm *SubscriptionManager) FilterEventForSubscribers(ctx context.Context, ev
 
 		// Check RLS access with copied claims
 		if sm.checkRLSAccess(ctx, sub, event, claims) {
-			// Check Supabase-compatible filter
+			// Check filter
 			if sm.matchesFilter(event, sub) {
 				result[sub.ConnID] = event
 			}
@@ -597,7 +605,7 @@ func (sm *SubscriptionManager) matchesEvent(eventType, subEvent string) bool {
 
 // matchesFilter checks if an event matches the subscription filter
 func (sm *SubscriptionManager) matchesFilter(event *ChangeEvent, sub *Subscription) bool {
-	// Use new Supabase-compatible filter if present
+	// Use filter if present
 	if sub.Filter != nil {
 		record := event.Record
 		if record == nil {
@@ -1013,4 +1021,10 @@ func (sm *SubscriptionManager) checkAnyExecution(ctx context.Context, execID, us
 	}
 	// Try functions
 	return sm.checkFunctionOwnership(ctx, execID, userID)
+}
+
+func (sm *SubscriptionManager) Close() {
+	if sm.rlsCache != nil {
+		sm.rlsCache.stop()
+	}
 }

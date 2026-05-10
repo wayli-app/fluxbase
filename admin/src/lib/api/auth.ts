@@ -274,6 +274,9 @@ const getDashboardAuthHeaders = (): Record<string, string> => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+// Note: Uses raw axios instead of shared `api` instance because /dashboard/auth/me
+// uses a different auth path (service key or admin JWT, not user JWT).
+// Tenant/branch headers are intentionally NOT included.
 export const dashboardAuthAPI = {
   signup: async (
     data: DashboardSignupRequest,

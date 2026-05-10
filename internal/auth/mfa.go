@@ -85,7 +85,7 @@ func (m *MFAService) SetupTOTP(ctx context.Context, userID string, issuer string
 			    verified = FALSE
 	`
 
-	_, err = m.db.Pool().Exec(ctx, query, userID, factorID, secret, qrCodeDataURI, otpauthURI)
+	_, err = m.db.Exec(ctx, query, userID, factorID, secret, qrCodeDataURI, otpauthURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store TOTP setup: %w", err)
 	}
@@ -110,7 +110,7 @@ func (m *MFAService) EnableTOTP(ctx context.Context, userID, code string) ([]str
 		WHERE user_id = $1 AND verified = FALSE
 	`
 
-	err := m.db.Pool().QueryRow(ctx, query, userID).Scan(&secret, &expiresAt)
+	err := m.db.QueryRow(ctx, query, userID).Scan(&secret, &expiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("2FA setup not found or expired: %w", err)
 	}
@@ -148,12 +148,12 @@ func (m *MFAService) EnableTOTP(ctx context.Context, userID, code string) ([]str
 		WHERE id = $3
 	`
 
-	_, err = m.db.Pool().Exec(ctx, updateQuery, secretToStore, hashedCodes, userID)
+	_, err = m.db.Exec(ctx, updateQuery, secretToStore, hashedCodes, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable TOTP: %w", err)
 	}
 
-	_, _ = m.db.Pool().Exec(ctx, `
+	_, _ = m.db.Exec(ctx, `
 		UPDATE auth.two_factor_setups
 		SET verified = TRUE
 		WHERE user_id = $1
@@ -181,7 +181,7 @@ func (m *MFAService) VerifyTOTPWithContext(ctx context.Context, userID, code, ip
 		WHERE id = $1 AND totp_enabled = TRUE
 	`
 
-	err := m.db.Pool().QueryRow(ctx, query, userID).Scan(&storedSecret, &backupCodes)
+	err := m.db.QueryRow(ctx, query, userID).Scan(&storedSecret, &backupCodes)
 	if err != nil {
 		return fmt.Errorf("2FA not enabled for this user: %w", err)
 	}
@@ -214,7 +214,7 @@ func (m *MFAService) VerifyTOTPWithContext(ctx context.Context, userID, code, ip
 		if err == nil && match {
 			backupCodes = append(backupCodes[:i], backupCodes[i+1:]...)
 
-			_, err = m.db.Pool().Exec(ctx, `
+			_, err = m.db.Exec(ctx, `
 				UPDATE auth.users
 				SET backup_codes = $1, updated_at = NOW()
 				WHERE id = $2
@@ -223,7 +223,7 @@ func (m *MFAService) VerifyTOTPWithContext(ctx context.Context, userID, code, ip
 				return fmt.Errorf("failed to update backup codes: %w", err)
 			}
 
-			_, _ = m.db.Pool().Exec(ctx, `
+			_, _ = m.db.Exec(ctx, `
 				INSERT INTO auth.two_factor_recovery_attempts (user_id, code_used, success)
 				VALUES ($1, $2, TRUE)
 			`, userID, "backup_code")
@@ -239,7 +239,7 @@ func (m *MFAService) VerifyTOTPWithContext(ctx context.Context, userID, code, ip
 	if m.totpRateLimiter != nil {
 		_ = m.totpRateLimiter.RecordAttempt(ctx, userID, false, ipAddress, userAgent)
 	} else {
-		_, _ = m.db.Pool().Exec(ctx, `
+		_, _ = m.db.Exec(ctx, `
 			INSERT INTO auth.two_factor_recovery_attempts (user_id, code_used, success)
 			VALUES ($1, $2, FALSE)
 		`, userID, "totp_code")
@@ -267,12 +267,12 @@ func (m *MFAService) DisableTOTP(ctx context.Context, userID, password string) e
 		WHERE id = $1
 	`
 
-	_, err = m.db.Pool().Exec(ctx, query, userID)
+	_, err = m.db.Exec(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("failed to disable 2FA: %w", err)
 	}
 
-	_, _ = m.db.Pool().Exec(ctx, `
+	_, _ = m.db.Exec(ctx, `
 		DELETE FROM auth.two_factor_setups WHERE user_id = $1
 	`, userID)
 
@@ -283,7 +283,7 @@ func (m *MFAService) IsTOTPEnabled(ctx context.Context, userID string) (bool, er
 	var enabled bool
 	query := `SELECT COALESCE(totp_enabled, FALSE) FROM auth.users WHERE id = $1`
 
-	err := m.db.Pool().QueryRow(ctx, query, userID).Scan(&enabled)
+	err := m.db.QueryRow(ctx, query, userID).Scan(&enabled)
 	if err != nil {
 		return false, fmt.Errorf("failed to check 2FA status: %w", err)
 	}

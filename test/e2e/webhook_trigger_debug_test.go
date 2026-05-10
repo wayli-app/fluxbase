@@ -16,6 +16,7 @@ import (
 func TestWebhookTriggerDebug(t *testing.T) {
 	tc := setupWebhookTriggerTest(t)
 	defer tc.Close()
+	tc.EnablePrivateIPsForWebhooks()
 
 	// Create a test webhook server with mutex for thread-safe access
 	var mu sync.Mutex

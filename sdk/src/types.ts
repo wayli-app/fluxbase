@@ -4574,16 +4574,4 @@ export interface DeprecateServiceKeyRequest {
   grace_period_hours?: number;
 }
 
-// ============================================================================
-// Deprecated Supabase-compatible type aliases (for backward compatibility)
-// ============================================================================
 
-/**
- * @deprecated Use FluxbaseResponse instead
- */
-export type SupabaseResponse<T> = FluxbaseResponse<T>;
-
-/**
- * @deprecated Use FluxbaseAuthResponse instead
- */
-export type SupabaseAuthResponse = FluxbaseAuthResponse;

@@ -299,16 +299,13 @@ test-setup-db: ## Apply bootstrap + declarative schemas to match CI pipeline set
 	@echo "${GREEN}Database schema applied successfully!${NC}"
 
 test-full: ## Run ALL tests including e2e with race detector (may take 5-10 minutes)
-	$(MAKE) test-setup-db DATABASE_NAME=fluxbase_test
 	@./scripts/test-runner.sh go test -timeout 15m -v -race -cover -tags=integration ./...
 
-test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services). Use RUN= to filter tests.
-	$(MAKE) test-setup-db DATABASE_NAME=fluxbase_test
-	@./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=5m -tags=integration ./test/e2e/... $(if $(RUN),-run $(RUN),)
+test-e2e: ## Run e2e tests only (self-sufficient: resets and bootstraps fluxbase_go_e2e DB). Use RUN= to filter tests.
+	@./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=10m -tags=integration ./test/e2e/... $(if $(RUN),-run $(RUN),)
 
 test-e2e-fast: ## Run e2e tests without race detector (faster for dev iteration). Use RUN= to filter tests.
-	$(MAKE) test-setup-db DATABASE_NAME=fluxbase_test
-	@./scripts/test-runner.sh go test -v -parallel=1 -timeout=3m -tags=integration ./test/e2e/... $(if $(RUN),-run $(RUN),)
+	@./scripts/test-runner.sh go test -v -parallel=1 -timeout=5m -tags=integration ./test/e2e/... $(if $(RUN),-run $(RUN),)
 
 test-auth: ## Run authentication tests only
 	@./scripts/test-runner.sh go test -v -race -timeout=5m -tags=integration ./test/e2e/ -run TestAuth

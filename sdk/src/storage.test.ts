@@ -16,6 +16,9 @@ class MockFetch {
   public lastHeaders: Record<string, string> = {}
   public mockResponse: any = null
 
+  getBaseUrl(): string { return this.baseUrl }
+  getDefaultHeaders(): Record<string, string> { return { ...this.defaultHeaders } }
+
   async get<T>(path: string): Promise<T> {
     this.lastUrl = path
     this.lastMethod = 'GET'

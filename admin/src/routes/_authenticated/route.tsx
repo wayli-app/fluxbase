@@ -1,28 +1,22 @@
+import { useState, useEffect } from "react";
 import { createFileRoute, isRedirect, redirect } from "@tanstack/react-router";
 import { isAuthenticated } from "@/lib/auth";
 import { adminAuthAPI } from "@/lib/api/auth";
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async ({ location }) => {
     if (!isAuthenticated()) {
-      // Check if initial setup is needed (no admin user exists yet).
-      // Only redirect to setup on a successful response indicating
-      // needs_setup: true. On API errors (rate limit, server error),
-      // fall through to the login redirect — the setup page won't work
-      // anyway if the API is down.
       try {
         const status = await adminAuthAPI.getSetupStatus();
         if (status.needs_setup) {
           throw redirect({ to: "/setup" });
         }
       } catch (err) {
-        // Re-throw TanStack Router redirects
         if (isRedirect(err)) throw err;
-        // Swallow API errors — fall through to login redirect
       }
 
-      // Not authenticated and setup is complete — redirect to login
       throw redirect({
         to: "/login",
         search: {
@@ -31,5 +25,24 @@ export const Route = createFileRoute("/_authenticated")({
       });
     }
   },
-  component: AuthenticatedLayout,
+  component: AuthenticatedRoute,
 });
+
+function AuthenticatedRoute() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = requestAnimationFrame(() => setLoading(false));
+    return () => cancelAnimationFrame(timer);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return <AuthenticatedLayout />;
+}

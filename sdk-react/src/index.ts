@@ -135,6 +135,15 @@ export {
   type UseTableDetailsReturn,
 } from "./use-table-export";
 
+// Function hooks
+export { useInvokeFunction } from "./use-functions";
+
+// Job hooks
+export { useSubmitJob, useJobStatus } from "./use-jobs";
+
+// Branching hooks
+export { useBranches } from "./use-branches";
+
 // Re-export types from SDK
 export type {
   FluxbaseClient,
@@ -144,6 +153,7 @@ export type {
   SignUpCredentials,
   PostgrestResponse,
   RealtimeChangePayload,
+  // @deprecated backward compat aliases
   StorageObject,
   AdminUser,
   EnrichedUser,

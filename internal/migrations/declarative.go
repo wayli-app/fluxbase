@@ -621,8 +621,10 @@ func (s *DeclarativeService) applyPlanDirectly(ctx context.Context, schema strin
 	}
 	defer pool.Close()
 
-	// Set search_path to include all schemas for cross-schema references
-	// The target schema comes first, then all other schemas for FK references
+	// Set search_path to include all schemas for cross-schema references.
+	// The target schema comes first, then all other schemas for FK references.
+	// Note: We include the target schema because pgschema generates unqualified
+	// SQL (e.g., "bootstrap_state_id_seq" instead of "platform.bootstrap_state_id_seq").
 	allSchemas := strings.Join(s.config.Schemas, ", ")
 	searchPath := fmt.Sprintf("%s, %s, public", schema, allSchemas)
 	_, err = pool.Exec(ctx, fmt.Sprintf("SET search_path TO %s", searchPath))

@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
 	"github.com/nimbleflux/fluxbase/internal/jobs"
@@ -117,15 +119,6 @@ var startTime = time.Now()
 // GetMetrics returns system metrics
 // Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetMetrics(c fiber.Ctx) error {
-	// Check if user has admin role
-	role, _ := c.Locals("user_role").(string)
-	if role != "admin" && role != "instance_admin" && role != "service_role" && role != "tenant_service" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required to view system metrics",
-		})
-	}
-
-	// Check if database connection is available
 	if h.db == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Database connection not initialized",
@@ -200,7 +193,7 @@ func (h *MonitoringHandler) GetMetrics(c fiber.Ctx) error {
 // getStorageStats queries storage.buckets and storage.objects tables with RLS/tenant
 // context for accurate counts. Falls back to storage provider if DB query fails.
 func (h *MonitoringHandler) getStorageStats(c fiber.Ctx) (*StorageStats, error) {
-	ctx := context.Background()
+	ctx := c.RequestCtx()
 
 	// Get tenant context from middleware
 	tenantID := middleware.GetTenantIDFromContext(c)
@@ -228,7 +221,12 @@ func (h *MonitoringHandler) getStorageStats(c fiber.Ctx) (*StorageStats, error) 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
-	jwtClaims := fmt.Sprintf(`{"sub":"%s","role":"%s"}`, userID, role)
+	claimsMap := map[string]string{"sub": userID, "role": role}
+	jwtClaimsBytes, err := json.Marshal(claimsMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal JWT claims: %w", err)
+	}
+	jwtClaims := string(jwtClaimsBytes)
 	if _, err := tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims); err != nil {
 		return nil, fmt.Errorf("failed to set JWT claims: %w", err)
 	}
@@ -264,15 +262,6 @@ func (h *MonitoringHandler) getStorageStats(c fiber.Ctx) (*StorageStats, error) 
 // GetHealth returns the health status of all system components
 // Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetHealth(c fiber.Ctx) error {
-	// Check if user has admin role
-	role, _ := c.Locals("user_role").(string)
-	if role != "admin" && role != "instance_admin" && role != "service_role" && role != "tenant_service" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required to view system health",
-		})
-	}
-
-	// Check if database connection is available
 	if h.db == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Database connection not initialized",
@@ -286,7 +275,7 @@ func (h *MonitoringHandler) GetHealth(c fiber.Ctx) error {
 
 	// Check database health
 	dbStart := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.RequestCtx(), 5*time.Second)
 	defer cancel()
 
 	err := h.db.Pool().Ping(ctx)
@@ -388,15 +377,6 @@ type LogEntry struct {
 // GetLogs returns recent application logs
 // Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetLogs(c fiber.Ctx) error {
-	// Check if user has admin role
-	role, _ := c.Locals("user_role").(string)
-	if role != "admin" && role != "instance_admin" && role != "service_role" && role != "tenant_service" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required to view logs",
-		})
-	}
-
-	// Check if logging service is available
 	if h.loggingService == nil {
 		return c.JSON(fiber.Map{
 			"message": "Logging service not configured. Enable logging in configuration to view logs.",
@@ -453,8 +433,9 @@ func (h *MonitoringHandler) GetLogs(c fiber.Ctx) error {
 	// Query logs from storage
 	result, err := h.loggingService.Storage().Query(middleware.CtxWithTenant(c), opts)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to query logs")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to query logs: " + err.Error(),
+			"error": "Internal error",
 		})
 	}
 

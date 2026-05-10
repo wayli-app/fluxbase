@@ -8,21 +8,17 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
-	"github.com/nimbleflux/fluxbase/internal/email"
 	"github.com/nimbleflux/fluxbase/internal/logging"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 	"github.com/nimbleflux/fluxbase/internal/observability"
 	"github.com/nimbleflux/fluxbase/internal/pubsub"
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 	"github.com/nimbleflux/fluxbase/internal/realtime"
-	"github.com/nimbleflux/fluxbase/internal/secrets"
 	"github.com/nimbleflux/fluxbase/internal/storage"
 	"github.com/nimbleflux/fluxbase/internal/webhook"
 )
@@ -74,28 +70,18 @@ type Server struct {
 	// This prevents creating multiple GC goroutines from Fiber's memory.New()
 	sharedMiddlewareStorage fiber.Storage
 
-	// Test transaction support (for HTTP API tests with transaction isolation)
-	// When set, HTTP requests use this transaction instead of the connection pool
-	testTx pgx.Tx
-
 	// Tenant configuration loader for multi-tenant config overrides
 	tenantConfigLoader *config.TenantConfigLoader
 
 	// Schema graph cache (per-tenant, TTL-based)
 	graphCache *schemaGraphCache
 
-	// Cross-init method dependencies
-	authService           *auth.Service
-	emailManager          *email.Manager
-	emailService          email.Service
-	storageManager        *storage.Manager
-	storageService        *storage.Service
-	loggingService        *logging.Service
-	captchaService        *auth.CaptchaService
-	systemSettingsService *auth.SystemSettingsService
-	userMgmtService       *auth.UserManagementService
-	invitationService     *auth.InvitationService
-	secretsStorage        *secrets.Storage
+	// Cached middleware instances (created once during init)
+	requireAuth  fiber.Handler
+	optionalAuth fiber.Handler
+
+	// Service registry for module-based initialization
+	registry *ServiceRegistry
 }
 
 // NewServer creates a new HTTP server
@@ -123,10 +109,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		Extensions: &ExtensionsHandlers{},
 		Secrets:    &SecretsHandlers{},
 		Scaling:    &ScalingHandlers{},
-		Metrics: &MetricsComponents{
-			Metrics:   observability.NewMetrics(),
-			StartTime: time.Now(),
-		},
 		Email:      &EmailHandlers{},
 		Captcha:    &CaptchaHandlers{},
 		Monitoring: &MonitoringHandlers{},
@@ -138,60 +120,176 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		},
 	}
 
+	metricsObj := observability.NewMetrics()
+	metricsStart := time.Now()
+	s.Metrics = &MetricsComponents{
+		Metrics:   metricsObj,
+		StartTime: metricsStart,
+	}
+
 	s.initCore()
-	s.initEmail()
-	s.initAuth()
-	s.initStorage()
-	s.initLogging()
-	s.initWebhook()
-	s.initSecrets()
-	s.initTenancy()
-	s.initSettings()
-	s.initSchema()
-	s.initFunctions()
-	s.initJobs()
-	s.initRPC()
-	s.initAI()
-	s.initRealtime()
-	s.setupMCPServer()
-	s.initBranching()
-	s.initGraphQL()
-	s.initExtensions()
-	s.initMetrics()
-	s.initBackgroundServices()
+
+	s.registry = NewServiceRegistry(cfg, db)
+	s.registry.PubSub = s.pubSub
+	s.registry.RateLimiter = s.rateLimiter
+
+	emailMod := &EmailModule{}
+	secretsMod := &SecretsModule{}
+	storageMod := &StorageModule{}
+	loggingMod := &LoggingModule{}
+	authMod := &AuthModule{}
+	webhookMod := &WebhookModule{}
+	extensionsMod := &ExtensionsModule{}
+	tenancyMod := &TenancyModule{}
+	settingsMod := &SettingsModule{}
+	schemaMod := &SchemaModule{}
+	functionsMod := &FunctionsModule{}
+	jobsMod := &JobsModule{}
+	rpcMod := &RPCModule{}
+	aiMod := &AIModule{}
+	realtimeMod := &RealtimeModule{}
+	branchingMod := &BranchingModule{}
+	graphqlMod := &GraphQLModule{}
+	mcpMod := &MCPModule{}
+	metricsMod := &MetricsModule{Metrics: metricsObj, StartTime: metricsStart}
+	bgMod := &BackgroundServicesModule{}
+
+	if err := InitModules(context.Background(), s.registry, []Module{
+		emailMod,
+		secretsMod,
+		storageMod,
+		loggingMod,
+		authMod,
+		webhookMod,
+		extensionsMod,
+		tenancyMod,
+		settingsMod,
+		schemaMod,
+		functionsMod,
+		jobsMod,
+		rpcMod,
+		aiMod,
+		realtimeMod,
+		branchingMod,
+		graphqlMod,
+		mcpMod,
+		metricsMod,
+		bgMod,
+	}); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize modules")
+	}
+
+	s.Secrets.Storage = secretsMod.Storage
+	s.Secrets.Handler = secretsMod.Handler
+	s.Storage.Handler = storageMod.Handler
+	s.Logging.Service = loggingMod.Service
+	s.Logging.Handler = loggingMod.Handler
+	s.Logging.Retention = loggingMod.Retention
+	s.Auth = authMod.Handlers
+	s.sqlHandler = authMod.SQLHandler
+	s.requireAuth = authMod.RequireAuth
+	s.optionalAuth = authMod.OptionalAuth
+	s.Webhook.Handler = webhookMod.Handler
+	s.Webhook.Trigger = webhookMod.Trigger
+	s.Extensions.Handler = extensionsMod.Handler
+
+	s.Tenancy.ServiceKey = tenancyMod.Key
+	s.Tenancy.Manager = tenancyMod.Manager
+	s.Tenancy.Storage = tenancyMod.Storage
+	s.Tenancy.Tenant = tenancyMod.Tenant
+	if tenancyMod.TenantDB != nil {
+		s.Middleware.TenantDB = tenancyMod.TenantDB
+	}
+
+	s.Settings.Unified = settingsMod.Unified
+	s.Settings.Instance = settingsMod.Instance
+	s.Settings.Tenant = settingsMod.Tenant
+	s.Settings.System = settingsMod.System
+	s.Settings.Custom = settingsMod.Custom
+	s.Settings.Service = settingsMod.Service
+	s.Settings.User = settingsMod.User
+	s.Settings.App = settingsMod.App
+	s.Settings.Handler = settingsMod.Handler
+	s.Email.Template = settingsMod.EmailTemplate
+	s.Email.Settings = settingsMod.EmailSettings
+	s.Captcha.Settings = settingsMod.CaptchaSettings
+
+	s.Schema.DDL = schemaMod.DDL
+	s.Schema.Cache = schemaMod.Cache
+	s.Schema.Migrations = schemaMod.Migrations
+	s.Schema.Export = schemaMod.Export
+	s.Schema.InternalSchema = schemaMod.Internal
+	s.rest = schemaMod.RESTHandler
+
+	s.Functions.Handler = functionsMod.Handler
+	s.Functions.Scheduler = functionsMod.Scheduler
+
+	s.Jobs.Manager = jobsMod.Manager
+	s.Jobs.Handler = jobsMod.Handler
+	s.Jobs.Scheduler = jobsMod.Scheduler
+
+	s.RPC.Handler = rpcMod.Handler
+	s.RPC.Scheduler = rpcMod.Scheduler
+
+	s.AI = &AIHandlers{
+		Handler:         aiMod.Handler,
+		Chat:            aiMod.Chat,
+		Conversations:   aiMod.Conversations,
+		Metrics:         aiMod.Metrics,
+		KnowledgeBase:   aiMod.KnowledgeBase,
+		KBStorage:       aiMod.KBStorage,
+		DocProcessor:    aiMod.DocProcessor,
+		TableExportSync: aiMod.TableExportSync,
+		VectorManager:   aiMod.VectorManager,
+		VectorHandler:   aiMod.VectorHandler,
+		Internal:        aiMod.Internal,
+	}
+	s.Quota.Handler = aiMod.QuotaHandler
+
+	s.Realtime.Admin = realtimeMod.Admin
+	s.Realtime.Manager = realtimeMod.Manager
+	s.Realtime.Handler = realtimeMod.Handler
+	s.Realtime.Listener = realtimeMod.Listener
+	s.Monitoring.Handler = realtimeMod.Monitor
+
+	s.Branching.Manager = branchingMod.Manager
+	s.Branching.Router = branchingMod.Router
+	s.Branching.Handler = branchingMod.Handler
+	s.Branching.GitHub = branchingMod.GitHub
+	s.Branching.Scheduler = branchingMod.Scheduler
+
+	s.GraphQL.Handler = graphqlMod.Handler
+
+	s.MCP.Handler = mcpMod.Handler
+	s.MCP.OAuth = mcpMod.OAuth
+	s.MCP.CustomManager = mcpMod.CustomManager
+	s.MCP.CustomHandler = mcpMod.CustomHandler
+
+	s.Metrics.Server = metricsMod.Server
+	s.Metrics.StopChan = metricsMod.StopChan
+
+	s.Scaling.FunctionsLeader = bgMod.FunctionsLeader
+	s.Scaling.JobsLeader = bgMod.JobsLeader
+	s.Scaling.RPCLeader = bgMod.RPCLeader
+
+	if err := s.Webhook.Trigger.Start(context.Background()); err != nil {
+		log.Error().Err(err).Msg("Failed to start webhook trigger service")
+	}
+	if s.Logging.Retention != nil {
+		s.Logging.Retention.Start()
+		log.Info().
+			Dur("interval", s.config.Logging.RetentionCheckInterval).
+			Msg("Log retention cleanup service started")
+	}
+	if s.Branching.Scheduler != nil {
+		s.Branching.Scheduler.Start()
+	}
+
 	s.setupMiddlewares()
 	s.setupRoutes()
 
-	if s.rateLimiter != nil {
-		ratelimit.SetGlobalStore(s.rateLimiter)
-	}
-	if s.pubSub != nil {
-		pubsub.SetGlobalPubSub(s.pubSub)
-	}
-
 	log.Debug().Msg("Server initialization complete")
 	return s
-}
-
-// NewServerWithTx creates a test-mode server with transaction isolation.
-// This is specifically for HTTP API tests that need to use a transaction.
-//
-// Note: This function creates a minimal server with only the essential components
-// for HTTP API testing. It does NOT initialize all services (webhooks, realtime, jobs, etc.).
-func NewServerWithTx(cfg *config.Config, db *database.Connection, tx pgx.Tx, version string) *Server {
-	server := NewServer(cfg, db, version)
-	server.testTx = tx
-	return server
-}
-
-// DB returns the database querier to use.
-// In test mode with a transaction, it returns the transaction (note: can't use tx as pool).
-// Otherwise, it returns the normal database connection pool.
-func (s *Server) DB() *pgxpool.Pool {
-	if s.testTx != nil {
-		return s.db.Pool()
-	}
-	return s.db.Pool()
 }
 
 // createMCPAuthMiddleware creates authentication middleware for MCP that supports
@@ -219,7 +317,7 @@ func (s *Server) createMCPAuthMiddleware() fiber.Handler {
 		return middleware.RequireAuthOrServiceKey(
 			s.Auth.Handler.authService,
 			s.Auth.ClientKeyService,
-			s.DB(),
+			s.db.Pool(),
 			nil,
 			s.Auth.DashboardHandler.jwtManager,
 		)(c)
@@ -271,7 +369,7 @@ func (s *Server) handleHealth(c fiber.Ctx) error {
 }
 
 func (s *Server) handleGetTables(c fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := context.Context(c.RequestCtx())
 
 	if userID := middleware.GetUserID(c); userID != "" {
 		if userRole, ok := GetUserRole(c); ok {
@@ -350,14 +448,12 @@ func (s *Server) handleGetTables(c fiber.Ctx) error {
 }
 
 func (s *Server) handleGetTableSchema(c fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.RequestCtx()
 	schema := c.Params("schema")
 	table := c.Params("table")
 
 	if schema == "" || table == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Schema and table parameters are required",
-		})
+		return SendBadRequest(c, "Schema and table parameters are required", ErrCodeMissingField)
 	}
 
 	var tableInfo *database.TableInfo
@@ -368,16 +464,14 @@ func (s *Server) handleGetTableSchema(c fiber.Ctx) error {
 		tableInfo, err = s.db.Inspector().GetTableInfo(ctx, schema, table)
 	}
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table not found: %s.%s", schema, table),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table not found: %s.%s", schema, table))
 	}
 
 	return c.JSON(tableInfo)
 }
 
 func (s *Server) handleGetSchemas(c fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := context.Context(c.RequestCtx())
 
 	if userID := middleware.GetUserID(c); userID != "" {
 		if userRole, ok := GetUserRole(c); ok {
@@ -425,7 +519,7 @@ func (s *Server) handleGetSchemas(c fiber.Ctx) error {
 }
 
 func (s *Server) handleExecuteQuery(c fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Execute query endpoint - to be implemented"})
+	return SendError(c, fiber.StatusNotImplemented, "Not implemented")
 }
 
 // InvalidateSchemaCache invalidates the REST API schema cache.
@@ -448,17 +542,12 @@ func (s *Server) handleRefreshSchema(c fiber.Ctx) error {
 
 	schemaCache := s.rest.SchemaCache()
 	if schemaCache == nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Schema cache not initialized",
-		})
+		return SendInternalError(c, "Schema cache not initialized")
 	}
 
 	if err := schemaCache.Refresh(c.RequestCtx()); err != nil {
 		log.Error().Err(err).Msg("Failed to refresh schema cache")
-		return c.Status(500).JSON(fiber.Map{
-			"error":   "Failed to refresh schema cache",
-			"details": err.Error(),
-		})
+		return SendInternalError(c, "Failed to refresh schema cache")
 	}
 
 	s.graphCache.Invalidate()
@@ -717,9 +806,7 @@ func customErrorHandler(c fiber.Ctx, err error) error {
 func (s *Server) handleRealtimeStats(c fiber.Ctx) error {
 	role, _ := c.Locals("user_role").(string)
 	if role != "admin" && role != "instance_admin" && role != "tenant_admin" && role != "service_role" && role != "tenant_service" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required to view realtime stats",
-		})
+		return SendForbidden(c, "Admin access required to view realtime stats", ErrCodeAccessDenied)
 	}
 
 	const defaultLimit = 25
@@ -805,49 +892,5 @@ func (s *Server) handleRealtimeStats(c fiber.Ctx) error {
 		"connections":       filteredConnections,
 		"limit":             limit,
 		"offset":            offset,
-	})
-}
-
-// BroadcastRequest represents a broadcast request
-type BroadcastRequest struct {
-	Channel string      `json:"channel"`
-	Message interface{} `json:"message"`
-}
-
-// handleRealtimeBroadcast broadcasts a message to a channel
-func (s *Server) handleRealtimeBroadcast(c fiber.Ctx) error {
-	var req BroadcastRequest
-	if err := ParseBody(c, &req); err != nil {
-		return err
-	}
-
-	if req.Channel == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Channel is required",
-		})
-	}
-
-	if s.Realtime.Handler == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Realtime service not available",
-		})
-	}
-
-	manager := s.Realtime.Handler.GetManager()
-	recipientCount := manager.BroadcastToChannel(req.Channel, realtime.ServerMessage{
-		Type:    realtime.MessageTypeBroadcast,
-		Channel: req.Channel,
-		Payload: map[string]interface{}{
-			"broadcast": map[string]interface{}{
-				"event":   "broadcast",
-				"payload": req.Message,
-			},
-		},
-	})
-
-	return c.JSON(fiber.Map{
-		"success":    true,
-		"channel":    req.Channel,
-		"recipients": recipientCount,
 	})
 }

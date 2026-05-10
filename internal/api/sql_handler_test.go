@@ -314,7 +314,7 @@ func TestFormatUUID(t *testing.T) {
 }
 
 func newTestSQLHandler(pool *pgxpool.Pool) *SQLHandler {
-	return &SQLHandler{db: database.NewConnectionFromPool(pool)}
+	return &SQLHandler{db: database.NewConnectionWithPool(pool)}
 }
 
 func TestGetPoolForQuery_TenantPoolUsed(t *testing.T) {

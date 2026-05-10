@@ -25,7 +25,6 @@ func TestIsValidScope(t *testing.T) {
 			ScopeWebhooksWrite,
 			ScopeMonitoringRead,
 			ScopeRealtimeConnect,
-			ScopeRealtimeBroadcast,
 			ScopeRPCRead,
 			ScopeRPCExecute,
 			ScopeJobsRead,
@@ -228,9 +227,9 @@ func TestHasAllScopes(t *testing.T) {
 
 func TestAllScopes(t *testing.T) {
 	t.Run("AllScopes contains expected count", func(t *testing.T) {
-		// 25 scopes: 2 tables + 2 storage + 2 functions + 2 auth + 2 clientkeys +
-		// 2 webhooks + 1 monitoring + 2 realtime + 2 rpc + 2 jobs + 2 ai + 2 secrets + 2 migrations
-		assert.Len(t, AllScopes, 25)
+		// 24 scopes: 2 tables + 2 storage + 2 functions + 2 auth + 2 clientkeys +
+		// 2 webhooks + 1 monitoring + 1 realtime + 2 rpc + 2 jobs + 2 ai + 2 secrets + 2 migrations
+		assert.Len(t, AllScopes, 24)
 	})
 
 	t.Run("AllScopes does not contain wildcard", func(t *testing.T) {
@@ -281,7 +280,6 @@ func TestScopeConstants(t *testing.T) {
 
 		// Realtime
 		assert.Equal(t, "realtime:connect", ScopeRealtimeConnect)
-		assert.Equal(t, "realtime:broadcast", ScopeRealtimeBroadcast)
 
 		// RPC
 		assert.Equal(t, "rpc:read", ScopeRPCRead)
@@ -346,17 +344,13 @@ func TestScopeUseCases(t *testing.T) {
 	t.Run("realtime client", func(t *testing.T) {
 		realtimeScopes := []string{
 			ScopeRealtimeConnect,
-			ScopeRealtimeBroadcast,
 			ScopeTablesRead,
 		}
 
-		// Validate all scopes are valid
 		err := ValidateScopes(realtimeScopes)
 		assert.NoError(t, err)
 
-		// Check realtime access
 		assert.True(t, HasScope(realtimeScopes, ScopeRealtimeConnect))
-		assert.True(t, HasScope(realtimeScopes, ScopeRealtimeBroadcast))
 	})
 
 	t.Run("multiple required scopes for complex operation", func(t *testing.T) {

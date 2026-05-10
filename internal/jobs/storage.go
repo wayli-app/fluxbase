@@ -2,9 +2,6 @@ package jobs
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -14,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
-	"github.com/nimbleflux/fluxbase/internal/runtime"
 )
 
 type Storage struct {
@@ -446,10 +442,12 @@ func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFi
 		RETURNING created_at
 	`
 
-	return s.DB.Pool().QueryRow(
-		ctx, query,
-		file.ID, file.JobFunctionID, file.FilePath, file.Content,
-	).Scan(&file.CreatedAt)
+	return s.WithTenant(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(
+			ctx, query,
+			file.ID, file.JobFunctionID, file.FilePath, file.Content,
+		).Scan(&file.CreatedAt)
+	})
 }
 
 // ListJobFunctionFiles lists all files for a job function
@@ -461,29 +459,33 @@ func (s *Storage) ListJobFunctionFiles(ctx context.Context, jobFunctionID uuid.U
 		ORDER BY file_path
 	`
 
-	rows, err := s.DB.Pool().Query(ctx, query, jobFunctionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var files []*JobFunctionFile
-	for rows.Next() {
-		var file JobFunctionFile
-		if err := rows.Scan(&file.ID, &file.JobFunctionID, &file.FilePath, &file.Content, &file.CreatedAt); err != nil {
-			return nil, err
+	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, jobFunctionID)
+		if err != nil {
+			return err
 		}
-		files = append(files, &file)
-	}
+		defer rows.Close()
 
-	return files, rows.Err()
+		for rows.Next() {
+			var file JobFunctionFile
+			if err := rows.Scan(&file.ID, &file.JobFunctionID, &file.FilePath, &file.Content, &file.CreatedAt); err != nil {
+				return err
+			}
+			files = append(files, &file)
+		}
+		return rows.Err()
+	})
+	return files, err
 }
 
 // DeleteJobFunctionFiles deletes all files for a job function
 func (s *Storage) DeleteJobFunctionFiles(ctx context.Context, jobFunctionID uuid.UUID) error {
 	query := `DELETE FROM jobs.function_files WHERE function_id = $1`
-	_, err := s.DB.Pool().Exec(ctx, query, jobFunctionID)
-	return err
+	return s.WithTenant(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, jobFunctionID)
+		return err
+	})
 }
 
 // ========== Job Queue ==========
@@ -514,17 +516,6 @@ func (s *Storage) EnqueueJobWithTenant(ctx context.Context, tenantID string, job
 	})
 }
 
-// ComputeDeduplicationKey generates a deduplication key from job parameters
-// The key is a hash of namespace + job_name + payload (if any)
-func ComputeDeduplicationKey(namespace, jobName string, payload *string) string {
-	data := namespace + ":" + jobName
-	if payload != nil && *payload != "" {
-		data += ":" + *payload
-	}
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
-}
-
 // IsDuplicateJob checks if a pending or running job with the same parameters exists
 func (s *Storage) IsDuplicateJob(ctx context.Context, namespace, jobName string, payload *string) (bool, *uuid.UUID, error) {
 	// Check for pending or running jobs with matching namespace, job_name, and payload
@@ -552,25 +543,6 @@ func (s *Storage) IsDuplicateJob(ctx context.Context, namespace, jobName string,
 	}
 
 	return true, &existingID, nil
-}
-
-// EnqueueJobWithDedup enqueues a job with deduplication check
-// If a pending or running job with the same parameters exists, returns ErrDuplicateJob
-func (s *Storage) EnqueueJobWithDedup(ctx context.Context, job *Job) error {
-	// Check for duplicates
-	isDup, existingID, err := s.IsDuplicateJob(ctx, job.Namespace, job.JobName, job.Payload)
-	if err != nil {
-		return fmt.Errorf("failed to check for duplicate jobs: %w", err)
-	}
-
-	if isDup {
-		// Store the existing job ID in the deduplication key field for reference
-		existingIDStr := existingID.String()
-		job.DeduplicationKey = &existingIDStr
-		return ErrDuplicateJob
-	}
-
-	return s.EnqueueJob(ctx, job)
 }
 
 // ClaimNextJob claims the next available job for a worker (using SELECT FOR UPDATE SKIP LOCKED)
@@ -747,20 +719,33 @@ func (s *Storage) InterruptJob(ctx context.Context, jobID uuid.UUID, reason stri
 	return nil
 }
 
-// RequeueJob requeues a failed job for retry
-func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
+func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID, errorMsg string) error {
+	return s.requeueJobWithStatus(ctx, jobID, JobStatusRunning, errorMsg)
+}
+
+func (s *Storage) RequeueFailedJob(ctx context.Context, jobID uuid.UUID) error {
+	return s.requeueJobWithStatus(ctx, jobID, JobStatusFailed, "")
+}
+
+func (s *Storage) requeueJobWithStatus(ctx context.Context, jobID uuid.UUID, currentStatus JobStatus, errorMsg string) error {
 	query := `
 		UPDATE jobs.queue
 		SET status = $1, retry_count = retry_count + 1, worker_id = NULL,
 		    started_at = NULL, last_progress_at = NULL, completed_at = NULL,
-		    error_message = NULL
+		    error_message = CASE WHEN $5 != '' THEN $5 ELSE error_message END,
+		    scheduled_at = NOW() + make_interval(secs => 5.0 * POWER(2::float8, LEAST(retry_count, 6)))
 		WHERE id = $2 AND status = $3 AND retry_count < max_retries AND (tenant_id = $4 OR ($4 IS NULL AND tenant_id IS NULL))
 	`
 
 	var result pgconn.CommandTag
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		var execErr error
-		result, execErr = tx.Exec(ctx, query, JobStatusPending, jobID, JobStatusFailed, database.TenantOrNil(database.TenantFromContext(ctx)))
+		result, execErr = tx.Exec(
+			ctx, query,
+			JobStatusPending, jobID, currentStatus,
+			database.TenantOrNil(database.TenantFromContext(ctx)),
+			errorMsg,
+		)
 		return execErr
 	})
 	if err != nil {
@@ -768,7 +753,7 @@ func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
 	}
 
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("job not found, not failed, or max retries reached: %s", jobID)
+		return fmt.Errorf("job not found, not %s, or max retries reached: %s", string(currentStatus), jobID)
 	}
 
 	return nil
@@ -1477,37 +1462,6 @@ func (s *Storage) ListJobNamespaces(ctx context.Context) ([]string, error) {
 	}
 
 	return namespaces, nil
-}
-
-// ========== Helper Functions ==========
-
-// ProgressToJSON converts a Progress struct to JSON string
-func ProgressToJSON(p *runtime.Progress) (*string, error) {
-	if p == nil {
-		return nil, nil
-	}
-
-	data, err := json.Marshal(p)
-	if err != nil {
-		return nil, err
-	}
-
-	str := string(data)
-	return &str, nil
-}
-
-// JSONToProgress converts a JSON string to Progress struct
-func JSONToProgress(s *string) (*runtime.Progress, error) {
-	if s == nil || *s == "" {
-		return nil, nil
-	}
-
-	var p runtime.Progress
-	if err := json.Unmarshal([]byte(*s), &p); err != nil {
-		return nil, err
-	}
-
-	return &p, nil
 }
 
 // ListAllScheduledJobFunctions lists all enabled scheduled job functions across all tenants.

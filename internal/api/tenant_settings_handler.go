@@ -14,11 +14,11 @@ import (
 // TenantSettingsHandler handles tenant-level settings API endpoints
 type TenantSettingsHandler struct {
 	settingsSvc *settings.UnifiedService
-	tenantDB    *tenantdb.Storage
+	tenantDB    *tenantdb.Repository
 }
 
 // NewTenantSettingsHandler creates a new tenant settings handler
-func NewTenantSettingsHandler(settingsSvc *settings.UnifiedService, tenantDB *tenantdb.Storage) *TenantSettingsHandler {
+func NewTenantSettingsHandler(settingsSvc *settings.UnifiedService, tenantDB *tenantdb.Repository) *TenantSettingsHandler {
 	return &TenantSettingsHandler{
 		settingsSvc: settingsSvc,
 		tenantDB:    tenantDB,

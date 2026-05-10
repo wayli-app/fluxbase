@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/crypto"
 	"github.com/nimbleflux/fluxbase/internal/database"
@@ -102,7 +103,7 @@ func (s *Storage) CreateSecretWithTenant(ctx context.Context, tenantID string, s
 	// Store initial version in history
 	if err := s.storeVersion(ctx, secret.ID, 1, encryptedValue, userID); err != nil {
 		// Log but don't fail - the secret was created successfully
-		fmt.Printf("warning: failed to store initial secret version: %v\n", err)
+		log.Debug().Err(err).Str("secret_id", secret.ID.String()).Msg("Failed to store initial secret version")
 	}
 
 	return nil
@@ -289,7 +290,7 @@ func (s *Storage) UpdateSecret(ctx context.Context, id uuid.UUID, plainValue *st
 	// Store new version in history (only if value was updated)
 	if plainValue != nil {
 		if err := s.storeVersion(ctx, id, newVersion, encryptedValue, userID); err != nil {
-			fmt.Printf("warning: failed to store secret version: %v\n", err)
+			log.Debug().Err(err).Str("secret_id", id.String()).Msg("Failed to store secret version")
 		}
 	}
 
@@ -396,7 +397,7 @@ func (s *Storage) RollbackToVersion(ctx context.Context, secretID uuid.UUID, ver
 
 	// Store the rollback as a new version
 	if err := s.storeVersion(ctx, secretID, newVersion, encryptedValue, userID); err != nil {
-		fmt.Printf("warning: failed to store rollback version: %v\n", err)
+		log.Debug().Err(err).Str("secret_id", secretID.String()).Msg("Failed to store rollback version")
 	}
 
 	return nil
@@ -434,8 +435,7 @@ func (s *Storage) GetSecretsForNamespace(ctx context.Context, namespace string) 
 			// Decrypt the value
 			plainValue, err := crypto.Decrypt(encryptedValue, s.encryptionKey)
 			if err != nil {
-				// Skip secrets that can't be decrypted (corrupted or wrong key)
-				fmt.Printf("warning: failed to decrypt secret %s: %v\n", name, err)
+				log.Debug().Err(err).Msg("Failed to decrypt secret, skipping")
 				continue
 			}
 

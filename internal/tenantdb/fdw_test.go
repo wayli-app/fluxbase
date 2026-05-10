@@ -118,13 +118,13 @@ func TestEscapeSQLString(t *testing.T) {
 }
 
 func TestSetupFDW_NilPool(t *testing.T) {
-	err := SetupFDW(nil, nil, FDWConfig{Host: "localhost", DBName: "test"}, nil)
+	err := SetupFDW(nil, nil, FDWConfig{Host: "localhost", DBName: "test"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant pool is nil")
 }
 
 func TestSetupFDW_IncompleteConfig(t *testing.T) {
-	err := SetupFDW(nil, nil, FDWConfig{}, nil)
+	err := SetupFDW(nil, nil, FDWConfig{})
 	assert.Error(t, err)
 }
 

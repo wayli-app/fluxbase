@@ -16,6 +16,7 @@ type PresenceInfo struct {
 	State    PresenceState
 	UserID   *string
 	ConnID   string
+	TenantID string
 	JoinedAt time.Time
 }
 
@@ -37,7 +38,7 @@ func NewPresenceManager() *PresenceManager {
 }
 
 // Track adds or updates presence for a given channel and key
-func (pm *PresenceManager) Track(channel, key string, state PresenceState, userID *string, connID string) (*PresenceInfo, bool) {
+func (pm *PresenceManager) Track(channel, key string, state PresenceState, userID *string, connID string, tenantID string) (*PresenceInfo, bool) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -49,12 +50,19 @@ func (pm *PresenceManager) Track(channel, key string, state PresenceState, userI
 	// Check if this is a new presence (join) or update
 	_, exists := pm.presences[channel][key]
 
+	// Deep-copy state map to prevent caller mutations from corrupting stored data
+	copiedState := make(PresenceState, len(state))
+	for k, v := range state {
+		copiedState[k] = v
+	}
+
 	// Create or update presence info
 	info := &PresenceInfo{
 		Key:      key,
-		State:    state,
+		State:    copiedState,
 		UserID:   userID,
 		ConnID:   connID,
+		TenantID: tenantID,
 		JoinedAt: time.Now(),
 	}
 

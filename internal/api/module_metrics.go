@@ -1,0 +1,72 @@
+package api
+
+import (
+	"context"
+	"time"
+
+	"github.com/rs/zerolog/log"
+
+	"github.com/nimbleflux/fluxbase/internal/auth"
+	"github.com/nimbleflux/fluxbase/internal/middleware"
+	"github.com/nimbleflux/fluxbase/internal/observability"
+	"github.com/nimbleflux/fluxbase/internal/realtime"
+	"github.com/nimbleflux/fluxbase/internal/storage"
+)
+
+type MetricsModule struct {
+	Metrics   *observability.Metrics
+	Server    *observability.MetricsServer
+	StopChan  chan struct{}
+	StartTime time.Time
+}
+
+func (m *MetricsModule) Name() string { return "metrics" }
+
+func (m *MetricsModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	cfg := registry.Config
+	db := registry.DB
+
+	if !cfg.Metrics.Enabled {
+		return nil
+	}
+
+	m.Server = observability.NewMetricsServer(cfg.Metrics.Port, cfg.Metrics.Path)
+	if err := m.Server.Start(); err != nil {
+		log.Error().Err(err).Msg("Failed to start metrics server")
+	}
+
+	db.SetMetrics(m.Metrics)
+
+	storageSvc := GetService[*storage.Service](registry)
+	if storageSvc != nil {
+		storageSvc.SetMetrics(m.Metrics)
+	}
+
+	authService := GetService[*auth.Service](registry)
+	if authService != nil {
+		authService.SetMetrics(m.Metrics)
+	}
+
+	realtimeManager := GetService[*realtime.Manager](registry)
+	if realtimeManager != nil {
+		realtimeManager.SetMetrics(m.Metrics)
+	}
+
+	middleware.SetRateLimiterMetrics(m.Metrics)
+
+	m.StopChan = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				m.Metrics.UpdateUptime(m.StartTime)
+			case <-m.StopChan:
+				return
+			}
+		}
+	}()
+
+	return nil
+}

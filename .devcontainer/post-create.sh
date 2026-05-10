@@ -23,11 +23,13 @@ until pg_isready -h postgres -U postgres; do
 done
 echo "✅ PostgreSQL is ready"
 
-# Create test database if it doesn't exist
-echo "📊 Creating test database..."
+# Create test databases if they don't exist
+echo "📊 Creating test databases..."
 PGPASSWORD=postgres psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'fluxbase_test'" | grep -q 1 || \
   PGPASSWORD=postgres psql -h postgres -U postgres -c "CREATE DATABASE fluxbase_test;"
-echo "✅ Test database ready"
+PGPASSWORD=postgres psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'fluxbase_go_e2e'" | grep -q 1 || \
+  PGPASSWORD=postgres psql -h postgres -U postgres -c "CREATE DATABASE fluxbase_go_e2e;"
+echo "✅ Test databases ready"
 
 # Install Go dependencies
 echo "📦 Installing Go dependencies..."

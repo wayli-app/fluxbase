@@ -9,6 +9,7 @@ import {
   Info,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/get-error-message'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -127,12 +128,7 @@ function ExtensionsPage() {
       }
     },
     onError: (error: unknown) => {
-      const axiosError = error as {
-        response?: { data?: EnableDisableResponse }
-      }
-      const message =
-        axiosError.response?.data?.message || 'Failed to enable extension'
-      toast.error(message)
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -152,12 +148,7 @@ function ExtensionsPage() {
       }
     },
     onError: (error: unknown) => {
-      const axiosError = error as {
-        response?: { data?: EnableDisableResponse }
-      }
-      const message =
-        axiosError.response?.data?.message || 'Failed to disable extension'
-      toast.error(message)
+      toast.error(getErrorMessage(error))
     },
   })
 

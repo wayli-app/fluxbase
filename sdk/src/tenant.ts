@@ -14,7 +14,7 @@ import type {
   AssignAdminOptions,
 } from "./types";
 
-import type { FluxbaseResponse } from "./response";
+import type { FluxbaseResponse } from "./types";
 
 /**
  * FluxbaseTenant provides multi-tenant management functionality

@@ -199,57 +199,11 @@ func (r *Registry) applyRoute(router fiber.Router, route *Route, middlewares []M
 		args[i] = h
 	}
 
-	switch strings.ToUpper(route.Method) {
-	case "GET":
-		if len(args) == 1 {
-			router.Get(route.Path, args[0])
-		} else {
-			router.Get(route.Path, args[0], args[1:]...)
-		}
-	case "POST":
-		if len(args) == 1 {
-			router.Post(route.Path, args[0])
-		} else {
-			router.Post(route.Path, args[0], args[1:]...)
-		}
-	case "PUT":
-		if len(args) == 1 {
-			router.Put(route.Path, args[0])
-		} else {
-			router.Put(route.Path, args[0], args[1:]...)
-		}
-	case "PATCH":
-		if len(args) == 1 {
-			router.Patch(route.Path, args[0])
-		} else {
-			router.Patch(route.Path, args[0], args[1:]...)
-		}
-	case "DELETE":
-		if len(args) == 1 {
-			router.Delete(route.Path, args[0])
-		} else {
-			router.Delete(route.Path, args[0], args[1:]...)
-		}
-	case "HEAD":
-		if len(args) == 1 {
-			router.Head(route.Path, args[0])
-		} else {
-			router.Head(route.Path, args[0], args[1:]...)
-		}
-	case "OPTIONS":
-		if len(args) == 1 {
-			router.Options(route.Path, args[0])
-		} else {
-			router.Options(route.Path, args[0], args[1:]...)
-		}
-	case "ALL":
-		if len(args) == 1 {
-			router.All(route.Path, args[0])
-		} else {
-			router.All(route.Path, args[0], args[1:]...)
-		}
-	default:
-		return fmt.Errorf("unsupported HTTP method: %s", route.Method)
+	method := strings.ToUpper(route.Method)
+	if method == "ALL" {
+		router.All(route.Path, args[0], args[1:]...)
+	} else {
+		router.Add([]string{method}, route.Path, args[0], args[1:]...)
 	}
 
 	return nil

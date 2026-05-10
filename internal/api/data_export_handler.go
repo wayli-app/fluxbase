@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/database"
@@ -63,6 +64,12 @@ func (h *DataExportHandler) HandleDataExport(c fiber.Ctx) error {
 		})
 	}
 
+	if len(targetIds) > 1000 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Too many items (max 1000)",
+		})
+	}
+
 	// Parse schema and table name
 	schema, table, err := parseTableIdentifier(tableName)
 	if err != nil {
@@ -74,8 +81,9 @@ func (h *DataExportHandler) HandleDataExport(c fiber.Ctx) error {
 	// Get table metadata
 	tableInfo, exists, err := h.schemaCache.GetTable(c.RequestCtx(), schema, table)
 	if err != nil {
+		log.Error().Err(err).Str("table", tableName).Msg("Failed to lookup table")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to lookup table: %v", err),
+			"error": "Internal error",
 		})
 	}
 	if !exists {
@@ -113,8 +121,9 @@ func (h *DataExportHandler) HandleDataExport(c fiber.Ctx) error {
 		return err
 	})
 	if err != nil {
+		log.Error().Err(err).Str("table", tableName).Msg("Failed to export records")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to export records: %v", err),
+			"error": "Internal error",
 		})
 	}
 
@@ -157,8 +166,9 @@ func (h *DataExportHandler) exportAsCSV(c fiber.Ctx, tableInfo *database.TableIn
 
 	// Write header
 	if err := writer.Write(columns); err != nil {
+		log.Error().Err(err).Msg("Failed to write CSV header")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to write CSV header: %v", err),
+			"error": "Internal error",
 		})
 	}
 
@@ -170,16 +180,18 @@ func (h *DataExportHandler) exportAsCSV(c fiber.Ctx, tableInfo *database.TableIn
 			record[i] = formatValue(val)
 		}
 		if err := writer.Write(record); err != nil {
+			log.Error().Err(err).Msg("Failed to write CSV row")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": fmt.Sprintf("Failed to write CSV row: %v", err),
+				"error": "Internal error",
 			})
 		}
 	}
 
 	writer.Flush()
 	if err := writer.Error(); err != nil {
+		log.Error().Err(err).Msg("Failed to generate CSV")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to generate CSV: %v", err),
+			"error": "Internal error",
 		})
 	}
 

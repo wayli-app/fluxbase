@@ -1,5 +1,6 @@
 import { Check, ChevronsUpDown, Database, GitBranch } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useBranchStore, type Branch } from "@/stores/branch-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,50 +28,49 @@ export function BranchSelector() {
     setBranches,
     isBranchingEnabled,
     setIsBranchingEnabled,
-    isLoading,
-    setIsLoading,
   } = useBranchStore();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  const query = useQuery({
+    queryKey: ["branches", { status: "ready" }],
+    queryFn: () => branchesApi.list({ status: "ready" }),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const queryError =
+    query.error &&
+    ![
+      (query.error as { response?: { status?: number } })?.response?.status,
+    ].some((s) => s === 401 || s === 403 || s === 404 || s === 503)
+      ? "Failed to load branches"
+      : null;
 
   useEffect(() => {
-    async function fetchBranches() {
-      try {
-        setIsLoading(true);
-        setError(null);
+    if (query.data) {
+      setBranches(query.data.branches ?? []);
+      setIsBranchingEnabled(true);
+    }
+  }, [query.data, setBranches, setIsBranchingEnabled]);
 
-        // Try to fetch branches - if it fails with 403/503, branching is not available
-        const data = await branchesApi.list({ status: "ready" });
-        setBranches(data.branches ?? []);
-        setIsBranchingEnabled(true);
-      } catch (err: unknown) {
-        // If branching is disabled, not authorized, or endpoint not found, hide the selector
-        // 401: Unauthorized (can happen when route not registered and falls back to auth check)
-        // 403: Forbidden (user doesn't have required role)
-        // 404: Not Found (route not registered)
-        // 503: Service Unavailable (branching disabled)
-        const status = (err as { response?: { status?: number } })?.response
-          ?.status;
-        if (
-          status === 401 ||
-          status === 403 ||
-          status === 404 ||
-          status === 503
-        ) {
-          setIsBranchingEnabled(false);
-          setBranches([]);
-        } else {
-          // eslint-disable-next-line no-console
-          console.error("Failed to fetch branches:", err);
-          setError("Failed to load branches");
-        }
-      } finally {
-        setIsLoading(false);
+  useEffect(() => {
+    if (query.error) {
+      const status = (query.error as { response?: { status?: number } })
+        ?.response?.status;
+      if (
+        status === 401 ||
+        status === 403 ||
+        status === 404 ||
+        status === 503
+      ) {
+        setIsBranchingEnabled(false);
+        setBranches([]);
+      } else {
+        // eslint-disable-next-line no-console
+        console.error("Failed to fetch branches:", query.error);
       }
     }
-
-    fetchBranches();
-  }, [setBranches, setIsBranchingEnabled, setIsLoading]);
+  }, [query.error, setIsBranchingEnabled, setBranches]);
 
   const handleSelectBranch = (branch: Branch) => {
     setCurrentBranch(branch);
@@ -102,7 +102,7 @@ export function BranchSelector() {
   // 1. Still loading
   // 2. Branching is disabled
   // 3. Only main branch exists (no other branches)
-  if (isLoading || !isBranchingEnabled) {
+  if (query.isPending || !isBranchingEnabled) {
     return null;
   }
 
@@ -172,7 +172,7 @@ export function BranchSelector() {
         <Command>
           <CommandInput placeholder="Search branches..." />
           <CommandList>
-            <CommandEmpty>{error || "No branches found."}</CommandEmpty>
+            <CommandEmpty>{queryError || "No branches found."}</CommandEmpty>
             <CommandGroup>
               {/* Main database option */}
               <CommandItem onSelect={handleSelectMain}>

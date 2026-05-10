@@ -1,3 +1,9 @@
+// This file is the single source of truth for sidebar navigation AND route metadata.
+// When adding a new authenticated route, you must:
+// 1. Create the route file in routes/_authenticated/
+// 2. Add a sidebar item here (or to EXTRA_TENANT_ROUTES if no sidebar entry is needed)
+// The getRouteConfig() function derives requiresTenant and isInstanceLevel from this data.
+
 import {
   LayoutDashboard,
   Database,

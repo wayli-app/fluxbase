@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/config"
@@ -651,39 +650,4 @@ func (s *Service) GetSettingsCache() *SettingsCache {
 // GetAccessTokenExpirySeconds returns the configured JWT access token expiry in seconds
 func (s *Service) GetAccessTokenExpirySeconds() int64 {
 	return int64(s.config.JWTExpiry.Seconds())
-}
-
-// SignInAnonymousResponse represents an anonymous user sign-in response
-type SignInAnonymousResponse struct {
-	UserID       string `json:"user_id"` // Temporary anonymous user ID
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"`   // seconds
-	IsAnonymous  bool   `json:"is_anonymous"` // Always true for anonymous users
-}
-
-// SignInAnonymous creates JWT tokens for an anonymous user (no database record)
-func (s *Service) SignInAnonymous(ctx context.Context) (*SignInAnonymousResponse, error) {
-	// Generate a random UUID for the anonymous user
-	// This ID exists only in the JWT token, not in the database
-	anonymousUserID := uuid.New().String()
-
-	// Generate JWT tokens with is_anonymous flag in claims
-	accessToken, err := s.jwtManager.GenerateAnonymousAccessToken(anonymousUserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
-	}
-
-	refreshToken, err := s.jwtManager.GenerateAnonymousRefreshToken(anonymousUserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
-	}
-
-	return &SignInAnonymousResponse{
-		UserID:       anonymousUserID,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    int64(s.config.JWTExpiry.Seconds()),
-		IsAnonymous:  true,
-	}, nil
 }

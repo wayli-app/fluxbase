@@ -17,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/get-error-message";
 import { apiClient } from "@/lib/api";
 import { fluxbaseClient } from "@/lib/fluxbase-client";
 import { useTenantStore } from "@/stores/tenant-store";
@@ -176,7 +177,7 @@ function EmailSettingsPage() {
         const err = error as {
           response?: {
             status?: number;
-            data?: { code?: string; error?: string };
+            data?: { code?: string };
           };
         };
         if (
@@ -188,12 +189,8 @@ function EmailSettingsPage() {
           );
           return;
         }
-        if (err.response?.data?.error) {
-          toast.error(err.response.data.error);
-          return;
-        }
       }
-      toast.error("Failed to update email settings");
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -212,16 +209,7 @@ function EmailSettingsPage() {
       toast.success("Tenant email settings updated");
     },
     onError: (error: unknown) => {
-      if (error && typeof error === "object" && "response" in error) {
-        const err = error as {
-          response?: { data?: { error?: string } };
-        };
-        if (err.response?.data?.error) {
-          toast.error(err.response.data.error);
-          return;
-        }
-      }
-      toast.error("Failed to update tenant email settings");
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -250,18 +238,7 @@ function EmailSettingsPage() {
       toast.success("Test email sent successfully");
     },
     onError: (error: unknown) => {
-      if (error && typeof error === "object" && "response" in error) {
-        const err = error as {
-          response?: { data?: { error?: string; details?: string } };
-        };
-        if (err.response?.data?.details) {
-          toast.error(
-            `Failed to send test email: ${err.response.data.details}`,
-          );
-          return;
-        }
-      }
-      toast.error("Failed to send test email");
+      toast.error(getErrorMessage(error));
     },
   });
 

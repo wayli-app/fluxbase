@@ -72,6 +72,10 @@ func (h *BulkOperationsHandler) HandleBulkAction(c fiber.Ctx) error {
 		return SendBadRequest(c, "At least one target ID is required", ErrCodeMissingField)
 	}
 
+	if len(req.Targets) > 1000 {
+		return SendBadRequest(c, "Too many targets (max 1000)", ErrCodeInvalidInput)
+	}
+
 	// Get table name from request or context
 	tableName := req.Table
 	if tableName == "" {

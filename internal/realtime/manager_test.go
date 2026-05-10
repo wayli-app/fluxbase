@@ -601,11 +601,11 @@ func TestManager_BroadcastGlobal(t *testing.T) {
 			Payload: map[string]interface{}{"test": "data"},
 		}
 
-		err := manager.BroadcastGlobal("test-channel", message)
+		err := manager.BroadcastGlobal("test-channel", "", message)
 		assert.NoError(t, err)
 
 		// Verify the message was broadcast locally
-		count := manager.BroadcastToChannel("test-channel", message)
+		count := manager.BroadcastToChannel("test-channel", "", message)
 		assert.Equal(t, 1, count)
 	})
 
@@ -622,7 +622,7 @@ func TestManager_BroadcastGlobal(t *testing.T) {
 			Payload: map[string]interface{}{"test": "data"},
 		}
 
-		err := manager.BroadcastGlobal("test-channel", message)
+		err := manager.BroadcastGlobal("test-channel", "", message)
 		assert.NoError(t, err)
 
 		// Verify message was published to pubsub
@@ -1055,5 +1055,158 @@ func TestSplitHostPort(t *testing.T) {
 		_, _, err := splitHostPort("192.168.1.1")
 
 		assert.Error(t, err)
+	})
+}
+
+// =============================================================================
+// Tenant Isolation Tests
+// =============================================================================
+
+func TestManager_BroadcastToChannel_TenantIsolation(t *testing.T) {
+	t.Run("only sends to connections matching tenant ID", func(t *testing.T) {
+		ctx := context.Background()
+		manager := NewManager(ctx)
+
+		connA, _ := manager.AddConnection("conn-a", nil, nil, "anon", nil, "tenant-A")
+		connB, _ := manager.AddConnection("conn-b", nil, nil, "anon", nil, "tenant-B")
+
+		channel := "test-channel"
+		connA.Subscribe(channel)
+		connB.Subscribe(channel)
+
+		message := ServerMessage{
+			Type:    MessageTypeBroadcast,
+			Channel: channel,
+			Payload: map[string]interface{}{"data": "for A"},
+		}
+
+		sentCount := manager.BroadcastToChannel(channel, "tenant-A", message)
+
+		assert.Equal(t, 1, sentCount)
+	})
+
+	t.Run("sends to all connections of the same tenant", func(t *testing.T) {
+		ctx := context.Background()
+		manager := NewManager(ctx)
+
+		connA1, _ := manager.AddConnection("conn-a1", nil, nil, "anon", nil, "tenant-A")
+		connA2, _ := manager.AddConnection("conn-a2", nil, nil, "anon", nil, "tenant-A")
+		connB, _ := manager.AddConnection("conn-b", nil, nil, "anon", nil, "tenant-B")
+
+		channel := "shared-channel"
+		connA1.Subscribe(channel)
+		connA2.Subscribe(channel)
+		connB.Subscribe(channel)
+
+		message := ServerMessage{
+			Type:    MessageTypeBroadcast,
+			Channel: channel,
+			Payload: map[string]interface{}{"data": "broadcast"},
+		}
+
+		sentCount := manager.BroadcastToChannel(channel, "tenant-A", message)
+
+		assert.Equal(t, 2, sentCount)
+	})
+}
+
+func TestManager_BroadcastToChannel_EmptyTenantID(t *testing.T) {
+	t.Run("only sends to connections with empty tenant ID", func(t *testing.T) {
+		ctx := context.Background()
+		manager := NewManager(ctx)
+
+		connEmpty, _ := manager.AddConnection("conn-empty", nil, nil, "anon", nil, "")
+		connX, _ := manager.AddConnection("conn-x", nil, nil, "anon", nil, "tenant-X")
+
+		channel := "public-channel"
+		connEmpty.Subscribe(channel)
+		connX.Subscribe(channel)
+
+		message := ServerMessage{
+			Type:    MessageTypeBroadcast,
+			Channel: channel,
+			Payload: map[string]interface{}{"data": "default tenant"},
+		}
+
+		sentCount := manager.BroadcastToChannel(channel, "", message)
+
+		assert.Equal(t, 1, sentCount)
+	})
+
+	t.Run("does not send to connections with non-empty tenant ID when broadcasting with empty tenant ID", func(t *testing.T) {
+		ctx := context.Background()
+		manager := NewManager(ctx)
+
+		connA, _ := manager.AddConnection("conn-a", nil, nil, "anon", nil, "tenant-A")
+		connB, _ := manager.AddConnection("conn-b", nil, nil, "anon", nil, "tenant-B")
+		connDefault, _ := manager.AddConnection("conn-default", nil, nil, "anon", nil, "")
+
+		channel := "multi-tenant-channel"
+		connA.Subscribe(channel)
+		connB.Subscribe(channel)
+		connDefault.Subscribe(channel)
+
+		message := ServerMessage{
+			Type:    MessageTypeBroadcast,
+			Channel: channel,
+			Payload: map[string]interface{}{"data": "default only"},
+		}
+
+		sentCount := manager.BroadcastToChannel(channel, "", message)
+
+		assert.Equal(t, 1, sentCount)
+	})
+}
+
+func TestManager_BroadcastGlobal_TenantIDPropagation(t *testing.T) {
+	t.Run("includes tenant ID in published pubsub message", func(t *testing.T) {
+		ctx := context.Background()
+		manager := NewManager(ctx)
+		mockPS := newMockPubSub()
+
+		manager.SetPubSub(mockPS)
+
+		message := ServerMessage{
+			Type:    MessageTypeBroadcast,
+			Channel: "test-channel",
+			Payload: map[string]interface{}{"data": "tenant-scoped"},
+		}
+
+		err := manager.BroadcastGlobal("test-channel", "test-tenant", message)
+		assert.NoError(t, err)
+
+		published := mockPS.getPublishedMessages()
+		assert.Len(t, published, 1)
+		assert.Equal(t, pubsub.BroadcastChannel, published[0].Channel)
+
+		var broadcast GlobalBroadcast
+		err = json.Unmarshal(published[0].Payload, &broadcast)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-tenant", broadcast.TenantID)
+		assert.Equal(t, "test-channel", broadcast.Channel)
+	})
+
+	t.Run("broadcasts locally with tenant ID when no pubsub configured", func(t *testing.T) {
+		ctx := context.Background()
+		manager := NewManager(ctx)
+
+		connA, _ := manager.AddConnection("conn-a", nil, nil, "anon", nil, "tenant-A")
+		connB, _ := manager.AddConnection("conn-b", nil, nil, "anon", nil, "tenant-B")
+
+		channel := "local-channel"
+		connA.Subscribe(channel)
+		connB.Subscribe(channel)
+
+		message := ServerMessage{
+			Type:    MessageTypeBroadcast,
+			Channel: channel,
+			Payload: map[string]interface{}{"data": "local"},
+		}
+
+		err := manager.BroadcastGlobal(channel, "tenant-A", message)
+		assert.NoError(t, err)
+
+		sentCount := manager.BroadcastToChannel(channel, "tenant-A", message)
+		assert.Equal(t, 1, sentCount)
 	})
 }

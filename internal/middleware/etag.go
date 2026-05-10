@@ -3,6 +3,7 @@ package middleware
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
 	"strings"
 	"time"
 
@@ -241,11 +242,11 @@ func CacheControl(config CacheControlConfig) fiber.Handler {
 		}
 
 		if config.MaxAge > 0 {
-			directives = append(directives, "max-age="+itoa(config.MaxAge))
+			directives = append(directives, "max-age="+strconv.Itoa(config.MaxAge))
 		}
 
 		if config.SMaxAge > 0 {
-			directives = append(directives, "s-maxage="+itoa(config.SMaxAge))
+			directives = append(directives, "s-maxage="+strconv.Itoa(config.SMaxAge))
 		}
 
 		if config.MustRevalidate {
@@ -274,33 +275,4 @@ func CacheControl(config CacheControlConfig) fiber.Handler {
 
 		return nil
 	}
-}
-
-// itoa is a simple int to string conversion
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-
-	var negative bool
-	if i < 0 {
-		negative = true
-		i = -i
-	}
-
-	var buf [20]byte
-	pos := len(buf)
-
-	for i > 0 {
-		pos--
-		buf[pos] = byte('0' + i%10)
-		i /= 10
-	}
-
-	if negative {
-		pos--
-		buf[pos] = '-'
-	}
-
-	return string(buf[pos:])
 }

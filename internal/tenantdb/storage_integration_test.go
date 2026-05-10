@@ -17,7 +17,7 @@ func TestStorage_Integration_CRUD(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(testCtx.Pool)
+	storage := NewRepository(testCtx.Pool)
 	ctx := context.Background()
 
 	t.Run("create and get tenant", func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestStorage_Integration_UserAssignments(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(testCtx.Pool)
+	storage := NewRepository(testCtx.Pool)
 	ctx := context.Background()
 
 	tenant := &Tenant{

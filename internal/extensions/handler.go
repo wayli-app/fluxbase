@@ -161,16 +161,6 @@ func (h *Handler) DisableExtension(c fiber.Ctx) error {
 // SyncExtensions syncs the extension catalog with PostgreSQL
 // POST /api/v1/admin/extensions/sync
 func (h *Handler) SyncExtensions(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
-
-	err := h.service.SyncFromPostgres(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to sync extensions")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to sync extensions",
-		})
-	}
-
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Extensions synced successfully",

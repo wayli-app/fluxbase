@@ -729,6 +729,68 @@ func TestBuildNetworkAllowList(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// SSRF BlockedDomains Tests (C3)
+// =============================================================================
+
+func TestDefaultFunctionPermissions_SSRFBlockedDomains(t *testing.T) {
+	t.Run("returns non-empty BlockedDomains", func(t *testing.T) {
+		perms := DefaultFunctionPermissions()
+		assert.NotEmpty(t, perms.BlockedDomains, "DefaultFunctionPermissions should include blocked domains")
+	})
+
+	t.Run("BlockedDomains contains at least 5 entries", func(t *testing.T) {
+		perms := DefaultFunctionPermissions()
+		assert.GreaterOrEqual(t, len(perms.BlockedDomains), 5, "BlockedDomains should contain at least 5 SSRF targets")
+	})
+
+	t.Run("contains cloud metadata SSRF targets", func(t *testing.T) {
+		perms := DefaultFunctionPermissions()
+		blockedMap := make(map[string]bool)
+		for _, d := range perms.BlockedDomains {
+			blockedMap[d] = true
+		}
+
+		assert.True(t, blockedMap["169.254.169.254"], "AWS/GCP/Azure metadata IP should be blocked")
+		assert.True(t, blockedMap["metadata.google.internal"], "GCP metadata hostname should be blocked")
+	})
+}
+
+func TestDefaultJobPermissions_SSRFBlockedDomains(t *testing.T) {
+	t.Run("returns non-empty BlockedDomains", func(t *testing.T) {
+		perms := DefaultJobPermissions()
+		assert.NotEmpty(t, perms.BlockedDomains, "DefaultJobPermissions should include blocked domains")
+	})
+
+	t.Run("BlockedDomains contains at least 5 entries", func(t *testing.T) {
+		perms := DefaultJobPermissions()
+		assert.GreaterOrEqual(t, len(perms.BlockedDomains), 5, "BlockedDomains should contain at least 5 SSRF targets")
+	})
+
+	t.Run("contains cloud metadata SSRF targets", func(t *testing.T) {
+		perms := DefaultJobPermissions()
+		blockedMap := make(map[string]bool)
+		for _, d := range perms.BlockedDomains {
+			blockedMap[d] = true
+		}
+
+		assert.True(t, blockedMap["169.254.169.254"], "AWS/GCP/Azure metadata IP should be blocked")
+		assert.True(t, blockedMap["metadata.google.internal"], "GCP metadata hostname should be blocked")
+	})
+}
+
+func TestDefaultPermissions_SSRFBackwardCompat(t *testing.T) {
+	t.Run("returns EMPTY BlockedDomains", func(t *testing.T) {
+		perms := DefaultPermissions()
+		assert.Empty(t, perms.BlockedDomains, "DefaultPermissions should have empty BlockedDomains for backward compatibility")
+	})
+
+	t.Run("returns EMPTY AllowedDomains", func(t *testing.T) {
+		perms := DefaultPermissions()
+		assert.Empty(t, perms.AllowedDomains, "DefaultPermissions should have empty AllowedDomains")
+	})
+}
+
 func TestExtractHost(t *testing.T) {
 	t.Run("extracts host from valid URL", func(t *testing.T) {
 		assert.Equal(t, "api.example.com", extractHost("https://api.example.com"))

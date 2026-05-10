@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -54,7 +56,7 @@ type Manager struct {
 }
 
 func NewManager(
-	storage *Storage,
+	storage *Repository,
 	config Config,
 	adminPool *pgxpool.Pool,
 	dbURL string,
@@ -157,6 +159,13 @@ func (m *Manager) CreateTenantDatabase(ctx context.Context, req CreateTenantRequ
 	appUser := extractDBUser(bootstrapBaseURL)
 	if err := bootstrap.RunBootstrapOnDB(ctx, tenantDBURL, appUser); err != nil {
 		log.Warn().Err(err).Str("tenant", req.Slug).Msg("Failed to bootstrap tenant database")
+		if req.DBMode != "existing" {
+			_, _ = m.adminPool.Exec(ctx, fmt.Sprintf(
+				"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '%s'",
+				escapeSQLString(dbName),
+			))
+			_, _ = m.adminPool.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", quoteIdent(dbName)))
+		}
 		if statusErr := m.storage.UpdateTenantStatus(ctx, tenant.ID, TenantStatusError); statusErr != nil {
 			log.Warn().Err(statusErr).Str("tenant_id", tenant.ID).Msg("Failed to update tenant status to error")
 		}
@@ -192,8 +201,7 @@ func (m *Manager) CreateTenantDatabase(ctx context.Context, req CreateTenantRequ
 			} else {
 				defer fdwPool.Close()
 
-				// Import all schema tables via FDW (nil tables = all schemas)
-				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig, nil); fdwErr != nil {
+				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig); fdwErr != nil {
 					log.Warn().Err(fdwErr).Str("tenant", req.Slug).Msg("Failed to set up FDW for tenant database")
 				} else {
 					// Create user mapping for the app user with the per-tenant FDW role
@@ -407,15 +415,46 @@ func (m *Manager) migrateAllTenants(ctx context.Context) {
 }
 
 func (m *Manager) hasPendingMigrations(ctx context.Context, pool *pgxpool.Pool) (bool, error) {
-	var currentVersion int
-	err := pool.QueryRow(ctx, `
-		SELECT COALESCE(MAX(version), 0)::int FROM platform.fluxbase_migrations
-	`).Scan(&currentVersion)
-	if err != nil {
-		return true, nil
+	const migrationsDir = "/migrations"
+	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
+		return false, nil
 	}
 
-	return false, nil
+	var currentVersion int
+	if err := pool.QueryRow(ctx, `
+		SELECT COALESCE(MAX(version), 0)::int FROM platform.fluxbase_migrations
+	`).Scan(&currentVersion); err != nil {
+		return true, fmt.Errorf("failed to query migration version: %w", err)
+	}
+
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return true, fmt.Errorf("failed to read migrations directory: %w", err)
+	}
+
+	var latestVersion int
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".up.sql") {
+			continue
+		}
+		prefix := strings.SplitN(entry.Name(), "_", 2)[0]
+		v, parseErr := strconv.Atoi(prefix)
+		if parseErr != nil {
+			continue
+		}
+		if v > latestVersion {
+			latestVersion = v
+		}
+	}
+
+	if latestVersion == 0 {
+		return false, nil
+	}
+
+	return latestVersion > currentVersion, nil
 }
 
 func (m *Manager) runSystemMigrationsForDB(ctx context.Context, dbName string) error {
@@ -587,7 +626,7 @@ func (m *Manager) RepairTenant(ctx context.Context, tenant *Tenant) error {
 				log.Warn().Err(fdwPoolErr).Str("tenant", tenant.Slug).Msg("Failed to create admin pool for FDW repair")
 			} else {
 				defer fdwPool.Close()
-				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig, nil); fdwErr != nil {
+				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig); fdwErr != nil {
 					log.Warn().Err(fdwErr).Str("tenant", tenant.Slug).Msg("Failed to repair FDW")
 				} else {
 					appUser := extractDBUser(m.dbURL)
@@ -612,8 +651,8 @@ func (m *Manager) RepairTenant(ctx context.Context, tenant *Tenant) error {
 	return nil
 }
 
-func (m *Manager) GetStorage() *Storage {
-	if s, ok := m.storage.(*Storage); ok {
+func (m *Manager) GetRepository() *Repository {
+	if s, ok := m.storage.(*Repository); ok {
 		return s
 	}
 	return nil
@@ -719,7 +758,7 @@ func (m *Manager) UpgradeTenantFDW(ctx context.Context, tenantID string) error {
 	defer fdwPool.Close()
 
 	// Import all schema tables via FDW
-	if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig, nil); fdwErr != nil {
+	if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig); fdwErr != nil {
 		return fmt.Errorf("failed to set up FDW: %w", fdwErr)
 	}
 

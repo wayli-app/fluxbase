@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import type { SignUpCredentials } from "@nimbleflux/fluxbase-sdk";
 import { useFluxbaseClient } from "@nimbleflux/fluxbase-sdk-react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/get-error-message";
 import { useAuthStore } from "@/stores/auth-store";
 import { useImpersonationStore } from "@/stores/impersonation-store";
 import { dashboardAuthAPI, type DashboardLoginRequest } from "@/lib/api";
@@ -65,12 +66,7 @@ export function useAuth() {
       toast.success(`Welcome back, ${user.email}!`);
     },
     onError: (error: unknown) => {
-      // Extract error message from axios error response
-      const axiosError = error as { response?: { data?: { error?: string } } };
-      const message =
-        axiosError.response?.data?.error ||
-        (error instanceof Error ? error.message : "Failed to sign in");
-      toast.error(message);
+      toast.error(getErrorMessage(error));
     },
   });
 

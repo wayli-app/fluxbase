@@ -108,7 +108,7 @@ func (s *OAuthLogoutService) ValidateLogoutState(ctx context.Context, state stri
 	var logoutState OAuthLogoutState
 
 	// Use a transaction to atomically read and delete
-	tx, err := s.db.Pool().Begin(ctx)
+	tx, err := s.db.BeginTx(ctx)
 	if err != nil {
 		return nil, err
 	}

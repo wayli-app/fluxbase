@@ -719,14 +719,6 @@ func (l *TenantConfigLoader) deepCopyConfig(base *Config) *Config {
 	return cpy
 }
 
-// normalizeSlug normalizes a tenant slug for env var lookup
-// Converts "my-tenant" to "MY_TENANT"
-//
-//nolint:unused // Kept for future use
-func normalizeSlug(slug string) string {
-	return strings.ToUpper(strings.ReplaceAll(slug, "-", "_"))
-}
-
 // Helper functions for parsing env var values
 
 // parseBool parses a boolean string, with a default fallback
