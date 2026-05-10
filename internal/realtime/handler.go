@@ -359,7 +359,13 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 			}
 
 		case msg := <-msgChan:
-			// Handle message from read goroutine
+			if !connection.AllowMessage() {
+				_ = connection.SendMessage(ServerMessage{
+					Type:  MessageTypeError,
+					Error: "rate limit exceeded",
+				})
+				continue
+			}
 			h.handleMessage(connection, msg)
 
 		case err := <-errChan:
@@ -395,7 +401,13 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 
 			// Subscribe connection to channel (broadcast-only, no database subscription)
 			if !conn.IsSubscribed(msg.Channel) {
-				conn.Subscribe(msg.Channel)
+				if !conn.Subscribe(msg.Channel) {
+					_ = conn.SendMessage(ServerMessage{
+						Type:  MessageTypeError,
+						Error: "subscription limit exceeded",
+					})
+					return
+				}
 			}
 
 			// Send acknowledgment

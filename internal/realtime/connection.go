@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/time/rate"
 )
 
 // WriteTimeout is the maximum time allowed to write a message to a WebSocket client
@@ -29,33 +30,33 @@ var ErrQueueFull = errors.New("message queue is full")
 // ErrConnectionClosed is returned when trying to send to a closed connection
 var ErrConnectionClosed = errors.New("connection is closed")
 
-// Connection represents a WebSocket client connection
+const DefaultMaxSubscriptions = 100
+
 type Connection struct {
 	ID              string
 	Conn            *websocket.Conn
-	Subscriptions   map[string]bool        // channel -> subscribed
-	UserID          *string                // Authenticated user ID (nil if anonymous)
-	Role            string                 // User role (e.g., "authenticated", "anon", "instance_admin")
-	Claims          map[string]interface{} // Full JWT claims for RLS (includes custom claims like meeting_id, player_id)
-	TenantID        string                 // Tenant ID for multi-tenancy (empty = default tenant)
-	ConnectedAt     time.Time              // Connection timestamp
+	Subscriptions   map[string]bool
+	UserID          *string
+	Role            string
+	Claims          map[string]interface{}
+	TenantID        string
+	ConnectedAt     time.Time
 	mu              sync.RWMutex
-	slowClientCount atomic.Int32 // Count of slow client warnings
-	lastSlowWarning time.Time    // Time of last slow client warning
-	slowWarningMu   sync.Mutex   // Mutex for lastSlowWarning
+	slowClientCount atomic.Int32
+	lastSlowWarning time.Time
+	slowWarningMu   sync.Mutex
+	limiter         *rate.Limiter
 
-	// Async message queue
-	sendCh  chan interface{} // Message queue for async sending
+	sendCh  chan interface{}
 	ctx     context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	closed  atomic.Bool
-	useSync bool // If true, use synchronous sending (for backward compatibility in tests)
+	useSync bool
 
-	// Metrics
 	messagesSent    atomic.Uint64
 	messagesDropped atomic.Uint64
-	queueHighWater  atomic.Int32 // Highest queue length seen
+	queueHighWater  atomic.Int32
 }
 
 // NewConnection creates a new WebSocket connection with async message queue.
@@ -91,6 +92,7 @@ func NewConnectionWithQueueSize(id string, conn *websocket.Conn, userID *string,
 		sendCh:        make(chan interface{}, queueSize),
 		ctx:           ctx,
 		cancel:        cancel,
+		limiter:       rate.NewLimiter(10, 20), // 10 msgs/sec, burst of 20
 	}
 
 	// Start the async writer goroutine
@@ -212,14 +214,18 @@ func (c *Connection) writeMessage(msg interface{}) error {
 }
 
 // Subscribe adds a channel subscription for this connection
-func (c *Connection) Subscribe(channel string) {
+func (c *Connection) Subscribe(channel string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if len(c.Subscriptions) >= DefaultMaxSubscriptions {
+		return false
+	}
 	c.Subscriptions[channel] = true
 	log.Info().
 		Str("connection_id", c.ID).
 		Str("channel", channel).
 		Msg("Subscribed to channel")
+	return true
 }
 
 // Unsubscribe removes a channel subscription for this connection
@@ -387,4 +393,8 @@ func (c *Connection) GetRoleAndClaims() (string, map[string]interface{}) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Role, c.Claims
+}
+
+func (c *Connection) AllowMessage() bool {
+	return c.limiter.Allow()
 }

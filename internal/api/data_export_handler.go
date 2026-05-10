@@ -63,6 +63,12 @@ func (h *DataExportHandler) HandleDataExport(c fiber.Ctx) error {
 		})
 	}
 
+	if len(targetIds) > 1000 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Too many items (max 1000)",
+		})
+	}
+
 	// Parse schema and table name
 	schema, table, err := parseTableIdentifier(tableName)
 	if err != nil {

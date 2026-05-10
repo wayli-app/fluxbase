@@ -159,6 +159,13 @@ func (m *Manager) CreateTenantDatabase(ctx context.Context, req CreateTenantRequ
 	appUser := extractDBUser(bootstrapBaseURL)
 	if err := bootstrap.RunBootstrapOnDB(ctx, tenantDBURL, appUser); err != nil {
 		log.Warn().Err(err).Str("tenant", req.Slug).Msg("Failed to bootstrap tenant database")
+		if req.DBMode != "existing" {
+			_, _ = m.adminPool.Exec(ctx, fmt.Sprintf(
+				"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '%s'",
+				escapeSQLString(dbName),
+			))
+			_, _ = m.adminPool.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", quoteIdent(dbName)))
+		}
 		if statusErr := m.storage.UpdateTenantStatus(ctx, tenant.ID, TenantStatusError); statusErr != nil {
 			log.Warn().Err(statusErr).Str("tenant_id", tenant.ID).Msg("Failed to update tenant status to error")
 		}

@@ -55,6 +55,7 @@ type rlsCache struct {
 	entries map[string]*rlsCacheEntry
 	maxSize int
 	ttl     time.Duration
+	cancel  context.CancelFunc
 }
 
 // newRLSCache creates a new RLS cache with default settings
@@ -79,8 +80,11 @@ func newRLSCacheWithConfig(config RLSCacheConfig) *rlsCache {
 		maxSize: maxSize,
 		ttl:     ttl,
 	}
-	// Start cleanup goroutine
-	go cache.cleanup()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cache.cancel = cancel
+	go cache.cleanup(ctx)
+
 	return cache
 }
 
@@ -141,14 +145,25 @@ func (c *rlsCache) evictExpiredLocked() {
 }
 
 // cleanup periodically removes expired entries
-func (c *rlsCache) cleanup() {
+func (c *rlsCache) cleanup(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		c.mu.Lock()
-		c.evictExpiredLocked()
-		c.mu.Unlock()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.mu.Lock()
+			c.evictExpiredLocked()
+			c.mu.Unlock()
+		}
+	}
+}
+
+func (c *rlsCache) stop() {
+	if c.cancel != nil {
+		c.cancel()
 	}
 }
 
@@ -1006,4 +1021,10 @@ func (sm *SubscriptionManager) checkAnyExecution(ctx context.Context, execID, us
 	}
 	// Try functions
 	return sm.checkFunctionOwnership(ctx, execID, userID)
+}
+
+func (sm *SubscriptionManager) Close() {
+	if sm.rlsCache != nil {
+		sm.rlsCache.stop()
+	}
 }

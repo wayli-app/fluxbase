@@ -274,8 +274,8 @@ func TestEntryTracking(t *testing.T) {
 		err := s.ScheduleFunction(fn)
 		require.NoError(t, err)
 
-		assert.True(t, s.inner.IsScheduled("test-function"))
-		assert.False(t, s.inner.IsScheduled("non-existent"))
+		assert.True(t, s.inner.IsScheduled("/test-function"))
+		assert.False(t, s.inner.IsScheduled("/non-existent"))
 	})
 
 	t.Run("can remove scheduled function", func(t *testing.T) {
@@ -290,10 +290,10 @@ func TestEntryTracking(t *testing.T) {
 		}
 		err := s.ScheduleFunction(fn)
 		require.NoError(t, err)
-		assert.True(t, s.inner.IsScheduled("to-remove"))
+		assert.True(t, s.inner.IsScheduled("/to-remove"))
 
-		s.UnscheduleFunction("to-remove")
-		assert.False(t, s.inner.IsScheduled("to-remove"))
+		s.UnscheduleFunction("", "to-remove")
+		assert.False(t, s.inner.IsScheduled("/to-remove"))
 	})
 }
 
@@ -441,16 +441,16 @@ func TestUnscheduleFunction(t *testing.T) {
 
 		err := s.ScheduleFunction(fn)
 		require.NoError(t, err)
-		assert.True(t, s.inner.IsScheduled(fn.Name))
+		assert.True(t, s.inner.IsScheduled("/to-unschedule"))
 
-		s.UnscheduleFunction(fn.Name)
-		assert.False(t, s.inner.IsScheduled(fn.Name))
+		s.UnscheduleFunction(fn.Namespace, fn.Name)
+		assert.False(t, s.inner.IsScheduled("/to-unschedule"))
 	})
 
 	t.Run("unschedule non-existent function", func(t *testing.T) {
 		s := NewScheduler(nil, "secret", "http://localhost", nil, nil)
 
-		s.UnscheduleFunction("non-existent")
+		s.UnscheduleFunction("", "non-existent")
 	})
 }
 
@@ -473,12 +473,12 @@ func TestIsScheduled(t *testing.T) {
 		err := s.ScheduleFunction(fn)
 		require.NoError(t, err)
 
-		assert.True(t, s.IsScheduled(fn.Name))
+		assert.True(t, s.IsScheduled(fn.Namespace, fn.Name))
 	})
 
 	t.Run("returns false for unscheduled function", func(t *testing.T) {
 		s := NewScheduler(nil, "secret", "http://localhost", nil, nil)
-		assert.False(t, s.IsScheduled("not-scheduled"))
+		assert.False(t, s.IsScheduled("", "not-scheduled"))
 	})
 }
 
@@ -518,8 +518,8 @@ func TestGetScheduledFunctions(t *testing.T) {
 
 		functions := s.GetScheduledFunctions()
 		assert.Len(t, functions, 3)
-		assert.Contains(t, functions, "func-1")
-		assert.Contains(t, functions, "func-2")
-		assert.Contains(t, functions, "func-3")
+		assert.Contains(t, functions, "/func-1")
+		assert.Contains(t, functions, "/func-2")
+		assert.Contains(t, functions, "/func-3")
 	})
 }

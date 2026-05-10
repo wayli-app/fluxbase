@@ -109,12 +109,7 @@ const fdwServerName = "main_server"
 // enforced, and has a default app.current_tenant_id set so queries
 // through FDW are automatically filtered by tenant.
 func CreateFDWRole(ctx context.Context, adminPool *pgxpool.Pool, tenantID string) (FDWRoleCredentials, error) {
-	// Use first 8 chars of UUID for readable role name
-	suffix := tenantID
-	if len(suffix) > 8 {
-		suffix = suffix[:8]
-	}
-	roleName := fmt.Sprintf("fdw_tenant_%s", suffix)
+	roleName := fmt.Sprintf("fdw_tenant_%s", tenantID)
 
 	// Generate a random password
 	keyBytes := make([]byte, 24)
@@ -188,11 +183,7 @@ func CreateFDWRole(ctx context.Context, adminPool *pgxpool.Pool, tenantID string
 
 // DropFDWRole removes the per-tenant FDW role from the main database.
 func DropFDWRole(ctx context.Context, adminPool *pgxpool.Pool, tenantID string) {
-	suffix := tenantID
-	if len(suffix) > 8 {
-		suffix = suffix[:8]
-	}
-	roleName := fmt.Sprintf("fdw_tenant_%s", suffix)
+	roleName := fmt.Sprintf("fdw_tenant_%s", tenantID)
 
 	_, err := adminPool.Exec(ctx, fmt.Sprintf(`DROP ROLE IF EXISTS %s`, quoteIdent(roleName)))
 	if err != nil {
@@ -204,11 +195,7 @@ func DropFDWRole(ctx context.Context, adminPool *pgxpool.Pool, tenantID string) 
 // the user mapping from the tenant database. The role name is deterministic based
 // on the tenant ID, and the password is extracted from the existing user mapping.
 func GetFDWRoleForTenant(ctx context.Context, tenantPool *pgxpool.Pool, tenantID string) (FDWRoleCredentials, error) {
-	suffix := tenantID
-	if len(suffix) > 8 {
-		suffix = suffix[:8]
-	}
-	roleName := fmt.Sprintf("fdw_tenant_%s", suffix)
+	roleName := fmt.Sprintf("fdw_tenant_%s", tenantID)
 
 	var umOptions string
 	err := tenantPool.QueryRow(ctx, `
@@ -328,6 +315,7 @@ func setupFDWAllSchemas(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWCo
 			Strs("failed", failedSchemas).
 			Str("main_db", cfg.DBName).
 			Msg("Set up FDW for tenant database with partial failures")
+		return fmt.Errorf("FDW setup failed for schemas: %s", strings.Join(failedSchemas, ", "))
 	}
 
 	return nil
