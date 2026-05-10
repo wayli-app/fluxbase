@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/branching"
@@ -67,4 +69,31 @@ func (m *BranchingModule) Init(ctx context.Context, registry *ServiceRegistry) e
 	registry.Register(branchManager)
 	registry.Register(branchRouter)
 	return nil
+}
+
+type branchTenantResolver struct {
+	manager *tenantdb.Manager
+}
+
+func (r *branchTenantResolver) GetTenantDatabase(ctx context.Context, tenantID uuid.UUID) (*branching.TenantDatabaseInfo, error) {
+	tenant, err := r.manager.GetRepository().GetTenant(ctx, tenantID.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant: %w", err)
+	}
+	info := &branching.TenantDatabaseInfo{
+		Slug:      tenant.Slug,
+		IsDefault: tenant.IsDefault,
+	}
+	if tenant.DBName != nil {
+		info.DBName = *tenant.DBName
+	}
+	return info, nil
+}
+
+type branchFDWRepairer struct {
+	manager *tenantdb.Manager
+}
+
+func (r *branchFDWRepairer) RepairFDWForBranch(ctx context.Context, branchDBURL string, tenantID uuid.UUID) error {
+	return r.manager.RepairFDWForBranch(ctx, branchDBURL, tenantID)
 }

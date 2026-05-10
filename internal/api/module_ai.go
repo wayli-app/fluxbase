@@ -203,5 +203,11 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 	if vectorHandler != nil {
 		registry.Register(vectorHandler)
 	}
+	if aiChatHandler != nil {
+		registry.Register(aiChatHandler)
+	}
+	if kbStorage != nil {
+		registry.Register(kbStorage)
+	}
 	return nil
 }

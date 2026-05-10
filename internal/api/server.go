@@ -124,10 +124,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		Extensions: &ExtensionsHandlers{},
 		Secrets:    &SecretsHandlers{},
 		Scaling:    &ScalingHandlers{},
-		Metrics: &MetricsComponents{
-			Metrics:   observability.NewMetrics(),
-			StartTime: time.Now(),
-		},
 		Email:      &EmailHandlers{},
 		Captcha:    &CaptchaHandlers{},
 		Monitoring: &MonitoringHandlers{},
@@ -137,6 +133,13 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 				DB: db,
 			}),
 		},
+	}
+
+	metricsObj := observability.NewMetrics()
+	metricsStart := time.Now()
+	s.Metrics = &MetricsComponents{
+		Metrics:   metricsObj,
+		StartTime: metricsStart,
 	}
 
 	s.initCore()
@@ -161,6 +164,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	realtimeMod := &RealtimeModule{}
 	branchingMod := &BranchingModule{}
 	graphqlMod := &GraphQLModule{}
+	mcpMod := &MCPModule{}
+	metricsMod := &MetricsModule{Metrics: metricsObj, StartTime: metricsStart}
 
 	if err := InitModules(context.Background(), s.registry, []Module{
 		emailMod,
@@ -180,6 +185,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		realtimeMod,
 		branchingMod,
 		graphqlMod,
+		mcpMod,
+		metricsMod,
 	}); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize modules")
 	}
@@ -276,8 +283,14 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	s.GraphQL.Handler = graphqlMod.Handler
 
-	s.setupMCPServer()
-	s.initMetrics()
+	s.MCP.Handler = mcpMod.Handler
+	s.MCP.OAuth = mcpMod.OAuth
+	s.MCP.CustomManager = mcpMod.CustomManager
+	s.MCP.CustomHandler = mcpMod.CustomHandler
+
+	s.Metrics.Server = metricsMod.Server
+	s.Metrics.StopChan = metricsMod.StopChan
+
 	s.initBackgroundServices()
 	s.setupMiddlewares()
 	s.setupRoutes()
