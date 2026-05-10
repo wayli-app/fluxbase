@@ -13,6 +13,10 @@ Fluxbase is a single-binary Backend-as-a-Service (BaaS). PostgreSQL is the only 
 
 ```
 cmd/fluxbase/main.go     # Server entry point (setup + server creation)
+internal/api/module.go   # Module interface + ServiceRegistry (dependency injection)
+internal/api/module_*.go # 19 business logic modules (one per domain)
+internal/api/server.go   # Server struct, NewServer, module wiring
+internal/api/server_init.go # Infrastructure: initCore, setupMiddlewares, setupRoutes
 internal/database/retry.go      # ConnectWithRetry extracted from main.go
 internal/tenantdb/bootstrap_keys.go # EnsureDefaultTenantAndKeys, EnsureServiceKey
 internal/tenantdb/backfill.go   # BackfillTenantIDToDefault
@@ -61,6 +65,18 @@ test/e2e/                # End-to-end tests
 | `testcontext/`   | Test context utilities for E2E tests                                                                        |
 | `testutil/`      | Test utilities and helpers                                                                                  |
 | `webhook/`       | Webhook system for database events (INSERT, UPDATE, DELETE)                                                 |
+
+### Module System (`internal/api/module_*.go`)
+
+Server initialization uses a module-based dependency injection system:
+
+- **`Module` interface** — `Name()` + `Init(ctx, *ServiceRegistry) error`
+- **`ServiceRegistry`** — stores config, DB, PubSub, and registered services; modules read dependencies via `GetService[T]()`
+- **19 modules** in dependency order: Email → Secrets → Storage → Logging → Auth → Webhook → Extensions → Tenancy → Settings → Schema → Functions → Jobs → RPC → AI → Realtime → Branching → GraphQL → MCP → Metrics
+- `GetService[T]()` uses `reflect.TypeOf` — only works with concrete pointer types (e.g., `*auth.Service`), not interfaces. Use `registry.PubSub` field for `pubsub.PubSub`
+- Modules register outputs via `registry.Register()` so downstream modules can find them
+
+**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring), `server_init.go` (remaining infrastructure: initCore, initBackgroundServices, setupMiddlewares, setupRoutes)
 
 ## Database Schemas
 
