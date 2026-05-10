@@ -117,7 +117,6 @@ func (s *ElasticsearchLogStorage) writeV8(ctx context.Context, entries []*LogEnt
 	if err != nil {
 		return fmt.Errorf("failed to create bulk indexer: %w", err)
 	}
-	defer func() { _ = bi.Close(ctx) }()
 
 	for _, entry := range entries {
 		if entry.ID == uuid.Nil {
@@ -130,6 +129,7 @@ func (s *ElasticsearchLogStorage) writeV8(ctx context.Context, entries []*LogEnt
 		doc := s.toDocument(entry)
 		data, err := json.Marshal(doc)
 		if err != nil {
+			_ = bi.Close(ctx)
 			return fmt.Errorf("failed to marshal log entry: %w", err)
 		}
 
@@ -140,6 +140,7 @@ func (s *ElasticsearchLogStorage) writeV8(ctx context.Context, entries []*LogEnt
 			Body:       bytes.NewReader(data),
 		})
 		if err != nil {
+			_ = bi.Close(ctx)
 			return fmt.Errorf("failed to add entry to bulk indexer: %w", err)
 		}
 	}
@@ -161,7 +162,6 @@ func (s *ElasticsearchLogStorage) writeV9(ctx context.Context, entries []*LogEnt
 	if err != nil {
 		return fmt.Errorf("failed to create bulk indexer: %w", err)
 	}
-	defer func() { _ = bi.Close(ctx) }()
 
 	for _, entry := range entries {
 		if entry.ID == uuid.Nil {
@@ -174,6 +174,7 @@ func (s *ElasticsearchLogStorage) writeV9(ctx context.Context, entries []*LogEnt
 		doc := s.toDocument(entry)
 		data, err := json.Marshal(doc)
 		if err != nil {
+			_ = bi.Close(ctx)
 			return fmt.Errorf("failed to marshal log entry: %w", err)
 		}
 
@@ -184,6 +185,7 @@ func (s *ElasticsearchLogStorage) writeV9(ctx context.Context, entries []*LogEnt
 			Body:       bytes.NewReader(data),
 		})
 		if err != nil {
+			_ = bi.Close(ctx)
 			return fmt.Errorf("failed to add entry to bulk indexer: %w", err)
 		}
 	}
