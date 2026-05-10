@@ -2,32 +2,32 @@
 //
 // # Test Setup
 //
-// TestMain creates two test tables before running all tests:
-//
-//  1. products - Simple table for REST API testing (no RLS)
-//  2. tasks - Complex table for RLS policy testing (RLS enabled)
+// Tests run against a dedicated fluxbase_go_e2e database that is fully reset
+// and re-bootstrapped on every test run. This makes the tests self-sufficient:
+// no external setup step (make test-setup-db, CI schema steps) is needed.
 //
 // # Database Users
 //
 // Three database users are used for different purposes:
 //
-//  1. postgres (superuser) - Used only for granting permissions
+//  1. postgres (superuser) - Used for schema reset, bootstrap, and permission grants
 //  2. fluxbase_app (has BYPASSRLS) - Used by NewTestContext for general testing
 //  3. fluxbase_rls_test (no BYPASSRLS) - Used by NewRLSTestContext for RLS testing
 //
 // # Test Execution Flow
 //
-//  1. TestMain runs setupTestTables() - Creates products and tasks tables
-//  2. Individual tests run (each should truncate tables for isolation)
-//  3. TestMain runs teardownTestTables() - Drops all test tables
-//
-// See test/README.md for detailed testing guide.
+//  1. resetTestDatabase() - Drop all schemas, ensure users exist
+//  2. bootstrapTestDatabase() - Run bootstrap SQL + declarative schema
+//  3. setupTestTables() - Create products and tasks tables
+//  4. Individual tests run
+//  5. teardownTestTables() - Drop test tables
 package e2e
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +35,9 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/database/bootstrap"
+	dbschema "github.com/nimbleflux/fluxbase/internal/database/schema"
+	"github.com/nimbleflux/fluxbase/internal/migrations"
 	"github.com/nimbleflux/fluxbase/test"
 )
 
@@ -51,47 +54,54 @@ func getDatabase(cfg *config.Config) (*database.Connection, error) {
 	return database.NewConnection(cfg.Database)
 }
 
-// TestMain runs before all e2e tests to set up test tables and after all tests to clean up.
+// TestMain runs before all e2e tests to set up a fresh database and after all tests to clean up.
 //
 // Execution Flow:
-//  1. CleanupE2ETestUsersGlobal() - Clean up any leftover test users from previous runs
-//  2. setupTestTables() - Creates products and tasks tables with RLS policies
-//  3. m.Run() - Runs all test functions in the e2e package
-//  4. teardownTestTables() - Drops all test tables
-//
-// Note: Individual tests should truncate tables for test isolation.
+//  1. resetTestDatabase() - Drop all non-system schemas, ensure test users exist
+//  2. bootstrapTestDatabase() - Run bootstrap SQL + declarative schema application
+//  3. CleanupE2ETestUsersGlobal() - Clean up any leftover test users
+//  4. InitSharedTestContext() - Create server with connection pool
+//  5. setupTestTables() - Create products and tasks tables with RLS policies
+//  6. m.Run() - Run all test functions
+//  7. teardownTestTables() - Drop test tables
 func TestMain(m *testing.M) {
-	// Cleanup: Remove any leftover e2e test users from previous runs
-	// This ensures a clean state even if previous test runs failed
+	ctx := context.Background()
+
+	// Phase 1: Reset database to clean state
+	if !resetTestDatabase() {
+		log.Error().Msg("Failed to reset test database - cannot run tests")
+		os.Exit(1)
+	}
+
+	// Phase 2: Bootstrap + declarative schema (same code path as server startup)
+	if !bootstrapTestDatabase(ctx) {
+		log.Error().Msg("Failed to bootstrap test database - cannot run tests")
+		os.Exit(1)
+	}
+
+	// Phase 3: Clean up leftover users from previous runs
 	cfg := test.GetTestConfig()
 	test.CleanupE2ETestUsersGlobal(cfg)
 
-	// Initialize shared test context for connection pooling
-	// This reduces connection pool exhaustion across tests
+	// Phase 4: Create shared server context
 	test.InitSharedTestContext()
 
-	// NOTE: RLS shared context is initialized lazily on first use by NewRLSTestContext()
-	// This avoids having two shared contexts competing for resources
-
-	// Setup: Create test tables before running tests
+	// Phase 5: Create test tables (products, tasks, etc.)
 	if !setupTestTables() {
 		log.Error().Msg("Failed to setup test tables - cannot run tests")
 		os.Exit(1)
 	}
 
-	// Refresh schema cache after creating test tables
-	// This ensures the server knows about the products, tasks, and other test tables
+	// Refresh schema cache so the REST API knows about test tables
 	refreshSharedTestContextSchemaCache()
 
-	// Run all tests
+	// Phase 6: Run all tests
 	code := m.Run()
 
 	// Cleanup: Remove test users created during this test run
 	test.CleanupE2ETestUsersGlobal(cfg)
 
 	// Teardown: Clean up test tables after all tests complete
-	// Skip teardown if running in parallel test mode (detected by env var)
-	// This allows other packages' tests to use the tables
 	if os.Getenv("FLUXBASE_PARALLEL_TEST") != "true" {
 		teardownTestTables()
 	} else {
@@ -99,11 +109,177 @@ func TestMain(m *testing.M) {
 	}
 
 	// Clean up shared test context before exit
-	// (Must be called explicitly since os.Exit will not run defers)
 	test.CleanupSharedTestContext()
 
-	// Exit with the test result code
 	os.Exit(code)
+}
+
+// resetTestDatabase drops all non-system schemas and ensures test users exist.
+// This mirrors the Playwright reset_playwright_db() in scripts/start-e2e-ui.sh.
+func resetTestDatabase() bool {
+	ctx := context.Background()
+
+	cfg := test.GetTestConfig()
+	cfg.Database.User = getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres")
+	cfg.Database.AdminUser = cfg.Database.User
+	cfg.Database.Password = getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres")
+
+	db, err := getDatabase(cfg)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to connect as admin for database reset")
+		return false
+	}
+	defer db.Close()
+
+	dbName := cfg.Database.Database
+	log.Info().Str("database", dbName).Msg("Resetting test database...")
+
+	// Drop tenant databases from previous runs
+	rows, err := db.Query(ctx, "SELECT datname FROM pg_database WHERE datname LIKE 'tenant_%'")
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to query tenant databases")
+	} else {
+		var tenantDBs []string
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err == nil {
+				tenantDBs = append(tenantDBs, name)
+			}
+		}
+		rows.Close()
+		for _, name := range tenantDBs {
+			_, _ = db.Exec(ctx, fmt.Sprintf(`DROP DATABASE IF EXISTS %q`, name))
+		}
+	}
+
+	// Drop all non-system schemas (preserves extensions and roles).
+	// Use a blocklist approach: system schemas + extension-managed schemas are kept.
+	// TimescaleDB creates internal schemas (_timescaledb_*) that cannot be dropped.
+	_, err = db.Exec(ctx, `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT nspname FROM pg_namespace WHERE nspname NOT IN (
+		'pg_catalog', 'information_schema', 'pg_toast',
+		'_timescaledb_cache', '_timescaledb_catalog', '_timescaledb_config',
+		'_timescaledb_functions', '_timescaledb_internal',
+		'timescaledb_experimental', 'timescaledb_information'
+	) LOOP EXECUTE 'DROP SCHEMA IF EXISTS ' || quote_ident(r.nspname) || ' CASCADE'; END LOOP; END $$`)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to drop schemas")
+		return false
+	}
+
+	// Recreate public schema with basic grants
+	_, err = db.Exec(ctx, `CREATE SCHEMA IF NOT EXISTS public; GRANT ALL ON SCHEMA public TO public`)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to recreate public schema")
+		return false
+	}
+
+	// Ensure test users exist
+	_, _ = db.Exec(ctx, `CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB CREATEROLE`)
+	_, _ = db.Exec(ctx, `CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN NOBYPASSRLS CREATEDB`)
+
+	// Ensure BYPASSRLS is set (idempotent)
+	_, _ = db.Exec(ctx, `ALTER USER fluxbase_app WITH BYPASSRLS`)
+
+	// Grant database privileges
+	_, _ = db.Exec(ctx, fmt.Sprintf(`GRANT ALL ON DATABASE %s TO fluxbase_app, fluxbase_rls_test`, dbName))
+	_, _ = db.Exec(ctx, fmt.Sprintf(`GRANT CREATE ON DATABASE %s TO fluxbase_rls_test, fluxbase_app`, dbName))
+
+	log.Info().Msg("Test database reset complete")
+	return true
+}
+
+// bootstrapTestDatabase runs bootstrap SQL and declarative schema application.
+// This uses the exact same Go code path as cmd/fluxbase/main.go startup.
+func bootstrapTestDatabase(ctx context.Context) bool {
+	cfg := test.GetTestConfig()
+
+	log.Info().Msg("Running database bootstrap...")
+
+	// Connect as admin for bootstrap
+	adminCfg := *cfg
+	adminCfg.Database.User = getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres")
+	adminCfg.Database.AdminUser = adminCfg.Database.User
+	adminCfg.Database.Password = getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres")
+
+	adminDB, err := getDatabase(&adminCfg)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to connect as admin for bootstrap")
+		return false
+	}
+	defer adminDB.Close()
+
+	// Also connect as app user — bootstrap grants roles to CURRENT_USER
+	appDB, err := getDatabase(cfg)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to connect as app user for bootstrap")
+		return false
+	}
+	defer appDB.Close()
+
+	// Run bootstrap as admin (creates schemas, extensions, roles)
+	bootstrapSvc := bootstrap.NewServiceWithConfig(adminDB.Pool(), bootstrap.Config{
+		Host:          cfg.Database.Host,
+		Port:          cfg.Database.Port,
+		Database:      cfg.Database.Database,
+		User:          cfg.Database.User,
+		Password:      cfg.Database.Password,
+		AdminUser:     adminCfg.Database.User,
+		AdminPassword: adminCfg.Database.Password,
+	})
+	if err := bootstrapSvc.EnsureBootstrap(ctx); err != nil {
+		log.Error().Err(err).Msg("Failed to run bootstrap")
+		return false
+	}
+	bootstrapSvc.Close()
+	log.Info().Msg("Database bootstrap completed successfully")
+
+	// Extract embedded schema files to temp directory
+	schemaDir, err := dbschema.ExtractSchemas()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to extract embedded schemas")
+		return false
+	}
+	defer func() { _ = os.RemoveAll(schemaDir) }()
+
+	// Apply declarative schema (tables, indexes, functions, policies)
+	adminUser := adminCfg.Database.User
+	adminPassword := adminCfg.Database.Password
+
+	declarativeSvc := migrations.NewDeclarativeService(
+		"pgschema",
+		cfg.Database.Host,
+		cfg.Database.Port,
+		adminUser,
+		adminPassword,
+		cfg.Database.Database,
+		migrations.DeclarativeConfig{
+			SchemaDir:        schemaDir,
+			Schemas:          migrations.DefaultFluxbaseSchemas,
+			AllowDestructive: false,
+			LockTimeout:      30,
+		},
+	)
+	declarativeSvc.SetPool(adminDB.Pool())
+	declarativeSvc.SetAppUser(cfg.Database.User)
+
+	if err := declarativeSvc.ApplyDeclarativeWithSource(ctx, "fresh_install"); err != nil {
+		log.Error().Err(err).Msg("Failed to apply declarative schema")
+		return false
+	}
+	log.Info().Msg("Declarative schema applied successfully")
+
+	// Grant role memberships to test users
+	// Bootstrap creates roles and grants them to CURRENT_USER (postgres admin),
+	// but fluxbase_app and fluxbase_rls_test also need them for SET ROLE support
+	_, err = adminDB.Exec(ctx, `
+		GRANT anon, authenticated, service_role, tenant_service, tenant_migration_role
+		TO fluxbase_app, fluxbase_rls_test`)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to grant role memberships (may already exist)")
+	}
+
+	log.Info().Msg("Test database bootstrap complete")
+	return true
 }
 
 // setupTestTables creates the test tables needed for e2e tests.
@@ -483,10 +659,7 @@ func refreshSharedTestContextSchemaCache() {
 func grantRLSTestPermissions() {
 	ctx := context.Background()
 
-	// Connect as postgres superuser to grant permissions
-	// fluxbase_app cannot grant permissions on schemas it doesn't own
 	cfg := test.GetTestConfig()
-	// Use postgres superuser from environment variables (with defaults for local dev)
 	cfg.Database.User = getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres")
 	cfg.Database.AdminUser = cfg.Database.User
 	cfg.Database.Password = getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres")
@@ -498,90 +671,63 @@ func grantRLSTestPermissions() {
 	}
 	defer db.Close()
 
-	// Grant database and schema permissions to both test users
-	// Note: Database name must match the actual database being used
+	const users = "fluxbase_rls_test, fluxbase_app"
 	dbName := cfg.Database.Database
-	_, err = db.Exec(ctx, fmt.Sprintf(`
-		GRANT CREATE ON DATABASE %s TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA app TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA platform TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA jobs TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA mcp TO fluxbase_rls_test, fluxbase_app;
-	`, dbName))
+
+	schemas := []string{
+		"public", "app", "auth", "platform", "functions", "jobs",
+		"storage", "realtime", "mcp", "ai", "rpc", "logging", "branching",
+	}
+
+	funcSchemas := []string{
+		"public", "auth", "functions", "storage", "ai", "rpc", "mcp",
+	}
+
+	// Database + schema permissions
+	var sql strings.Builder
+	fmt.Fprintf(&sql, "GRANT CREATE ON DATABASE %s TO %s;\n", dbName, users)
+	for _, s := range schemas {
+		fmt.Fprintf(&sql, "GRANT USAGE, CREATE ON SCHEMA %s TO %s;\n", s, users)
+	}
+	_, err = db.Exec(ctx, sql.String())
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant schema permissions to test users")
 		return
 	}
 
-	// Grant table and sequence permissions to both test users
-	_, err = db.Exec(ctx, `
-		GRANT ALL ON ALL TABLES IN SCHEMA public TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA platform TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA platform TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA jobs TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA jobs TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA mcp TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA mcp TO fluxbase_rls_test, fluxbase_app;
-
-		-- Grant permissions on future tables/sequences (in case migrations add new ones)
-		ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA platform GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA platform GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA jobs GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA jobs GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-			ALTER DEFAULT PRIVILEGES IN SCHEMA mcp GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
-			ALTER DEFAULT PRIVILEGES IN SCHEMA mcp GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
-		`)
+	// Table, sequence, and default privileges (current user + postgres role)
+	var privSQL strings.Builder
+	for _, s := range schemas {
+		fmt.Fprintf(&privSQL, "GRANT ALL ON ALL TABLES IN SCHEMA %s TO %s;\n", s, users)
+		fmt.Fprintf(&privSQL, "GRANT ALL ON ALL SEQUENCES IN SCHEMA %s TO %s;\n", s, users)
+		fmt.Fprintf(&privSQL, "ALTER DEFAULT PRIVILEGES IN SCHEMA %s GRANT ALL ON TABLES TO %s;\n", s, users)
+		fmt.Fprintf(&privSQL, "ALTER DEFAULT PRIVILEGES IN SCHEMA %s GRANT ALL ON SEQUENCES TO %s;\n", s, users)
+		fmt.Fprintf(&privSQL, "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA %s GRANT ALL ON TABLES TO %s;\n", s, users)
+		fmt.Fprintf(&privSQL, "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA %s GRANT ALL ON SEQUENCES TO %s;\n", s, users)
+	}
+	_, err = db.Exec(ctx, privSQL.String())
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant table/sequence permissions to test users")
 		return
 	}
 
-	// Grant function execution permissions to both test users
-	_, err = db.Exec(ctx, `
-		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
-		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
-		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
-	`)
+	// Function execution permissions
+	var funcSQL strings.Builder
+	for _, s := range funcSchemas {
+		fmt.Fprintf(&funcSQL, "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA %s TO %s;\n", s, users)
+	}
+	_, err = db.Exec(ctx, funcSQL.String())
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant function execution permissions to test users")
 	}
 
-	// Grant fluxbase_app permission to SET ROLE to anon, authenticated, service_role
-	// This is required for the RLS middleware to execute SET LOCAL ROLE for defense-in-depth security
+	// Role grants for SET ROLE support (required by RLS middleware)
 	_, err = db.Exec(ctx, `
-		GRANT anon TO fluxbase_app;
-		GRANT authenticated TO fluxbase_app;
-		GRANT service_role TO fluxbase_app;
+		GRANT anon, authenticated, service_role, tenant_service, tenant_migration_role
+		TO fluxbase_app, fluxbase_rls_test
 	`)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to grant SET ROLE permissions to fluxbase_app")
+		log.Error().Err(err).Msg("Failed to grant SET ROLE permissions to test users")
 	}
 
 	// Grant permissions to anon, authenticated, and service_role for test tables in public schema

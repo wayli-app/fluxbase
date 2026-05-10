@@ -394,84 +394,39 @@ jobs:
           # Default max_connections=100 is too low for test connection pools.
           # The e2e tests create multiple pools (main, superuser, RLS) that
           # together consume ~12+ connections, and the server's internal pools
-          # add more. Increase to 200 to prevent connection exhaustion.
-          psql -h localhost -U postgres -d fluxbase_test -c "ALTER SYSTEM SET max_connections = 200;"
+          # add more. Increase to 400 to prevent connection exhaustion.
+          psql -h localhost -U postgres -c "ALTER SYSTEM SET max_connections = 400;"
           PG_CONTAINER=$(docker ps --format '{{.ID}}' --filter "publish=5432")
           if [ -n "$PG_CONTAINER" ]; then
             docker restart "$PG_CONTAINER"
             sleep 5
-            # Wait for postgres to be ready after restart
             for i in $(seq 1 30); do
-              if psql -h localhost -U postgres -d fluxbase_test -c "SELECT 1" > /dev/null 2>&1; then
-                echo "PostgreSQL ready with max_connections=200"
+              if psql -h localhost -U postgres -c "SELECT 1" > /dev/null 2>&1; then
+                echo "PostgreSQL ready with max_connections=400"
                 break
               fi
               sleep 1
             done
           fi
 
-      - name: Setup database users
+      - name: Create E2E test database and users
         env:
           PGPASSWORD: postgres
         run: |
-          # Create fluxbase_app user with BYPASSRLS for migrations and general testing
-          # This user can bypass RLS policies to manage data freely (like in production)
-          # Note: No CONNECTION LIMIT to allow tests to create many concurrent connections
-          # CREATEROLE is needed for migrations that create database roles (anon, authenticated, service_role)
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB CREATEROLE;"
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;"
+          # Create the Go E2E test database (tests self-bootstrap on every run)
+          psql -h localhost -U postgres -c "CREATE DATABASE fluxbase_go_e2e;"
 
-          # Grant schema permissions to fluxbase_app for migrations
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA public TO fluxbase_app;"
+          # Create fluxbase_app user with BYPASSRLS for general testing
+          # CREATEROLE is needed for bootstrap which creates database roles
+          psql -h localhost -U postgres -d fluxbase_go_e2e -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB CREATEROLE;"
+          psql -h localhost -U postgres -d fluxbase_go_e2e -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_go_e2e TO fluxbase_app;"
 
-          # Create _fluxbase schema if it doesn't exist and grant permissions
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;"
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA _fluxbase TO fluxbase_app;"
-
-          # Create fluxbase_rls_test user specifically for RLS policy testing (without BYPASSRLS)
-          # This user is ONLY used in RLS-specific tests to verify policies work correctly
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN NOBYPASSRLS CREATEDB;"
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_rls_test;"
+          # Create fluxbase_rls_test user for RLS policy testing (without BYPASSRLS)
+          psql -h localhost -U postgres -d fluxbase_go_e2e -c "CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN NOBYPASSRLS CREATEDB;"
+          psql -h localhost -U postgres -d fluxbase_go_e2e -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_go_e2e TO fluxbase_rls_test;"
 
           # Enable pgvector extension for AI/RAG features
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
-
-      - name: Setup database schema
-        env:
-          PGPASSWORD: postgres
-        run: |
-          # Run bootstrap SQL (creates schemas, extensions, roles, default privileges)
-          # Substitute {{APP_USER}} with fluxbase_app (Go runtime does this via SubstituteAppUser)
-          sed "s/{{APP_USER}}/fluxbase_app/g" internal/database/bootstrap/bootstrap.sql | psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1
-
-          # Grant role memberships for SET ROLE support
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT anon, authenticated, service_role, tenant_service TO fluxbase_app, fluxbase_rls_test;"
-
-          # Grant fluxbase_app additional privileges for admin operations
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON DATABASE fluxbase_test TO fluxbase_app;"
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA public TO fluxbase_app;"
-
-      - name: Apply declarative schema
-        env:
-          PGPASSWORD: postgres
-        run: |
-          # Apply each schema file in dependency order using psql.
-          # All schema files use CREATE TABLE IF NOT EXISTS so they are idempotent.
-          # Bootstrap must have already run (creates schemas, extensions, roles).
-          SCHEMA_DIR="internal/database/schema/schemas"
-          for schema in platform auth storage jobs functions realtime ai rpc system migrations app api branching logging mcp; do
-            if [ ! -f "${SCHEMA_DIR}/${schema}.sql" ]; then continue; fi
-            echo "Applying schema: $schema"
-            sed "s/{{APP_USER}}/fluxbase_app/g" "${SCHEMA_DIR}/${schema}.sql" | psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1
-          done
-
-          # Apply cross-schema foreign keys (idempotent DO blocks)
-          echo "Applying cross-schema foreign keys..."
-          psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1 -f "${SCHEMA_DIR}/post-schema-fks.sql"
-
-          # Apply cross-schema policies (safe on fresh database)
-          echo "Applying cross-schema policies..."
-          psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1 -f "${SCHEMA_DIR}/post-schema.sql"
+          psql -h localhost -U postgres -d fluxbase_go_e2e -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
       - name: Setup MinIO bucket
         run: |
@@ -519,7 +474,7 @@ jobs:
           FLUXBASE_DATABASE_PASSWORD: fluxbase_app_password
           FLUXBASE_DATABASE_ADMIN_USER: postgres
           FLUXBASE_DATABASE_ADMIN_PASSWORD: postgres
-          FLUXBASE_DATABASE_DATABASE: fluxbase_test
+          FLUXBASE_DATABASE_DATABASE: fluxbase_go_e2e
           SKIP_MIGRATIONS: "true"
         run: |
           if [ "${{ needs.changes.outputs.go-core }}" = "true" ] || \
@@ -554,7 +509,9 @@ jobs:
           FLUXBASE_DATABASE_PORT: 5432
           FLUXBASE_DATABASE_USER: fluxbase_app
           FLUXBASE_DATABASE_PASSWORD: fluxbase_app_password
-          FLUXBASE_DATABASE_DATABASE: fluxbase_test
+          FLUXBASE_DATABASE_ADMIN_USER: postgres
+          FLUXBASE_DATABASE_ADMIN_PASSWORD: postgres
+          FLUXBASE_TEST_DATABASE: fluxbase_go_e2e
           FLUXBASE_EMAIL_SMTP_HOST: localhost
           FLUXBASE_EMAIL_SMTP_PORT: 1025
           FLUXBASE_STORAGE_S3_ENDPOINT: localhost:9000

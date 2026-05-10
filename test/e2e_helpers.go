@@ -981,10 +981,13 @@ func GetTestConfig() *config.Config {
 	// Allow environment variables to override defaults for CI
 	dbHost := getEnvOrDefault("FLUXBASE_DATABASE_HOST", "postgres")
 	dbUser := getEnvOrDefault("FLUXBASE_DATABASE_USER", "fluxbase_app")
-	dbAdminUser := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres") // Default to postgres for migrations
+	dbAdminUser := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres")
 	dbPassword := getEnvOrDefault("FLUXBASE_DATABASE_PASSWORD", "fluxbase_app_password")
-	dbAdminPassword := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres") // Default to postgres password
-	dbDatabase := getEnvOrDefault("FLUXBASE_DATABASE_DATABASE", "fluxbase_test")
+	dbAdminPassword := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres")
+	// Use FLUXBASE_TEST_DATABASE if set (CI), otherwise always use fluxbase_go_e2e.
+	// We intentionally do NOT fall back to FLUXBASE_DATABASE_DATABASE because
+	// .env may set it to fluxbase_dev for the running server.
+	dbDatabase := getEnvOrDefault("FLUXBASE_TEST_DATABASE", "fluxbase_go_e2e")
 	smtpHost := getEnvOrDefault("FLUXBASE_EMAIL_SMTP_HOST", "mailhog")
 	s3Endpoint := getEnvOrDefault("FLUXBASE_STORAGE_S3_ENDPOINT", "minio:9000")
 	functionsDir := getEnvOrDefault("FLUXBASE_FUNCTIONS_FUNCTIONS_DIR", "")

@@ -1,7 +1,10 @@
 -- Initialize databases for development and testing
 
--- Create test database (used by Go E2E tests)
+-- Create test database (legacy, used by make test-setup-db)
 CREATE DATABASE fluxbase_test;
+
+-- Create Go E2E test database (self-sufficient, auto-bootstrapped by tests)
+CREATE DATABASE fluxbase_go_e2e;
 
 -- Create Playwright test database (used by admin UI E2E tests)
 CREATE DATABASE fluxbase_playwright;
@@ -27,17 +30,20 @@ ALTER USER fluxbase_rls_test SET search_path TO public;
 -- Grant all privileges
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_dev TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE fluxbase_go_e2e TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_playwright TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_dev TO fluxbase_app;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;
+GRANT ALL PRIVILEGES ON DATABASE fluxbase_go_e2e TO fluxbase_app;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_playwright TO fluxbase_app;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_dev TO fluxbase_rls_test;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_rls_test;
+GRANT ALL PRIVILEGES ON DATABASE fluxbase_go_e2e TO fluxbase_rls_test;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_playwright TO fluxbase_rls_test;
 
 -- Grant CREATE on databases for schema creation
-GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_rls_test;
 GRANT CREATE ON DATABASE fluxbase_test TO fluxbase_rls_test;
+GRANT CREATE ON DATABASE fluxbase_go_e2e TO fluxbase_rls_test;
 GRANT CREATE ON DATABASE fluxbase_playwright TO fluxbase_rls_test;
 
 -- Connect to dev database and create extensions
