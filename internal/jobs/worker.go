@@ -260,7 +260,9 @@ func (w *Worker) pollLoop(ctx context.Context) {
 								if j.TenantID != "" {
 									panicCtx = database.ContextWithTenant(panicCtx, j.TenantID)
 								}
-								_ = w.Storage.FailJob(panicCtx, j.ID, fmt.Sprintf("Internal error: job execution panic: %v", rec))
+								if err := w.Storage.FailJob(panicCtx, j.ID, fmt.Sprintf("Internal error: job execution panic: %v", rec)); err != nil {
+									log.Error().Err(err).Str("job_id", j.ID.String()).Msg("Failed to mark job as failed")
+								}
 							}
 						}()
 						w.executeJob(ctx, j)
@@ -463,7 +465,9 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		jobFunction, err = w.Storage.GetJobFunctionByID(ctx, *job.JobFunctionID)
 		if err != nil {
 			log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to get job function")
-			_ = w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err))
+			if err := w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err)); err != nil {
+				log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to mark job as failed")
+			}
 			return
 		}
 	} else {
@@ -471,7 +475,9 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		jobFunction, err = w.Storage.GetJobFunction(ctx, job.Namespace, job.JobName)
 		if err != nil {
 			log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to get job function")
-			_ = w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err))
+			if err := w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err)); err != nil {
+				log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to mark job as failed")
+			}
 			return
 		}
 	}
@@ -485,14 +491,18 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	// Check if job function is enabled
 	if !jobFunction.Enabled {
 		log.Warn().Str("job_id", job.ID.String()).Str("job_name", job.JobName).Msg("Job function is disabled")
-		_ = w.Storage.FailJob(ctx, job.ID, "Job function is disabled")
+		if err := w.Storage.FailJob(ctx, job.ID, "Job function is disabled"); err != nil {
+			log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to mark job as failed")
+		}
 		return
 	}
 
 	// Check if code is available
 	if jobFunction.Code == nil || *jobFunction.Code == "" {
 		log.Error().Str("job_id", job.ID.String()).Msg("Job function has no code")
-		_ = w.Storage.FailJob(ctx, job.ID, "Job function has no code")
+		if err := w.Storage.FailJob(ctx, job.ID, "Job function has no code"); err != nil {
+			log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to mark job as failed")
+		}
 		return
 	}
 
@@ -542,7 +552,9 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	// Execute job in runtime - add defensive nil check
 	if w.Runtime == nil {
 		log.Error().Str("job_id", job.ID.String()).Msg("Runtime not initialized")
-		_ = w.Storage.FailJob(ctx, job.ID, "Internal error: runtime not initialized")
+		if err := w.Storage.FailJob(ctx, job.ID, "Internal error: runtime not initialized"); err != nil {
+			log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to mark job as failed")
+		}
 		return
 	}
 	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal, timeoutOverride, allSecrets)
@@ -575,11 +587,15 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 
 			if err := w.Storage.RequeueJob(ctx, job.ID, errorMsg); err != nil {
 				log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to requeue job, marking as failed")
-				_ = w.Storage.FailJob(ctx, job.ID, errorMsg)
+				if err := w.Storage.FailJob(ctx, job.ID, errorMsg); err != nil {
+					log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to mark job as failed")
+				}
 			}
 		} else {
 			// Max retries reached, mark as failed
-			_ = w.Storage.FailJob(ctx, job.ID, errorMsg)
+			if err := w.Storage.FailJob(ctx, job.ID, errorMsg); err != nil {
+				log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to mark job as failed")
+			}
 		}
 		return
 	}

@@ -21,6 +21,8 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/config"
 )
 
+var Version = "dev"
+
 // TracerConfig is an alias for config.TracingConfig.
 type TracerConfig = config.TracingConfig
 
@@ -87,7 +89,7 @@ func NewTracer(ctx context.Context, cfg TracerConfig) (*Tracer, error) {
 		resource.NewWithAttributes(
 			semconv.SchemaURL,
 			semconv.ServiceName(cfg.ServiceName),
-			semconv.ServiceVersion("0.0.1-rc.46"),
+			semconv.ServiceVersion(Version),
 			semconv.DeploymentEnvironment(cfg.Environment),
 			attribute.String("service.namespace", "fluxbase"),
 		),

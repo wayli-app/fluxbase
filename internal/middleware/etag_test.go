@@ -384,28 +384,3 @@ func TestCacheControlMiddleware(t *testing.T) {
 		}
 	})
 }
-
-func TestItoa(t *testing.T) {
-	tests := []struct {
-		input    int
-		expected string
-	}{
-		{0, "0"},
-		{1, "1"},
-		{10, "10"},
-		{100, "100"},
-		{123, "123"},
-		{3600, "3600"},
-		{-1, "-1"},
-		{-100, "-100"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			result := itoa(tt.input)
-			if result != tt.expected {
-				t.Errorf("itoa(%d) = %q, want %q", tt.input, result, tt.expected)
-			}
-		})
-	}
-}

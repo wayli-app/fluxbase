@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
@@ -69,7 +70,8 @@ func (h *SchemaExportHandler) HandleExportTypeScript(c fiber.Ctx) error {
 	// Generate TypeScript
 	output, err := h.generateTypeScript(ctx, req)
 	if err != nil {
-		return SendInternalError(c, "Failed to generate TypeScript types: "+err.Error())
+		log.Error().Err(err).Msg("Failed to generate TypeScript types")
+		return SendInternalError(c, "Failed to generate TypeScript types")
 	}
 
 	// Set content type based on request method and accept header

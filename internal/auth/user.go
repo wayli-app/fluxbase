@@ -604,7 +604,7 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 		)
 	})
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
 		return nil, err
@@ -699,7 +699,7 @@ func (r *UserRepository) GetByIDFromTable(ctx context.Context, id string, userTy
 		)
 	})
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
 		return nil, err

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
 	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
@@ -130,8 +131,9 @@ func (h *LoggingHandler) QueryLogs(c fiber.Ctx) error {
 	// Query logs
 	result, err := h.loggingService.Query(ctxForLogs(c), opts)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to query logs")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
+			"error": "Internal error",
 		})
 	}
 
@@ -178,8 +180,9 @@ func (h *LoggingHandler) GetExecutionLogs(c fiber.Ctx) error {
 
 	entries, err := h.loggingService.GetExecutionLogs(middleware.CtxWithTenant(c), executionID, afterLine)
 	if err != nil {
+		log.Error().Err(err).Str("execution_id", executionID).Msg("Failed to get execution logs")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
+			"error": "Internal error",
 		})
 	}
 
@@ -208,8 +211,9 @@ func (h *LoggingHandler) GetLogStats(c fiber.Ctx) error {
 
 	stats, err := h.loggingService.Stats(ctxForLogs(c))
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to get log stats")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
+			"error": "Internal error",
 		})
 	}
 
@@ -234,8 +238,9 @@ func (h *LoggingHandler) FlushLogs(c fiber.Ctx) error {
 	}
 
 	if err := h.loggingService.Flush(middleware.CtxWithTenant(c)); err != nil {
+		log.Error().Err(err).Msg("Failed to flush logs")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
+			"error": "Internal error",
 		})
 	}
 

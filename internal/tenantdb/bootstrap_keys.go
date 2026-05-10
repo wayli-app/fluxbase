@@ -2,12 +2,14 @@ package tenantdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
@@ -36,7 +38,7 @@ func EnsureDefaultTenantAndKeys(pool *pgxpool.Pool, cfg *config.Config) error {
 			err = nil
 			break
 		}
-		if strings.Contains(err.Error(), "no rows in result set") {
+		if errors.Is(err, pgx.ErrNoRows) {
 			err = nil
 			break
 		}
@@ -223,5 +225,5 @@ func GetDefaultTenantID(pool *pgxpool.Pool) *string {
 }
 
 func isNoRowsError(err error) bool {
-	return err != nil && (err.Error() == "no rows in result set" || strings.Contains(err.Error(), "no rows"))
+	return err != nil && errors.Is(err, pgx.ErrNoRows)
 }
