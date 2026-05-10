@@ -92,8 +92,11 @@ type Server struct {
 	secretsStorage        *secrets.Storage
 
 	// Cached middleware instances (created once during init)
-	requireAuth    fiber.Handler
-	optionalAuth   fiber.Handler
+	requireAuth  fiber.Handler
+	optionalAuth fiber.Handler
+
+	// Service registry for module-based initialization
+	registry *ServiceRegistry
 }
 
 // NewServer creates a new HTTP server
@@ -137,12 +140,31 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 
 	s.initCore()
-	s.initEmail()
+
+	s.registry = NewServiceRegistry(cfg, db)
+	emailMod := &EmailModule{}
+	secretsMod := &SecretsModule{}
+	webhookMod := &WebhookModule{}
+	extensionsMod := &ExtensionsModule{}
+	InitModules(context.Background(), s.registry, []Module{
+		emailMod,
+		secretsMod,
+		webhookMod,
+		extensionsMod,
+	})
+
+	s.emailManager = emailMod.Manager
+	s.emailService = emailMod.Service
+	s.secretsStorage = secretsMod.Storage
+	s.Secrets.Storage = secretsMod.Storage
+	s.Secrets.Handler = secretsMod.Handler
+	s.Webhook.Handler = webhookMod.Handler
+	s.Webhook.Trigger = webhookMod.Trigger
+	s.Extensions.Handler = extensionsMod.Handler
+
 	s.initAuth()
 	s.initStorage()
 	s.initLogging()
-	s.initWebhook()
-	s.initSecrets()
 	s.initTenancy()
 	s.initSettings()
 	s.initSchema()
@@ -154,7 +176,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	s.setupMCPServer()
 	s.initBranching()
 	s.initGraphQL()
-	s.initExtensions()
 	s.initMetrics()
 	s.initBackgroundServices()
 	s.setupMiddlewares()
