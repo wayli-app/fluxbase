@@ -18,14 +18,11 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/adminui"
 	"github.com/nimbleflux/fluxbase/internal/ai"
-	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/branching"
 	"github.com/nimbleflux/fluxbase/internal/database"
-	"github.com/nimbleflux/fluxbase/internal/email"
 	"github.com/nimbleflux/fluxbase/internal/extensions"
 	"github.com/nimbleflux/fluxbase/internal/functions"
 	"github.com/nimbleflux/fluxbase/internal/jobs"
-	"github.com/nimbleflux/fluxbase/internal/logging"
 	"github.com/nimbleflux/fluxbase/internal/mcp"
 	"github.com/nimbleflux/fluxbase/internal/mcp/custom"
 	mcpresources "github.com/nimbleflux/fluxbase/internal/mcp/resources"
@@ -38,11 +35,8 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/realtime"
 	"github.com/nimbleflux/fluxbase/internal/rpc"
 	"github.com/nimbleflux/fluxbase/internal/scaling"
-	"github.com/nimbleflux/fluxbase/internal/secrets"
 	"github.com/nimbleflux/fluxbase/internal/settings"
-	"github.com/nimbleflux/fluxbase/internal/storage"
 	"github.com/nimbleflux/fluxbase/internal/tenantdb"
-	"github.com/nimbleflux/fluxbase/internal/webhook"
 )
 
 func (s *Server) initCore() {
@@ -103,199 +97,6 @@ func (s *Server) initCore() {
 	s.rateLimiter = rateLimitStore
 	s.pubSub = ps
 	s.sharedMiddlewareStorage = sharedMiddlewareStorage
-}
-
-func (s *Server) initEmail() {
-	s.emailManager = email.NewManager(&s.config.Email, nil, nil, s.config)
-	s.emailService = s.emailManager.WrapAsService()
-}
-
-func (s *Server) initAuth() {
-	cfg := s.config
-	db := s.db
-
-	authService := auth.NewService(db, &cfg.Auth, s.emailService, cfg.GetPublicBaseURL())
-	authService.SetEncryptionKey(cfg.EncryptionKey)
-	totpRateLimiter := auth.NewTOTPRateLimiter(db, auth.DefaultTOTPRateLimiterConfig())
-	authService.SetTOTPRateLimiter(totpRateLimiter)
-	s.authService = authService
-
-	clientKeyService := auth.NewClientKeyService(db, nil)
-
-	s.userMgmtService = auth.NewUserManagementService(
-		auth.NewUserRepository(db),
-		auth.NewSessionRepository(db),
-		auth.NewPasswordHasherWithConfig(auth.PasswordHasherConfig{MinLength: cfg.Auth.PasswordMinLen, Cost: cfg.Auth.BcryptCost}),
-		s.emailService,
-		cfg.GetPublicBaseURL(),
-	)
-
-	captchaService, err := auth.NewCaptchaService(&cfg.Security.Captcha)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize CAPTCHA service - CAPTCHA protection disabled")
-		captchaService = nil
-	}
-	s.captchaService = captchaService
-
-	authHandler := NewAuthHandler(db, authService, captchaService, cfg.GetPublicBaseURL())
-
-	dashboardJWTManager, err := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create dashboard JWT manager")
-	}
-	dashboardAuthService := auth.NewDashboardAuthService(db, dashboardJWTManager, cfg.Auth.TOTPIssuer)
-
-	systemSettingsService := auth.NewSystemSettingsService(db)
-	systemSettingsService.SetCache(authService.GetSettingsCache())
-	s.systemSettingsService = systemSettingsService
-
-	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService, cfg)
-	clientKeyHandler := NewClientKeyHandler(clientKeyService)
-
-	userMgmtHandler := NewUserManagementHandler(s.userMgmtService, authService)
-	invitationService := auth.NewInvitationService(db)
-	s.invitationService = invitationService
-	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, s.emailService, cfg.GetPublicBaseURL())
-
-	oauthProviderHandler := NewOAuthProviderHandler(db, authService.GetSettingsCache(), cfg.EncryptionKey, cfg.GetPublicBaseURL(), cfg.Auth.OAuthProviders)
-	jwtManager, err := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create JWT manager")
-	}
-	oauthHandler := NewOAuthHandler(db, authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey, cfg.Auth.OAuthProviders)
-
-	samlService, samlErr := auth.NewSAMLService(db, cfg.GetPublicBaseURL(), cfg.Auth.SAMLProviders)
-	if samlErr != nil {
-		log.Warn().Err(samlErr).Msg("Failed to initialize SAML service from config")
-	}
-	if samlService != nil {
-		if err := samlService.LoadProvidersFromDB(context.Background()); err != nil {
-			log.Warn().Err(err).Msg("Failed to load SAML providers from database")
-		}
-	}
-	samlProviderHandler := NewSAMLProviderHandler(db, samlService)
-
-	var samlHandler *SAMLHandler
-	if samlService != nil {
-		samlHandler = NewSAMLHandler(samlService, authService)
-	}
-
-	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, s.emailService, cfg.GetPublicBaseURL(), cfg.EncryptionKey, oauthHandler)
-	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
-
-	clientKeyService.SetSettingsCache(authService.GetSettingsCache())
-
-	if err := oauthProviderHandler.EncryptExistingSecrets(context.Background()); err != nil {
-		log.Error().Err(err).Msg("Failed to encrypt existing OAuth provider secrets")
-	}
-
-	s.sqlHandler = NewSQLHandler(db, authService)
-
-	s.Auth.Handler = authHandler
-	s.Auth.AdminHandler = adminAuthHandler
-	s.Auth.DashboardHandler = dashboardAuthHandler
-	s.Auth.ClientKeyHandler = clientKeyHandler
-	s.Auth.ClientKeyService = clientKeyService
-	s.Auth.OAuthProvider = oauthProviderHandler
-	s.Auth.OAuth = oauthHandler
-	s.Auth.SAMLProvider = samlProviderHandler
-	s.Auth.SAML = samlHandler
-	s.Auth.SAMLService = samlService
-	s.Auth.AdminSession = adminSessionHandler
-	s.Auth.UserManagement = userMgmtHandler
-	s.Auth.Invitation = invitationHandler
-
-	s.requireAuth = middleware.RequireAuthOrServiceKey(authService, clientKeyService, db.Pool(), &cfg.Security, dashboardJWTManager)
-	s.optionalAuth = middleware.OptionalAuthOrServiceKey(authService, clientKeyService, db.Pool(), &cfg.Security, dashboardJWTManager)
-}
-
-func (s *Server) initStorage() {
-	cfg := s.config
-	db := s.db
-
-	storageManager, err := storage.NewManager(&cfg.Storage, cfg.GetPublicBaseURL(), cfg.Auth.JWTSecret)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize storage manager")
-	}
-	s.storageManager = storageManager
-	s.storageService = storageManager.GetBaseService()
-
-	if err := storageManager.EnsureDefaultBuckets(context.Background()); err != nil {
-		log.Warn().Err(err).Msg("Failed to ensure default buckets")
-	}
-
-	if err := EnsureDefaultBucketRecords(context.Background(), db.Pool(), s.storageService.DefaultBuckets()); err != nil {
-		log.Warn().Err(err).Msg("Failed to ensure default bucket DB records")
-	}
-
-	s.Storage.Handler = NewStorageHandler(storageManager, db, cfg, &cfg.Storage.Transforms)
-}
-
-func (s *Server) initLogging() {
-	cfg := s.config
-	db := s.db
-
-	if !(cfg.Logging.ConsoleEnabled || cfg.Logging.Backend != "") {
-		return
-	}
-
-	loggingService, err := logging.New(&cfg.Logging, db, s.storageService.Provider, s.pubSub)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize central logging service, continuing with default logging")
-		return
-	}
-	s.loggingService = loggingService
-	s.Logging.Service = loggingService
-
-	log.Logger = log.Output(loggingService.Writer())
-	log.Info().
-		Str("backend", cfg.Logging.Backend).
-		Bool("pubsub_enabled", cfg.Logging.PubSubEnabled).
-		Int("batch_size", cfg.Logging.BatchSize).
-		Msg("Central logging service initialized")
-
-	log.Info().
-		Bool("pubsub_enabled", cfg.Logging.PubSubEnabled).
-		Bool("pubsub_available", s.pubSub != nil).
-		Msg("Logging service streaming capability")
-
-	if cfg.Logging.PubSubEnabled && s.pubSub != nil {
-		testLog := &storage.LogEntry{
-			Category: storage.LogCategorySystem,
-			Level:    storage.LogLevelInfo,
-			Message:  "Log streaming test - system initialized",
-			Fields:   map[string]any{"test": true, "component": "logging_diagnostic"},
-		}
-		loggingService.Log(context.Background(), testLog)
-		log.Info().Msg("Published test log to verify streaming - check /admin/logs page")
-	}
-
-	s.Logging.Handler = NewLoggingHandler(loggingService)
-
-	if cfg.Logging.RetentionEnabled {
-		s.Logging.Retention = logging.NewRetentionService(&cfg.Logging, loggingService.Storage())
-	}
-}
-
-func (s *Server) initWebhook() {
-	cfg := s.config
-	db := s.db
-
-	webhookService := webhook.NewWebhookService(db)
-	webhookService.AllowPrivateIPs = cfg.Debug
-	if cfg.Debug {
-		log.Warn().Msg("SECURITY: Debug mode enabled - webhook SSRF protection is DISABLED. Do NOT use in production!")
-	}
-	webhookTriggerService := webhook.NewTriggerService(db, webhookService, 4)
-
-	s.Webhook.Handler = NewWebhookHandler(webhookService)
-	s.Webhook.Trigger = webhookTriggerService
-}
-
-func (s *Server) initSecrets() {
-	s.secretsStorage = secrets.NewStorage(s.db, s.config.EncryptionKey)
-	s.Secrets.Storage = s.secretsStorage
-	s.Secrets.Handler = secrets.NewHandler(s.secretsStorage)
 }
 
 func (s *Server) initTenancy() {

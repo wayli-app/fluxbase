@@ -142,29 +142,53 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	s.initCore()
 
 	s.registry = NewServiceRegistry(cfg, db)
+	if s.pubSub != nil {
+		s.registry.Register(s.pubSub)
+	}
 	emailMod := &EmailModule{}
 	secretsMod := &SecretsModule{}
+	storageMod := &StorageModule{}
+	loggingMod := &LoggingModule{PubSub: s.pubSub}
+	authMod := &AuthModule{}
 	webhookMod := &WebhookModule{}
 	extensionsMod := &ExtensionsModule{}
-	InitModules(context.Background(), s.registry, []Module{
+	if err := InitModules(context.Background(), s.registry, []Module{
 		emailMod,
 		secretsMod,
+		storageMod,
+		loggingMod,
+		authMod,
 		webhookMod,
 		extensionsMod,
-	})
+	}); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize modules")
+	}
 
 	s.emailManager = emailMod.Manager
 	s.emailService = emailMod.Service
 	s.secretsStorage = secretsMod.Storage
 	s.Secrets.Storage = secretsMod.Storage
 	s.Secrets.Handler = secretsMod.Handler
+	s.storageManager = storageMod.Manager
+	s.storageService = storageMod.Service
+	s.Storage.Handler = storageMod.Handler
+	s.loggingService = loggingMod.Service
+	s.Logging.Service = loggingMod.Service
+	s.Logging.Handler = loggingMod.Handler
+	s.Logging.Retention = loggingMod.Retention
+	s.authService = authMod.Service
+	s.captchaService = authMod.CaptchaService
+	s.systemSettingsService = authMod.SystemSettingsService
+	s.userMgmtService = authMod.UserMgmtService
+	s.invitationService = authMod.InvitationService
+	s.Auth = authMod.Handlers
+	s.sqlHandler = authMod.SQLHandler
+	s.requireAuth = authMod.RequireAuth
+	s.optionalAuth = authMod.OptionalAuth
 	s.Webhook.Handler = webhookMod.Handler
 	s.Webhook.Trigger = webhookMod.Trigger
 	s.Extensions.Handler = extensionsMod.Handler
 
-	s.initAuth()
-	s.initStorage()
-	s.initLogging()
 	s.initTenancy()
 	s.initSettings()
 	s.initSchema()
