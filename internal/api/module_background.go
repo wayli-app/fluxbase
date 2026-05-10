@@ -61,13 +61,14 @@ func (m *BackgroundServicesModule) Init(ctx context.Context, registry *ServiceRe
 	jobsManager := GetService[*jobs.Manager](registry)
 	if cfg.Jobs.Enabled && jobsManager != nil {
 		workerCount := cfg.Jobs.EmbeddedWorkerCount
-		if workerCount <= 0 {
-			workerCount = 4
-		}
-		if err := jobsManager.Start(ctx, workerCount); err != nil {
-			log.Error().Err(err).Msg("Failed to start jobs manager")
+		if workerCount == 0 {
+			log.Info().Msg("Jobs manager created but no workers (embedded_worker_count=0)")
 		} else {
-			log.Info().Int("workers", workerCount).Msg("Jobs manager started successfully")
+			if err := jobsManager.Start(ctx, workerCount); err != nil {
+				log.Error().Err(err).Msg("Failed to start jobs manager")
+			} else {
+				log.Info().Int("workers", workerCount).Msg("Jobs manager started successfully")
+			}
 		}
 
 		jobsScheduler := GetService[*jobs.Scheduler](registry)

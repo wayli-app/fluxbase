@@ -643,6 +643,7 @@ func (tc *TestContext) Close() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = tc.Server.Shutdown(ctx)
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Only reset global state if no shared context exists
@@ -1005,11 +1006,11 @@ func GetTestConfig() *config.Config {
 			AdminPassword:   dbAdminPassword, // Admin password (configurable via env)
 			Database:        dbDatabase,
 			SSLMode:         "disable",
-			MaxConnections:  4,                // Reduced to allow more parallel tests (PostgreSQL has 100 max connections)
-			MinConnections:  1,                // Keep 1 warm connection for efficiency
-			MaxConnLifetime: 10 * time.Minute, // Longer lifetime to reduce connection churn
-			MaxConnIdleTime: 3 * time.Minute,  // Keep idle connections longer
-			HealthCheck:     30 * time.Second, // Must be < MaxConnIdleTime
+			MaxConnections:  3,                // Minimal pool for sequential E2E tests (PostgreSQL has 400 max connections)
+			MinConnections:  0,                // No warm connections — release immediately
+			MaxConnLifetime: 2 * time.Minute,  // Shorter lifetime to release connections faster
+			MaxConnIdleTime: 30 * time.Second, // Release idle connections quickly
+			HealthCheck:     15 * time.Second, // Must be < MaxConnIdleTime
 		},
 		Auth: config.AuthConfig{
 			JWTSecret:        "test-secret-key-for-testing-only",
