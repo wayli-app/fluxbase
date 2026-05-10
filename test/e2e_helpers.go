@@ -839,7 +839,7 @@ func NewTestContextWithOptions(t *testing.T, opts TestContextOptions) *TestConte
 		ratelimit.SetGlobalStore(opts.RateLimiter)
 	}
 	if opts.PubSub != nil {
-		pubsub.SetGlobalPubSub(opts.PubSub)
+		pubsub.GlobalPubSub = opts.PubSub
 	}
 
 	return newTestContextInternal(t, cfg)

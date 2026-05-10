@@ -9,6 +9,8 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/config"
 )
 
+var GlobalPubSub PubSub
+
 // NewPubSub creates a pub/sub based on the scaling configuration.
 //
 // Backend options:
