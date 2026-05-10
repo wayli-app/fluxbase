@@ -36,15 +36,15 @@ type Manager struct {
 	stopCh                 chan struct{}
 
 	// Worker supervision
-	workerErrors    chan workerError
-	workersMutex    sync.RWMutex
-	activeWorkers   map[uuid.UUID]bool
-	restartCounts   map[uuid.UUID]int
-	restartTimes    map[uuid.UUID]time.Time
-	restartMutex    sync.Mutex
-	targetCount     int
-	supervisorCtx   context.Context
-	supervisorStop  context.CancelFunc
+	workerErrors   chan workerError
+	workersMutex   sync.RWMutex
+	activeWorkers  map[uuid.UUID]bool
+	restartCounts  map[uuid.UUID]int
+	restartTimes   map[uuid.UUID]time.Time
+	restartMutex   sync.Mutex
+	targetCount    int
+	supervisorCtx  context.Context
+	supervisorStop context.CancelFunc
 }
 
 // NewManager creates a new worker manager

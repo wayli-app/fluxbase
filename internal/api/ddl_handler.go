@@ -21,9 +21,9 @@ import (
 // DDLHandler handles Database Definition Language (DDL) operations
 // for schema and table management
 type DDLHandler struct {
-	db                   *database.Connection
-	schemaCache          *database.SchemaCache
-	graphQLInvalidator   func()
+	db                 *database.Connection
+	schemaCache        *database.SchemaCache
+	graphQLInvalidator func()
 }
 
 // NewDDLHandler creates a new DDL handler

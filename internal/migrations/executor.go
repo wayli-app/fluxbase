@@ -279,4 +279,3 @@ func (e *Executor) ApplyPendingMigrations(ctx context.Context, namespace string,
 
 	return applied, failed, nil
 }
-

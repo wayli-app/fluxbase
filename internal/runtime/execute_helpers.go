@@ -24,12 +24,12 @@ type denoArgsConfig struct {
 }
 
 type outputResult struct {
-	stdout       strings.Builder
-	stderr       strings.Builder
-	truncated    bool
-	resultLine   string
-	totalSize    int
-	maxOutput    int
+	stdout     strings.Builder
+	stderr     strings.Builder
+	truncated  bool
+	resultLine string
+	totalSize  int
+	maxOutput  int
 }
 
 func buildDenoArgs(cfg denoArgsConfig, permissions Permissions, secrets map[string]string, tmpPath string) ([]string, int, uint64) {

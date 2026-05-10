@@ -225,7 +225,7 @@ func (f *Filter) matchesIn(recordValue interface{}, filterValue string) bool {
 }
 
 // matchesPattern matches LIKE/ILIKE patterns
-	// * as wildcard (converted to SQL %)
+// * as wildcard (converted to SQL %)
 func (f *Filter) matchesPattern(recordValue interface{}, pattern string, caseInsensitive bool) bool {
 	recordStr := fmt.Sprint(recordValue)
 

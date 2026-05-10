@@ -605,7 +605,7 @@ describe('FluxbaseFetch', () => {
       mockFetch.mockRejectedValueOnce('string error')
 
       await expect(fluxFetch.getBlob('/api/files/test.txt'))
-        .rejects.toThrow('Unknown error occurred')
+        .rejects.toThrow('string error')
     })
   })
 
@@ -630,7 +630,7 @@ describe('FluxbaseFetch', () => {
       mockFetch.mockRejectedValueOnce('string error')
 
       await expect(fluxFetch.get('/api/test'))
-        .rejects.toThrow('Unknown error occurred')
+        .rejects.toThrow('string error')
     })
 
     it('should include status and details on error', async () => {
@@ -732,7 +732,7 @@ describe('FluxbaseFetch', () => {
       mockFetch.mockRejectedValueOnce('string error')
 
       await expect(fluxFetch.getWithHeaders('/api/test'))
-        .rejects.toThrow('Unknown error occurred')
+        .rejects.toThrow('string error')
     })
 
     it('should not refresh when skipAutoRefresh is true in requestWithHeaders', async () => {

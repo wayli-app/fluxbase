@@ -596,8 +596,6 @@ func (s *Service) DisableExtensionForTenant(ctx context.Context, name string, us
 	}, nil
 }
 
-
-
 // checkExtensionInstalledForPool checks if an extension is installed using the given pool.
 // When pool is nil, uses the main database pool.
 func (s *Service) checkExtensionInstalledForPool(ctx context.Context, name string, pool *pgxpool.Pool) (bool, string) {

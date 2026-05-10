@@ -17,11 +17,11 @@ type Module interface {
 }
 
 type ServiceRegistry struct {
-	mu       sync.RWMutex
-	services map[reflect.Type]interface{}
-	Config   *config.Config
-	DB       *database.Connection
-	PubSub   pubsub.PubSub
+	mu          sync.RWMutex
+	services    map[reflect.Type]interface{}
+	Config      *config.Config
+	DB          *database.Connection
+	PubSub      pubsub.PubSub
 	RateLimiter ratelimit.Store
 }
 

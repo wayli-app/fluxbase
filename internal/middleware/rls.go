@@ -179,7 +179,7 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, c
 	// This allows RLS policies to check fine-grained application roles like 'admin', 'moderator', etc.
 	jwtClaims := map[string]interface{}{
 		"sub":  userID,
-		"role": role,   // Original application role (admin, user, etc.) - NOT the database role
+		"role": role, // Original application role (admin, user, etc.) - NOT the database role
 	}
 
 	// Add optional fields if claims are provided

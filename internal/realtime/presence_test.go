@@ -89,7 +89,7 @@ func TestPresenceManager_Untrack(t *testing.T) {
 
 		userID := "user-123"
 		state := PresenceState{"status": "online"}
-pm.Track("room:1", "user:123", state, &userID, "conn-1", "")
+		pm.Track("room:1", "user:123", state, &userID, "conn-1", "")
 
 		info := pm.Untrack("room:1", "user:123", "conn-1")
 

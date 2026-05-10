@@ -19,9 +19,9 @@ import (
 var rateLimiterMetrics *observability.Metrics
 
 var (
-	serviceRoleLimiter     fiber.Handler
-	serviceRoleLimiterCfg  RateLimiterConfig
-	serviceRoleLimiterMu   sync.Mutex
+	serviceRoleLimiter    fiber.Handler
+	serviceRoleLimiterCfg RateLimiterConfig
+	serviceRoleLimiterMu  sync.Mutex
 )
 
 // SetRateLimiterMetrics sets the metrics instance for rate limiter

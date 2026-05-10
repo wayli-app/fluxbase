@@ -719,8 +719,6 @@ func (l *TenantConfigLoader) deepCopyConfig(base *Config) *Config {
 	return cpy
 }
 
-
-
 // Helper functions for parsing env var values
 
 // parseBool parses a boolean string, with a default fallback

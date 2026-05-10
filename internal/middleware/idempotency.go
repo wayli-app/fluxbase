@@ -230,25 +230,25 @@ func (m *IdempotencyMiddleware) Middleware() fiber.Handler {
 			return m.handleExistingKey(c, record, requestHash)
 		}
 
-	// INSERT first to eliminate TOCTOU race between SELECT and INSERT
-	if err := m.createRecord(c.RequestCtx(), key, c.Method(), c.Path(), userID, requestHash); err != nil {
-		log.Error().Err(err).Str("key", key).Msg("Failed to create idempotency record")
-		return c.Next()
-	}
+		// INSERT first to eliminate TOCTOU race between SELECT and INSERT
+		if err := m.createRecord(c.RequestCtx(), key, c.Method(), c.Path(), userID, requestHash); err != nil {
+			log.Error().Err(err).Str("key", key).Msg("Failed to create idempotency record")
+			return c.Next()
+		}
 
-	// Re-fetch to check if we actually inserted or if it was a conflict
-	record, err = m.getRecord(c.RequestCtx(), key)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		log.Error().Err(err).Str("key", key).Msg("Failed to check idempotency key after insert")
-		return c.Next()
-	}
+		// Re-fetch to check if we actually inserted or if it was a conflict
+		record, err = m.getRecord(c.RequestCtx(), key)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			log.Error().Err(err).Str("key", key).Msg("Failed to check idempotency key after insert")
+			return c.Next()
+		}
 
-	if record != nil && record.Status != StatusProcessing {
-		// Another request won the race — return its stored response
-		return m.handleExistingKey(c, record, requestHash)
-	}
+		if record != nil && record.Status != StatusProcessing {
+			// Another request won the race — return its stored response
+			return m.handleExistingKey(c, record, requestHash)
+		}
 
-	// We own this key (processing status) — proceed with the request
+		// We own this key (processing status) — proceed with the request
 
 		// Create response capture
 		originalBody := c.Response().Body()

@@ -38,7 +38,7 @@ var (
 )
 
 type TenantDBConfig struct {
-	Router  *tenantdb.Router
+	Router     *tenantdb.Router
 	Repository TenantRepository
 }
 

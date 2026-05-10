@@ -30,7 +30,6 @@ export function BranchSelector() {
     setIsBranchingEnabled,
   } = useBranchStore();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["branches", { status: "ready" }],
@@ -39,11 +38,18 @@ export function BranchSelector() {
     refetchOnWindowFocus: false,
   });
 
+  const queryError =
+    query.error &&
+    ![
+      (query.error as { response?: { status?: number } })?.response?.status,
+    ].some((s) => s === 401 || s === 403 || s === 404 || s === 503)
+      ? "Failed to load branches"
+      : null;
+
   useEffect(() => {
     if (query.data) {
       setBranches(query.data.branches ?? []);
       setIsBranchingEnabled(true);
-      setError(null);
     }
   }, [query.data, setBranches, setIsBranchingEnabled]);
 
@@ -62,7 +68,6 @@ export function BranchSelector() {
       } else {
         // eslint-disable-next-line no-console
         console.error("Failed to fetch branches:", query.error);
-        setError("Failed to load branches");
       }
     }
   }, [query.error, setIsBranchingEnabled, setBranches]);
@@ -167,7 +172,7 @@ export function BranchSelector() {
         <Command>
           <CommandInput placeholder="Search branches..." />
           <CommandList>
-            <CommandEmpty>{error || "No branches found."}</CommandEmpty>
+            <CommandEmpty>{queryError || "No branches found."}</CommandEmpty>
             <CommandGroup>
               {/* Main database option */}
               <CommandItem onSelect={handleSelectMain}>

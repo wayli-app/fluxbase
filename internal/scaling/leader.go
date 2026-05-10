@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	JobsSchedulerLockID     int64 = 0x466C7578_00000001
+	JobsSchedulerLockID      int64 = 0x466C7578_00000001
 	FunctionsSchedulerLockID int64 = 0x466C7578_00000002
-	RPCSchedulerLockID      int64 = 0x466C7578_00000003
+	RPCSchedulerLockID       int64 = 0x466C7578_00000003
 )
 
 type LeaderElector struct {
