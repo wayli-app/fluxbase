@@ -443,7 +443,8 @@ func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFi
 	`
 
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			file.ID, file.JobFunctionID, file.FilePath, file.Content,
 		).Scan(&file.CreatedAt)
 	})
@@ -739,7 +740,8 @@ func (s *Storage) requeueJobWithStatus(ctx context.Context, jobID uuid.UUID, cur
 	var result pgconn.CommandTag
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		var execErr error
-		result, execErr = tx.Exec(ctx, query,
+		result, execErr = tx.Exec(
+			ctx, query,
 			JobStatusPending, jobID, currentStatus,
 			database.TenantOrNil(database.TenantFromContext(ctx)),
 			errorMsg,

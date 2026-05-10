@@ -512,6 +512,16 @@ func ParseFunctionConfig(code string) FunctionConfig {
 	if v, ok := annotations["description"]; ok {
 		config.Description = v
 	}
+	if v, ok := annotations["timeout"]; ok {
+		if val, err := strconv.Atoi(v); err == nil && val > 0 {
+			config.Timeout = val
+		}
+	}
+	if v, ok := annotations["memory"]; ok {
+		if val, err := strconv.Atoi(v); err == nil && val > 0 {
+			config.Memory = val
+		}
+	}
 	if v, ok := annotations["allow-net"]; ok {
 		if v == "false" {
 			config.AllowNet = false
