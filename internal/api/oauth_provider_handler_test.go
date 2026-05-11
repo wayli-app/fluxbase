@@ -21,7 +21,7 @@ import (
 
 func TestNewOAuthProviderHandler(t *testing.T) {
 	t.Run("creates handler with nil dependencies", func(t *testing.T) {
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 		assert.NotNil(t, handler)
 		assert.Nil(t, handler.db)
 		assert.Nil(t, handler.settingsCache)
@@ -31,9 +31,9 @@ func TestNewOAuthProviderHandler(t *testing.T) {
 	})
 
 	t.Run("creates handler with values", func(t *testing.T) {
-		handler := NewOAuthProviderHandler(nil, nil, "encryption-key", "https://example.com", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte("encryption-key"), "https://example.com", nil)
 		assert.NotNil(t, handler)
-		assert.Equal(t, "encryption-key", handler.encryptionKey)
+		assert.Equal(t, []byte("encryption-key"), handler.encryptionKey)
 		assert.Equal(t, "https://example.com", handler.baseURL)
 	})
 }
@@ -490,7 +490,7 @@ func TestProviderNamePattern(t *testing.T) {
 func TestCreateOAuthProvider_Validation(t *testing.T) {
 	t.Run("invalid request body", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Post("/oauth/providers", handler.CreateOAuthProvider)
 
@@ -511,7 +511,7 @@ func TestCreateOAuthProvider_Validation(t *testing.T) {
 
 	t.Run("invalid provider name format", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Post("/oauth/providers", handler.CreateOAuthProvider)
 
@@ -539,7 +539,7 @@ func TestCreateOAuthProvider_Validation(t *testing.T) {
 
 	t.Run("missing required fields", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Post("/oauth/providers", handler.CreateOAuthProvider)
 
@@ -564,7 +564,7 @@ func TestCreateOAuthProvider_Validation(t *testing.T) {
 
 	t.Run("custom provider missing URLs", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Post("/oauth/providers", handler.CreateOAuthProvider)
 
@@ -599,7 +599,7 @@ func TestCreateOAuthProvider_Validation(t *testing.T) {
 func TestGetOAuthProvider_Validation(t *testing.T) {
 	t.Run("invalid provider ID", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Get("/oauth/providers/:id", handler.GetOAuthProvider)
 
@@ -619,7 +619,7 @@ func TestGetOAuthProvider_Validation(t *testing.T) {
 
 	t.Run("valid UUID format accepted", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Get("/oauth/providers/:id", handler.GetOAuthProvider)
 
@@ -641,7 +641,7 @@ func TestGetOAuthProvider_Validation(t *testing.T) {
 func TestUpdateOAuthProvider_Validation(t *testing.T) {
 	t.Run("invalid provider ID", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Put("/oauth/providers/:id", handler.UpdateOAuthProvider)
 
@@ -658,7 +658,7 @@ func TestUpdateOAuthProvider_Validation(t *testing.T) {
 
 	t.Run("invalid request body", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Put("/oauth/providers/:id", handler.UpdateOAuthProvider)
 
@@ -674,7 +674,7 @@ func TestUpdateOAuthProvider_Validation(t *testing.T) {
 
 	t.Run("no fields to update", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Put("/oauth/providers/:id", handler.UpdateOAuthProvider)
 
@@ -702,7 +702,7 @@ func TestUpdateOAuthProvider_Validation(t *testing.T) {
 func TestDeleteOAuthProvider_Validation(t *testing.T) {
 	t.Run("invalid provider ID", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Delete("/oauth/providers/:id", handler.DeleteOAuthProvider)
 
@@ -723,7 +723,7 @@ func TestDeleteOAuthProvider_Validation(t *testing.T) {
 func TestUpdateAuthSettings_Validation(t *testing.T) {
 	t.Run("invalid request body", func(t *testing.T) {
 		app := newTestApp(t)
-		handler := NewOAuthProviderHandler(nil, nil, "", "", nil)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
 
 		app.Put("/auth/settings", handler.UpdateAuthSettings)
 

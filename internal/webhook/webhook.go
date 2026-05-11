@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -79,7 +80,20 @@ type WebhookPayload struct {
 type WebhookService struct {
 	db              *database.Connection
 	client          *http.Client
-	AllowPrivateIPs bool // Allow private IPs for testing purposes (SSRF protection bypass)
+	allowPrivateIPs bool
+	mu              sync.RWMutex
+}
+
+func (s *WebhookService) SetAllowPrivateIPs(allow bool) {
+	s.mu.Lock()
+	s.allowPrivateIPs = allow
+	s.mu.Unlock()
+}
+
+func (s *WebhookService) AllowPrivateIPs() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.allowPrivateIPs
 }
 
 // isPrivateIP checks if an IP address is in a private range
@@ -301,7 +315,7 @@ func (s *WebhookService) decrementTableCount(ctx context.Context, schema, table 
 // Create creates a new webhook
 func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 	// Validate webhook URL to prevent SSRF attacks (skip for tests with AllowPrivateIPs)
-	if !s.AllowPrivateIPs {
+	if !s.AllowPrivateIPs() {
 		if err := validateWebhookURL(webhook.URL); err != nil {
 			return fmt.Errorf("invalid webhook URL: %w", err)
 		}
@@ -544,7 +558,7 @@ func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error
 // Update updates a webhook
 func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webhook) error {
 	// Validate webhook URL to prevent SSRF attacks (skip for tests with AllowPrivateIPs)
-	if !s.AllowPrivateIPs {
+	if !s.AllowPrivateIPs() {
 		if err := validateWebhookURL(webhook.URL); err != nil {
 			return fmt.Errorf("invalid webhook URL: %w", err)
 		}
@@ -725,13 +739,12 @@ func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, 
 	// SECURITY FIX: Validate webhook URL at request time to prevent DNS rebinding attacks
 	// An attacker could create a webhook with a URL that initially resolves to a public IP,
 	// then change the DNS to point to a private IP (e.g., 169.254.169.254 for cloud metadata)
-	if !s.AllowPrivateIPs {
+	if !s.AllowPrivateIPs() {
 		if err := validateWebhookURL(webhook.URL); err != nil {
 			return fmt.Errorf("webhook URL validation failed (possible DNS rebinding attack): %w", err)
 		}
 	}
 
-	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "POST", webhook.URL, bytes.NewReader(payloadJSON))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -784,7 +797,7 @@ func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, 
 /*
 func (s *WebhookService) sendWebhook(ctx context.Context, deliveryID uuid.UUID, webhook *Webhook, payloadJSON []byte) {
 	// SECURITY FIX: Validate webhook URL at request time to prevent DNS rebinding attacks
-	if !s.AllowPrivateIPs {
+	if !s.AllowPrivateIPs() {
 		if err := validateWebhookURL(webhook.URL); err != nil {
 			s.markDeliveryFailed(ctx, deliveryID, 0, nil, fmt.Sprintf("webhook URL validation failed (possible DNS rebinding): %v", err))
 			return

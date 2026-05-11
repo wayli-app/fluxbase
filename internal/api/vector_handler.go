@@ -254,9 +254,7 @@ func (h *VectorHandler) HandleEmbed(c fiber.Ctx) error {
 	}
 
 	if embeddingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Embedding service not configured",
-		})
+		return SendFeatureDisabled(c, "Vector search")
 	}
 
 	var texts []string
@@ -293,9 +291,7 @@ func (h *VectorHandler) HandleEmbed(c fiber.Ctx) error {
 
 func (h *VectorHandler) HandleSearch(c fiber.Ctx) error {
 	if h.db == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Database not configured",
-		})
+		return SendNotInitialized(c, "Database")
 	}
 
 	var req VectorSearchRequest
@@ -318,9 +314,7 @@ func (h *VectorHandler) HandleSearch(c fiber.Ctx) error {
 	if req.Query != "" {
 		embeddingService := h.vectorManager.GetEmbeddingService()
 		if embeddingService == nil {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"error": "Embedding service not configured; provide vector directly",
-			})
+			return SendFeatureDisabled(c, "Vector search")
 		}
 
 		embedding, err := embeddingService.EmbedSingle(c.RequestCtx(), req.Query, "")

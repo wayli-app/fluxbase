@@ -22,7 +22,7 @@ import (
 
 func createSecretsService(t *testing.T, tc *testutil.IntegrationTestContext) *settings.SecretsService {
 	t.Helper()
-	return settings.NewSecretsService(tc.DB, testEncryptionKey)
+	return settings.NewSecretsService(tc.DB, []byte(testEncryptionKey))
 }
 
 func createTestUser(t *testing.T, tc *testutil.IntegrationTestContext) uuid.UUID {

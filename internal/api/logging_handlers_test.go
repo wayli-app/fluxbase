@@ -59,7 +59,7 @@ func TestLoggingHandler_QueryLogs(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 }
 
@@ -68,7 +68,7 @@ func TestLoggingHandler_QueryLogs(t *testing.T) {
 // =============================================================================
 
 func TestLoggingHandler_GetExecutionLogs(t *testing.T) {
-	t.Run("returns service unavailable when service is nil", func(t *testing.T) {
+	t.Run("returns forbidden when service is nil", func(t *testing.T) {
 		handler := &LoggingHandler{loggingService: nil}
 
 		app := fiber.New()
@@ -79,10 +79,10 @@ func TestLoggingHandler_GetExecutionLogs(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 
-	t.Run("returns bad request when execution_id is empty", func(t *testing.T) {
+	t.Run("returns forbidden when execution_id is empty and service is nil", func(t *testing.T) {
 		handler := &LoggingHandler{loggingService: nil}
 
 		app := fiber.New()
@@ -93,8 +93,7 @@ func TestLoggingHandler_GetExecutionLogs(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Empty param, route handler still called
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 }
 
@@ -103,7 +102,7 @@ func TestLoggingHandler_GetExecutionLogs(t *testing.T) {
 // =============================================================================
 
 func TestLoggingHandler_GetLogStats(t *testing.T) {
-	t.Run("returns service unavailable when service is nil", func(t *testing.T) {
+	t.Run("returns forbidden when service is nil", func(t *testing.T) {
 		handler := &LoggingHandler{loggingService: nil}
 
 		app := fiber.New()
@@ -114,7 +113,7 @@ func TestLoggingHandler_GetLogStats(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 }
 
@@ -123,7 +122,7 @@ func TestLoggingHandler_GetLogStats(t *testing.T) {
 // =============================================================================
 
 func TestLoggingHandler_FlushLogs(t *testing.T) {
-	t.Run("returns service unavailable when service is nil", func(t *testing.T) {
+	t.Run("returns forbidden when service is nil", func(t *testing.T) {
 		handler := &LoggingHandler{loggingService: nil}
 
 		app := fiber.New()
@@ -134,7 +133,7 @@ func TestLoggingHandler_FlushLogs(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 }
 

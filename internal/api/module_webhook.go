@@ -20,8 +20,8 @@ func (m *WebhookModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	db := registry.DB
 
 	webhookService := webhook.NewWebhookService(db)
-	webhookService.AllowPrivateIPs = cfg.Debug
 	if cfg.Debug {
+		webhookService.SetAllowPrivateIPs(true)
 		log.Warn().Msg("SECURITY: Debug mode enabled - webhook SSRF protection is DISABLED. Do NOT use in production!")
 	}
 	webhookTriggerService := webhook.NewTriggerService(db, webhookService, 4)

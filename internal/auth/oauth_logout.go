@@ -70,12 +70,11 @@ type OAuthLogoutResult struct {
 // OAuthLogoutService handles OAuth Single Logout operations
 type OAuthLogoutService struct {
 	db            *database.Connection
-	encryptionKey string
+	encryptionKey []byte
 	httpClient    *http.Client
 }
 
-// NewOAuthLogoutService creates a new OAuth logout service
-func NewOAuthLogoutService(db *database.Connection, encryptionKey string) *OAuthLogoutService {
+func NewOAuthLogoutService(db *database.Connection, encryptionKey []byte) *OAuthLogoutService {
 	return &OAuthLogoutService{
 		db:            db,
 		encryptionKey: encryptionKey,

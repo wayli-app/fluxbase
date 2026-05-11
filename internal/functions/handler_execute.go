@@ -197,6 +197,12 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	perms.AllowEnv = fn.AllowEnv
 	perms.AllowRead = fn.AllowRead
 	perms.AllowWrite = fn.AllowWrite
+	if fn.AllowedDomains != nil && *fn.AllowedDomains != "" {
+		perms.AllowedDomains = strings.Split(*fn.AllowedDomains, ",")
+		for i := range perms.AllowedDomains {
+			perms.AllowedDomains[i] = strings.TrimSpace(perms.AllowedDomains[i])
+		}
+	}
 
 	// Log function invocation
 	reqID := apperrors.GetRequestID(c)

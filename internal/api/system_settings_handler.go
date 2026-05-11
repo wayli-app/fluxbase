@@ -26,7 +26,7 @@ func NewSystemSettingsHandler(settingsService *auth.SystemSettingsService, setti
 
 func (h *SystemSettingsHandler) requireService(c fiber.Ctx) error {
 	if h.settingsService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Settings service not initialized")
 	}
 	return nil
 }

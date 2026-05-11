@@ -30,7 +30,7 @@ func (m *BranchingModule) Init(ctx context.Context, registry *ServiceRegistry) e
 		return nil
 	}
 
-	branchStorage := branching.NewStorage(db, cfg.EncryptionKey)
+	branchStorage := branching.NewStorage(db, cfg.EncryptionKeyBytes)
 	dbURL := cfg.Database.RuntimeConnectionString()
 	branchManager, err := branching.NewManager(branchStorage, cfg.Branching, db.Pool(), dbURL)
 	if err != nil {

@@ -30,32 +30,24 @@ func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 	key := c.Params("*") // Capture the rest of the path
 
 	if bucket == "" || key == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bucket and key are required",
-		})
+		return SendBadRequest(c, "bucket and key are required", ErrCodeMissingField)
 	}
 
 	// Get tenant-specific storage service
 	svc, err := h.getService(c)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get storage service",
-		})
+		return SendInternalError(c, "failed to get storage service")
 	}
 
 	// Get file size from Content-Length header (required for streaming)
 	size := int64(c.Request().Header.ContentLength())
 	if size <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Content-Length header is required for streaming uploads",
-		})
+		return SendBadRequest(c, "Content-Length header is required for streaming uploads", ErrCodeMissingField)
 	}
 
 	// Validate file size
 	if err := svc.ValidateUploadSize(size); err != nil {
-		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusRequestEntityTooLarge, err.Error(), ErrCodeInvalidInput)
 	}
 
 	// Get content type from header
@@ -72,9 +64,7 @@ func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 	metadata := make(map[string]string)
 	if metadataHeader := c.Get("X-Storage-Metadata"); metadataHeader != "" {
 		if err := json.Unmarshal([]byte(metadataHeader), &metadata); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "invalid X-Storage-Metadata header: must be valid JSON object",
-			})
+			return SendBadRequest(c, "invalid X-Storage-Metadata header: must be valid JSON object", ErrCodeInvalidInput)
 		}
 	}
 
@@ -106,9 +96,7 @@ func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 		// Fall back to reading the buffered body
 		bodyBytes := c.Body()
 		if len(bodyBytes) == 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "request body is required",
-			})
+			return SendBadRequest(c, "request body is required", ErrCodeMissingField)
 		}
 		body = bytes.NewReader(bodyBytes)
 	}
@@ -117,9 +105,7 @@ func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 	object, err := svc.Provider.Upload(ctx, bucket, key, body, size, opts)
 	if err != nil {
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to upload file (streaming)")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to upload file",
-		})
+		return SendInternalError(c, "failed to upload file")
 	}
 
 	// Start database transaction to store metadata
@@ -128,9 +114,7 @@ func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 		// Delete from provider since DB insert failed
 		_ = svc.Provider.Delete(ctx, bucket, key)
 		log.Error().Err(err).Msg("Failed to start transaction for streaming file upload")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -138,9 +122,7 @@ func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		_ = svc.Provider.Delete(ctx, bucket, key)
 		log.Error().Err(err).Msg("Failed to set RLS context")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 
 	// Convert metadata map to JSONB
@@ -174,23 +156,16 @@ func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 			Msg("Failed to insert file metadata into database (streaming)")
 
 		if strings.Contains(errMsg, "permission denied") || strings.Contains(errMsg, "policy") {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error":  "insufficient permissions to upload file",
-				"detail": errMsg,
-			})
+			return SendErrorWithDetails(c, fiber.StatusForbidden, "insufficient permissions to upload file", ErrCodeAccessDenied, "", "", errMsg)
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		_ = svc.Provider.Delete(ctx, bucket, key)
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to commit streaming file upload")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 
 	log.Info().

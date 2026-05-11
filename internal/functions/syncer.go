@@ -110,6 +110,7 @@ func (s *functionSyncer) Create(ctx context.Context, item functionSyncItem, opts
 		AllowEnv:             util.ValueOr(item.allowEnv, true),
 		AllowRead:            util.ValueOr(item.allowRead, false),
 		AllowWrite:           util.ValueOr(item.allowWrite, false),
+		AllowedDomains:       config.AllowedDomains,
 		AllowUnauthenticated: allowUnauthenticated,
 		IsPublic:             isPublic,
 		CronSchedule:         item.cronSchedule,

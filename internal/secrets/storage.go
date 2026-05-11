@@ -57,11 +57,10 @@ type SecretVersion struct {
 // Storage manages secret persistence with encryption
 type Storage struct {
 	db            *database.Connection
-	encryptionKey string
+	encryptionKey []byte
 }
 
-// NewStorage creates a new secrets storage manager
-func NewStorage(db *database.Connection, encryptionKey string) *Storage {
+func NewStorage(db *database.Connection, encryptionKey []byte) *Storage {
 	return &Storage{
 		db:            db,
 		encryptionKey: encryptionKey,
@@ -77,7 +76,7 @@ func (s *Storage) CreateSecret(ctx context.Context, secret *Secret, plainValue s
 // CreateSecretWithTenant creates a new secret with encrypted value and tenant context
 func (s *Storage) CreateSecretWithTenant(ctx context.Context, tenantID string, secret *Secret, plainValue string, userID *uuid.UUID) error {
 	// Encrypt the value before storage
-	encryptedValue, err := crypto.Encrypt(plainValue, s.encryptionKey)
+	encryptedValue, err := crypto.EncryptWithBytesKey(plainValue, s.encryptionKey)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt secret value: %w", err)
 	}
@@ -246,7 +245,7 @@ func (s *Storage) UpdateSecret(ctx context.Context, id uuid.UUID, plainValue *st
 
 	// Handle value update with encryption
 	if plainValue != nil {
-		encryptedValue, err := crypto.Encrypt(*plainValue, s.encryptionKey)
+		encryptedValue, err := crypto.EncryptWithBytesKey(*plainValue, s.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt secret value: %w", err)
 		}
@@ -433,7 +432,7 @@ func (s *Storage) GetSecretsForNamespace(ctx context.Context, namespace string) 
 			}
 
 			// Decrypt the value
-			plainValue, err := crypto.Decrypt(encryptedValue, s.encryptionKey)
+			plainValue, err := crypto.DecryptWithBytesKey(encryptedValue, s.encryptionKey)
 			if err != nil {
 				log.Debug().Err(err).Msg("Failed to decrypt secret, skipping")
 				continue

@@ -358,7 +358,7 @@ func TestOAuthLogoutResult_Struct(t *testing.T) {
 
 func TestNewOAuthLogoutService(t *testing.T) {
 	t.Run("creates service with nil database", func(t *testing.T) {
-		svc := NewOAuthLogoutService(nil, "")
+		svc := NewOAuthLogoutService(nil, []byte(""))
 		assert.NotNil(t, svc)
 		assert.Nil(t, svc.db)
 		assert.Empty(t, svc.encryptionKey)
@@ -366,13 +366,13 @@ func TestNewOAuthLogoutService(t *testing.T) {
 	})
 
 	t.Run("creates service with encryption key", func(t *testing.T) {
-		svc := NewOAuthLogoutService(nil, "my-secret-key")
+		svc := NewOAuthLogoutService(nil, []byte("my-secret-key"))
 		assert.NotNil(t, svc)
-		assert.Equal(t, "my-secret-key", svc.encryptionKey)
+		assert.Equal(t, []byte("my-secret-key"), svc.encryptionKey)
 	})
 
 	t.Run("http client has timeout", func(t *testing.T) {
-		svc := NewOAuthLogoutService(nil, "")
+		svc := NewOAuthLogoutService(nil, []byte(""))
 		assert.Equal(t, 10*time.Second, svc.httpClient.Timeout)
 	})
 }

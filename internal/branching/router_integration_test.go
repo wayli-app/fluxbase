@@ -22,7 +22,7 @@ func TestRouter_GetPool_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -61,7 +61,7 @@ func TestRouter_BranchNotReady_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -81,7 +81,7 @@ func TestRouter_PoolCaching_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -106,7 +106,7 @@ func TestRouter_HasPool_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -129,7 +129,7 @@ func TestRouter_ClosePool_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -157,7 +157,7 @@ func TestRouter_ActivePools_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -178,7 +178,7 @@ func TestRouter_PoolStats_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -208,7 +208,7 @@ func TestRouter_ActiveBranch_Integration(t *testing.T) {
 		testCtx := dbhelpers.NewDBTestContext(t)
 		defer testCtx.Close()
 
-		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 		router := NewRouter(storage, cfg, testCtx.Pool, testCtx.DatabaseURL())
 
 		// GetActiveBranch should return empty when no API-set branch
@@ -229,7 +229,7 @@ func TestRouter_ActiveBranch_Integration(t *testing.T) {
 		testCtx := dbhelpers.NewDBTestContext(t)
 		defer testCtx.Close()
 
-		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 		router := NewRouter(storage, cfg, testCtx.Pool, testCtx.DatabaseURL())
 
 		// Set active branch
@@ -248,7 +248,7 @@ func TestRouter_ActiveBranch_Integration(t *testing.T) {
 		testCtx := dbhelpers.NewDBTestContext(t)
 		defer testCtx.Close()
 
-		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 		router := NewRouter(storage, cfg, testCtx.Pool, testCtx.DatabaseURL())
 
 		// Set then clear
@@ -268,7 +268,7 @@ func TestRouter_ActiveBranch_Integration(t *testing.T) {
 		testCtx := dbhelpers.NewDBTestContext(t)
 		defer testCtx.Close()
 
-		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 		router := NewRouter(storage, cfg, testCtx.Pool, testCtx.DatabaseURL())
 
 		// Without API override, should return config default
@@ -290,7 +290,7 @@ func TestRouter_ActiveBranch_Integration(t *testing.T) {
 		testCtx := dbhelpers.NewDBTestContext(t)
 		defer testCtx.Close()
 
-		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+		storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 		router := NewRouter(storage, cfg, testCtx.Pool, testCtx.DatabaseURL())
 
 		// Initially should be config source
@@ -314,7 +314,7 @@ func TestRouter_WarmupPool_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -338,7 +338,7 @@ func TestRouter_RefreshPool_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -357,7 +357,7 @@ func TestRouter_ThreadSafety_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",
@@ -410,7 +410,7 @@ func TestRouter_GetStorage_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), routerTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(routerTestEncryptionKey))
 	cfg := config.BranchingConfig{
 		Enabled:       true,
 		DefaultBranch: "",

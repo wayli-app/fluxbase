@@ -64,10 +64,7 @@ func (h *RESTHandler) makePostQueryHandler(table database.TableInfo) fiber.Handl
 		// Convert POST request to QueryParams
 		params, err := h.convertPostQueryToParams(&req)
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":   "Invalid query parameters",
-				"details": err.Error(),
-			})
+			return SendErrorWithDetails(c, fiber.StatusBadRequest, "Invalid query parameters", ErrCodeInvalidInput, "", "", err.Error())
 		}
 
 		// Build and execute query (reuse existing logic from GET handler)
@@ -89,18 +86,14 @@ func (h *RESTHandler) makePostQueryHandler(table database.TableInfo) fiber.Handl
 			return err
 		})
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to execute query",
-			})
+			return SendInternalError(c, "Failed to execute query")
 		}
 
 		// Handle count if requested
 		if params.Count != "" {
 			count, err := h.getCount(ctx, c, table, params)
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Failed to get count",
-				})
+				return SendInternalError(c, "Failed to get count")
 			}
 
 			// Set Content-Range header

@@ -29,14 +29,14 @@ func NewCustomMCPHandler(storage *custom.Storage, manager *custom.Manager, mcpCo
 
 func (h *CustomMCPHandler) requireStorage(c fiber.Ctx) error {
 	if h.storage == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Storage service not initialized")
 	}
 	return nil
 }
 
 func (h *CustomMCPHandler) requireManager(c fiber.Ctx) error {
 	if h.manager == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "MCP manager not initialized")
 	}
 	return nil
 }

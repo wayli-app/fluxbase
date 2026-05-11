@@ -44,7 +44,7 @@ type Service struct {
 }
 
 // SetEncryptionKey sets the encryption key for encrypting sensitive data at rest
-func (s *Service) SetEncryptionKey(key string) {
+func (s *Service) SetEncryptionKey(key []byte) {
 	if s.mfaService != nil {
 		s.mfaService.SetEncryptionKey(key)
 	}

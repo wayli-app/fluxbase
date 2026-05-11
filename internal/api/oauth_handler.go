@@ -32,19 +32,19 @@ type OAuthHandler struct {
 	stateStore      *auth.StateStore
 	logoutService   *auth.OAuthLogoutService
 	baseURL         string
-	encryptionKey   string                       // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
+	encryptionKey   []byte                       // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
 	configProviders []config.OAuthProviderConfig // OAuth providers from config file
 	stopCleanup     chan struct{}                // Signal to stop cleanup goroutines
 	stopped         int32                        // Atomic flag to prevent double-close (0=running, 1=stopped)
 }
 
 // NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL, encryptionKey string, configProviders []config.OAuthProviderConfig) *OAuthHandler {
+func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL string, encryptionKey []byte, configProviders []config.OAuthProviderConfig) *OAuthHandler {
 	stateStore := auth.NewStateStore()
 
 	// SECURITY: Validate encryption key for OAuth token storage
 	// OAuth tokens (refresh tokens especially) are sensitive credentials that should be encrypted at rest
-	if encryptionKey == "" {
+	if len(encryptionKey) == 0 {
 		log.Error().Msg("SECURITY WARNING: FLUXBASE_ENCRYPTION_KEY not set - OAuth tokens will be stored UNENCRYPTED in database. " +
 			"Set a 32-byte encryption key in production to protect OAuth refresh tokens.")
 	} else if len(encryptionKey) != 32 {
@@ -53,7 +53,7 @@ func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager 
 			Int("required_length", 32).
 			Msg("SECURITY WARNING: FLUXBASE_ENCRYPTION_KEY must be exactly 32 bytes for AES-256 - OAuth tokens will be stored UNENCRYPTED. " +
 				"Fix the key length to enable encryption.")
-		encryptionKey = "" // Clear invalid key
+		encryptionKey = nil // Clear invalid key
 	}
 
 	// Create logout service
@@ -109,21 +109,21 @@ func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager 
 
 func (h *OAuthHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Database not initialized")
 	}
 	return nil
 }
 
 func (h *OAuthHandler) requireAuthService(c fiber.Ctx) error {
 	if h.authSvc == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Auth service not initialized")
 	}
 	return nil
 }
 
 func (h *OAuthHandler) requireLogoutService(c fiber.Ctx) error {
 	if h.logoutService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Logout service not initialized")
 	}
 	return nil
 }
@@ -158,9 +158,7 @@ func (h *OAuthHandler) Authorize(c fiber.Ctx) error {
 	oauthConfig, err := h.getProviderConfig(ctx, providerName, tenantID)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Str("tenant_id", tenantID).Msg("Failed to get OAuth provider config")
-		return c.Status(400).JSON(fiber.Map{
-			"error": fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName),
-		})
+		return SendBadRequest(c, fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName), "PROVIDER_NOT_CONFIGURED")
 	}
 
 	// Override redirect URL if custom redirect_uri is provided
@@ -176,18 +174,14 @@ func (h *OAuthHandler) Authorize(c fiber.Ctx) error {
 	state, err := auth.GenerateState()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to generate OAuth state")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to initiate OAuth flow",
-		})
+		return SendInternalError(c, "Failed to initiate OAuth flow")
 	}
 
 	// Store state with optional redirect URI for callback validation
 	metadata := auth.StateMetadata{RedirectURI: redirectURI}
 	if err := h.stateStore.Set(ctx, state, metadata); err != nil {
 		log.Error().Err(err).Msg("Failed to store OAuth state")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to initiate OAuth flow",
-		})
+		return SendInternalError(c, "Failed to initiate OAuth flow")
 	}
 
 	// Build auth URL options
@@ -232,19 +226,14 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 			Str("description", errorDesc).
 			Msg("OAuth provider returned error")
 
-		return c.Status(400).JSON(fiber.Map{
-			"error":       "OAuth authentication failed",
-			"description": errorDesc,
-		})
+		return SendBadRequest(c, "OAuth authentication failed: "+errorDesc, "OAUTH_AUTH_FAILED")
 	}
 
 	// Validate state and retrieve metadata
 	stateMetadata, valid := h.stateStore.GetAndValidate(ctx, state)
 	if !valid {
 		log.Warn().Str("provider", providerName).Str("state", state).Msg("Invalid OAuth state")
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Invalid OAuth state parameter",
-		})
+		return SendBadRequest(c, "Invalid OAuth state parameter", "INVALID_STATE")
 	}
 
 	if err := h.requireDB(c); err != nil {
@@ -257,9 +246,7 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 	oauthConfig, err := h.getProviderConfig(ctx, providerName, tenantID)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider config")
-		return c.Status(400).JSON(fiber.Map{
-			"error": "OAuth provider not configured",
-		})
+		return SendBadRequest(c, "OAuth provider not configured", "PROVIDER_NOT_CONFIGURED")
 	}
 
 	// Determine redirect_uri to use (query parameter takes precedence over state metadata for SDK compatibility)
@@ -287,18 +274,14 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to exchange OAuth code")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to complete OAuth authentication",
-		})
+		return SendInternalError(c, "Failed to complete OAuth authentication")
 	}
 
 	// Get user info from OAuth provider
 	userInfo, err := h.getUserInfo(ctx, providerName, oauthConfig, token)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get user info from OAuth provider")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to retrieve user information",
-		})
+		return SendInternalError(c, "Failed to retrieve user information")
 	}
 
 	// Extract email and provider user ID
@@ -310,9 +293,7 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 			Str("provider", providerName).
 			Interface("userInfo", userInfo).
 			Msg("Missing required user information from OAuth provider")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "OAuth provider did not return required user information",
-		})
+		return SendInternalError(c, "OAuth provider did not return required user information")
 	}
 
 	// RBAC: Fetch provider RBAC config and validate claims if configured (OPTIONAL for app users)
@@ -366,9 +347,7 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 					Str("provider", providerName).
 					Interface("claims", idTokenClaims).
 					Msg("App OAuth access denied due to claims validation")
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": err.Error(),
-				})
+				return SendForbidden(c, err.Error(), "OAUTH_ACCESS_DENIED")
 			}
 		}
 	}
@@ -377,17 +356,13 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 	user, isNewUser, err := h.createOrLinkOAuthUser(ctx, providerName, providerUserID, email, userInfo, token)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Str("email", email).Msg("Failed to create/link OAuth user")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to create user account",
-		})
+		return SendInternalError(c, "Failed to create user account")
 	}
 
 	tokenResp, err := h.authSvc.GenerateTokensForUser(ctx, user.ID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", user.ID).Msg("Failed to generate tokens and create session")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to generate authentication token",
-		})
+		return SendInternalError(c, "Failed to generate authentication token")
 	}
 
 	log.Info().
@@ -431,9 +406,7 @@ func (h *OAuthHandler) ListEnabledProviders(c fiber.Ctx) error {
 	rows, err := h.db.Query(ctx, query, tenantUUID)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list enabled OAuth providers")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to retrieve OAuth providers",
-		})
+		return SendInternalError(c, "Failed to retrieve OAuth providers")
 	}
 	defer rows.Close()
 
@@ -504,7 +477,7 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 
 	// Decrypt client secret if encrypted
 	if isEncrypted && clientSecret != "" {
-		decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+		decryptedSecret, decErr := crypto.DecryptWithBytesKey(clientSecret, h.encryptionKey)
 		if decErr != nil {
 			log.Error().Err(decErr).Str("provider", providerName).Msg("Failed to decrypt client secret")
 			return nil, fmt.Errorf("failed to decrypt client secret for provider '%s'", providerName)
@@ -684,17 +657,17 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 			idTokenToStore = idTokenRaw
 		}
 
-		if h.encryptionKey != "" {
+		if len(h.encryptionKey) > 0 {
 			var encErr error
-			accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.AccessToken, h.encryptionKey)
+			accessTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(token.AccessToken, h.encryptionKey)
 			if encErr != nil {
 				return fmt.Errorf("failed to encrypt access token: %w", encErr)
 			}
-			refreshTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.RefreshToken, h.encryptionKey)
+			refreshTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(token.RefreshToken, h.encryptionKey)
 			if encErr != nil {
 				return fmt.Errorf("failed to encrypt refresh token: %w", encErr)
 			}
-			idTokenToStore, encErr = crypto.EncryptIfNotEmpty(idTokenToStore, h.encryptionKey)
+			idTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(idTokenToStore, h.encryptionKey)
 			if encErr != nil {
 				return fmt.Errorf("failed to encrypt id token: %w", encErr)
 			}
@@ -750,12 +723,9 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	// Get user ID from JWT
 	userIDStr := middleware.GetUserID(c)
 	if userIDStr == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required",
-		})
+		return SendUnauthorized(c, "Authentication required", "AUTH_REQUIRED")
 	}
 
-	// Parse optional redirect URL from request body
 	var reqBody struct {
 		RedirectURL string `json:"redirect_url"`
 	}
@@ -783,9 +753,7 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	`, providerName).Scan(&clientID, &clientSecret, &revocationEndpoint, &endSessionEndpoint, &isEncrypted)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider for logout")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("OAuth provider '%s' not found or disabled", providerName),
-		})
+		return SendBadRequest(c, fmt.Sprintf("OAuth provider '%s' not found or disabled", providerName), "PROVIDER_NOT_FOUND")
 	}
 
 	// Use default endpoints if not configured
@@ -801,8 +769,8 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	// Decrypt client secret if encrypted
 	clientSecretDecrypted := ""
 	if clientSecret != nil && *clientSecret != "" {
-		if isEncrypted && h.encryptionKey != "" {
-			decrypted, err := crypto.Decrypt(*clientSecret, h.encryptionKey)
+		if isEncrypted && len(h.encryptionKey) > 0 {
+			decrypted, err := crypto.DecryptWithBytesKey(*clientSecret, h.encryptionKey)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to decrypt client secret for logout")
 			} else {
@@ -831,8 +799,8 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	if storedToken != nil && revocationEndpoint != nil && *revocationEndpoint != "" {
 		// Decrypt access token if encrypted
 		accessToken := storedToken.AccessToken
-		if h.encryptionKey != "" && accessToken != "" {
-			decrypted, err := crypto.Decrypt(accessToken, h.encryptionKey)
+		if len(h.encryptionKey) > 0 && accessToken != "" {
+			decrypted, err := crypto.DecryptWithBytesKey(accessToken, h.encryptionKey)
 			if err == nil {
 				accessToken = decrypted
 			}
@@ -873,8 +841,8 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 				if storedToken != nil && storedToken.IDToken != "" {
 					idToken = storedToken.IDToken
 					// Decrypt if encrypted
-					if h.encryptionKey != "" {
-						decrypted, err := crypto.Decrypt(idToken, h.encryptionKey)
+					if len(h.encryptionKey) > 0 {
+						decrypted, err := crypto.DecryptWithBytesKey(idToken, h.encryptionKey)
 						if err == nil {
 							idToken = decrypted
 						}
@@ -925,9 +893,7 @@ func (h *OAuthHandler) LogoutCallback(c fiber.Ctx) error {
 
 	if state == "" {
 		log.Warn().Str("provider", providerName).Msg("OAuth logout callback missing state parameter")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Missing state parameter",
-		})
+		return SendBadRequest(c, "Missing state parameter", "MISSING_STATE")
 	}
 
 	if err := h.requireLogoutService(c); err != nil {
@@ -937,9 +903,7 @@ func (h *OAuthHandler) LogoutCallback(c fiber.Ctx) error {
 	logoutState, err := h.logoutService.ValidateLogoutState(ctx, state)
 	if err != nil {
 		log.Warn().Err(err).Str("provider", providerName).Str("state", state).Msg("Invalid or expired logout state")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid or expired logout state",
-		})
+		return SendBadRequest(c, "Invalid or expired logout state", "INVALID_LOGOUT_STATE")
 	}
 
 	log.Info().
@@ -987,9 +951,7 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 
 	userIDStr := middleware.GetUserID(c)
 	if userIDStr == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required",
-		})
+		return SendUnauthorized(c, "Authentication required", "AUTH_REQUIRED")
 	}
 
 	if err := h.requireDB(c); err != nil {
@@ -1003,35 +965,31 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 	oauthConfig, err := h.getProviderConfigForToken(ctx, providerName)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider config for token retrieval")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName),
-		})
+		return SendBadRequest(c, fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName), "PROVIDER_NOT_CONFIGURED")
 	}
 
 	storedToken, err := h.logoutService.GetUserOAuthToken(ctx, userIDStr, providerName)
 	if err != nil {
 		if errors.Is(err, auth.ErrOAuthTokenNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error":         "No OAuth token found for this provider",
-				"error_code":    "oauth_token_not_found",
-				"error_hint":    "You need to sign in with this provider first",
-				"provider":      providerName,
-				"authorize_url": fmt.Sprintf("%s/api/v1/auth/oauth/%s/authorize", h.baseURL, providerName),
-			})
+			return SendErrorWithDetails(c, fiber.StatusNotFound,
+				"No OAuth token found for this provider", "OAUTH_TOKEN_NOT_FOUND",
+				"You need to sign in with this provider first", "",
+				fiber.Map{
+					"provider":      providerName,
+					"authorize_url": fmt.Sprintf("%s/api/v1/auth/oauth/%s/authorize", h.baseURL, providerName),
+				})
 		}
 		log.Error().Err(err).Str("provider", providerName).Str("user_id", userIDStr).Msg("Failed to get stored OAuth token")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to retrieve OAuth token",
-		})
+		return SendInternalError(c, "Failed to retrieve OAuth token")
 	}
 
 	accessToken := storedToken.AccessToken
 	refreshToken := storedToken.RefreshToken
 	idToken := storedToken.IDToken
 
-	if h.encryptionKey != "" {
+	if len(h.encryptionKey) > 0 {
 		if accessToken != "" {
-			decrypted, decErr := crypto.Decrypt(accessToken, h.encryptionKey)
+			decrypted, decErr := crypto.DecryptWithBytesKey(accessToken, h.encryptionKey)
 			if decErr == nil {
 				accessToken = decrypted
 			} else {
@@ -1039,13 +997,13 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 			}
 		}
 		if refreshToken != "" {
-			decrypted, decErr := crypto.Decrypt(refreshToken, h.encryptionKey)
+			decrypted, decErr := crypto.DecryptWithBytesKey(refreshToken, h.encryptionKey)
 			if decErr == nil {
 				refreshToken = decrypted
 			}
 		}
 		if idToken != "" {
-			decrypted, decErr := crypto.Decrypt(idToken, h.encryptionKey)
+			decrypted, decErr := crypto.DecryptWithBytesKey(idToken, h.encryptionKey)
 			if decErr == nil {
 				idToken = decrypted
 			}
@@ -1087,19 +1045,19 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 				refreshTokenToStore := newToken.RefreshToken
 				idTokenToStore := idToken
 
-				if h.encryptionKey != "" {
+				if len(h.encryptionKey) > 0 {
 					var encErr error
-					accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(newToken.AccessToken, h.encryptionKey)
+					accessTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(newToken.AccessToken, h.encryptionKey)
 					if encErr != nil {
 						log.Warn().Err(encErr).Str("provider", providerName).Msg("Failed to encrypt refreshed access token")
 						return
 					}
-					refreshTokenToStore, encErr = crypto.EncryptIfNotEmpty(newToken.RefreshToken, h.encryptionKey)
+					refreshTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(newToken.RefreshToken, h.encryptionKey)
 					if encErr != nil {
 						log.Warn().Err(encErr).Str("provider", providerName).Msg("Failed to encrypt refreshed refresh token")
 						return
 					}
-					idTokenToStore, encErr = crypto.EncryptIfNotEmpty(idTokenToStore, h.encryptionKey)
+					idTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(idTokenToStore, h.encryptionKey)
 					if encErr != nil {
 						log.Warn().Err(encErr).Str("provider", providerName).Msg("Failed to encrypt refreshed id token")
 						return
@@ -1184,7 +1142,7 @@ func (h *OAuthHandler) getProviderConfigForToken(ctx context.Context, providerNa
 	}
 
 	if isEncrypted && clientSecret != "" {
-		decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+		decryptedSecret, decErr := crypto.DecryptWithBytesKey(clientSecret, h.encryptionKey)
 		if decErr != nil {
 			log.Error().Err(decErr).Str("provider", providerName).Msg("Failed to decrypt client secret")
 			return nil, fmt.Errorf("failed to decrypt client secret for provider '%s'", providerName)

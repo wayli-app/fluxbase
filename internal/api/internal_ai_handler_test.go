@@ -30,12 +30,12 @@ func TestInternalAIHandler_HandleChat_NoAIService(t *testing.T) {
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
 	respBody, _ := io.ReadAll(resp.Body)
 	var result map[string]any
 	_ = json.Unmarshal(respBody, &result)
-	assert.Contains(t, result["error"], "not_initialized")
+	assert.Contains(t, result["error"], "not initialized")
 }
 
 func TestInternalAIHandler_HandleChat_EmptyMessages(t *testing.T) {
@@ -55,7 +55,7 @@ func TestInternalAIHandler_HandleChat_EmptyMessages(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 }
 
 func TestInternalAIHandler_HandleEmbed_NoService(t *testing.T) {
@@ -74,12 +74,12 @@ func TestInternalAIHandler_HandleEmbed_NoService(t *testing.T) {
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
 	respBody, _ := io.ReadAll(resp.Body)
 	var result map[string]any
 	_ = json.Unmarshal(respBody, &result)
-	assert.Contains(t, result["error"], "not_initialized")
+	assert.Contains(t, result["error"], "not initialized")
 }
 
 func TestInternalAIHandler_HandleEmbed_EmptyText(t *testing.T) {
@@ -99,7 +99,7 @@ func TestInternalAIHandler_HandleEmbed_EmptyText(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 }
 
 func TestInternalAIHandler_HandleListProviders_NoService(t *testing.T) {
@@ -112,12 +112,12 @@ func TestInternalAIHandler_HandleListProviders_NoService(t *testing.T) {
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
 	respBody, _ := io.ReadAll(resp.Body)
 	var result map[string]any
 	_ = json.Unmarshal(respBody, &result)
-	assert.Contains(t, result["error"], "not_initialized")
+	assert.Contains(t, result["error"], "not initialized")
 }
 
 func TestInternalChatRequest_Parsing(t *testing.T) {

@@ -19,17 +19,13 @@ func (h *StorageHandler) MultipartUpload(c fiber.Ctx) error {
 	// Get tenant-specific storage service
 	svc, err := h.getService(c)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get storage service",
-		})
+		return SendInternalError(c, "failed to get storage service")
 	}
 
 	bucket := c.Params("bucket")
 
 	if bucket == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bucket is required",
-		})
+		return SendBadRequest(c, "bucket is required", ErrCodeMissingField)
 	}
 
 	// H-19: Check if bucket exists before upload
@@ -42,14 +38,10 @@ func (h *StorageHandler) MultipartUpload(c fiber.Ctx) error {
 	).Scan(&bucketExists)
 	if err != nil {
 		log.Error().Err(err).Str("bucket", bucket).Msg("Failed to check bucket existence")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to validate bucket",
-		})
+		return SendInternalError(c, "failed to validate bucket")
 	}
 	if !bucketExists {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": fmt.Sprintf("bucket '%s' does not exist", bucket),
-		})
+		return SendNotFound(c, fmt.Sprintf("bucket '%s' does not exist", bucket))
 	}
 
 	// C-3: Get bucket MIME type settings
@@ -62,24 +54,18 @@ func (h *StorageHandler) MultipartUpload(c fiber.Ctx) error {
 	).Scan(&bucketAllowedMimeTypes)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Error().Err(err).Str("bucket", bucket).Msg("Failed to get bucket settings")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to validate bucket settings",
-		})
+		return SendInternalError(c, "failed to validate bucket settings")
 	}
 
 	// Parse multipart form
 	form, err := c.MultipartForm()
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "failed to parse multipart form",
-		})
+		return SendBadRequest(c, "failed to parse multipart form", ErrCodeInvalidInput)
 	}
 
 	files := form.File["files"]
 	if len(files) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "no files provided",
-		})
+		return SendBadRequest(c, "no files provided", ErrCodeMissingField)
 	}
 
 	var uploaded []storage.Object

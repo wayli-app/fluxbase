@@ -65,7 +65,7 @@ User migrations allow you to add your own custom database schema using tradition
 
 **Tracking:** `migrations.app` table
 
-**Execution:** Run on startup if `DB_USER_MIGRATIONS_PATH` is configured
+**Execution:** Run on startup if `FLUXBASE_DATABASE_USER_MIGRATIONS_PATH` is configured
 
 **File format:** Standard golang-migrate format with `.up.sql` and `.down.sql` files
 
@@ -166,7 +166,7 @@ services:
   fluxbase:
     environment:
       # Enable user migrations
-      DB_USER_MIGRATIONS_PATH: /migrations/user
+      FLUXBASE_DATABASE_USER_MIGRATIONS_PATH: /migrations/user
     volumes:
       # Mount migrations directory (read-only)
       - ./migrations/user:/migrations/user:ro
@@ -237,9 +237,9 @@ You can configure user migrations via environment variables:
 
 | Variable                  | Description                       | Default         |
 | ------------------------- | --------------------------------- | --------------- |
-| `DB_USER_MIGRATIONS_PATH` | Path to user migrations directory | `""` (disabled) |
+| `FLUXBASE_DATABASE_USER_MIGRATIONS_PATH` | Path to user migrations directory | `""` (disabled) |
 
-When `DB_USER_MIGRATIONS_PATH` is empty or not set, user migrations are skipped.
+When `FLUXBASE_DATABASE_USER_MIGRATIONS_PATH` is empty or not set, user migrations are skipped.
 
 ## Startup Flow
 
@@ -397,7 +397,7 @@ If your migration isn't being applied:
 2. **Check file location**: Verify files are in the configured directory
 3. **Check permissions**: Ensure Fluxbase can read the migration files
 4. **Check logs**: Look for migration errors in Fluxbase logs
-5. **Check configuration**: Verify `DB_USER_MIGRATIONS_PATH` is set correctly
+5. **Check configuration**: Verify `FLUXBASE_DATABASE_USER_MIGRATIONS_PATH` is set correctly
 
 ### Checking Migration Status
 

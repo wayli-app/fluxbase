@@ -290,8 +290,8 @@ func TestCreateClientKey_Validation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Will fail at service call due to nil service
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		// Guard returns 503 when service is nil
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 	})
 
 	t.Run("valid body with user_id in context", func(t *testing.T) {
@@ -314,8 +314,8 @@ func TestCreateClientKey_Validation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Fails at service call, but body parsing and user_id extraction work
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		// Guard returns 503 when service is nil
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 	})
 }
 

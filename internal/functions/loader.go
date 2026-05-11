@@ -458,6 +458,7 @@ type FunctionConfig struct {
 	RateLimitPerMinute   *int
 	RateLimitPerHour     *int
 	RateLimitPerDay      *int
+	AllowedDomains       *string
 }
 
 // ParseFunctionConfig parses special @fluxbase directives from function code comments
@@ -581,6 +582,10 @@ func ParseFunctionConfig(code string) FunctionConfig {
 				}
 			}
 		}
+	}
+
+	if v, ok := annotations["allowed-domains"]; ok {
+		config.AllowedDomains = &v
 	}
 
 	return config

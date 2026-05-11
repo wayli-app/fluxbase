@@ -64,7 +64,7 @@ func NewWebhookHandler(webhookService *webhook.WebhookService) *WebhookHandler {
 
 func (h *WebhookHandler) requireService(c fiber.Ctx) error {
 	if h.webhookService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Webhook service not initialized")
 	}
 	return nil
 }

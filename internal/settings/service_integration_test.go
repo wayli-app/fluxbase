@@ -26,7 +26,7 @@ const testEncryptionKey = "01234567890123456789012345678901" // 32 bytes for AES
 
 func createCustomSettingsService(t *testing.T, tc *testutil.IntegrationTestContext) *settings.CustomSettingsService {
 	t.Helper()
-	return settings.NewCustomSettingsService(tc.DB, testEncryptionKey)
+	return settings.NewCustomSettingsService(tc.DB, []byte(testEncryptionKey))
 }
 
 func createTestUserForCustomSettings(t *testing.T, tc *testutil.IntegrationTestContext) uuid.UUID {

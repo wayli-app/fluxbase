@@ -23,7 +23,7 @@ auth:
   jwt_secret: "your-secret-key"
   jwt_expiry: 15m
   refresh_expiry: 168h # 7 days
-  password_min_length: 8
+  password_min_length: 12
   bcrypt_cost: 12
   signup_enabled: true
   magic_link_enabled: false
@@ -33,7 +33,7 @@ auth:
 
 Default requirements:
 
-- Minimum 8 characters
+- Minimum 12 characters
 - Maximum 72 characters (bcrypt limit)
 
 Optional requirements (configurable):
@@ -145,8 +145,8 @@ if (error) throw error;
 **Configuration:**
 
 ```yaml
-oauth:
-  google:
+oauth_providers:
+  - name: google
     client_id: "your-client-id"
     client_secret: "your-client-secret"
     redirect_url: "http://localhost:8080/api/v1/auth/callback/google"

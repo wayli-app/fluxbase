@@ -27,13 +27,13 @@ import (
 type OAuthProviderHandler struct {
 	db              *database.Connection
 	settingsCache   *auth.SettingsCache
-	encryptionKey   string
+	encryptionKey   []byte
 	configProviders []config.OAuthProviderConfig
 	baseURL         string
 }
 
 // NewOAuthProviderHandler creates a new OAuth provider handler
-func NewOAuthProviderHandler(db *database.Connection, settingsCache *auth.SettingsCache, encryptionKey, baseURL string, configProviders []config.OAuthProviderConfig) *OAuthProviderHandler {
+func NewOAuthProviderHandler(db *database.Connection, settingsCache *auth.SettingsCache, encryptionKey []byte, baseURL string, configProviders []config.OAuthProviderConfig) *OAuthProviderHandler {
 	return &OAuthProviderHandler{
 		db:              db,
 		settingsCache:   settingsCache,
@@ -45,7 +45,7 @@ func NewOAuthProviderHandler(db *database.Connection, settingsCache *auth.Settin
 
 func (h *OAuthProviderHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Database not initialized")
 	}
 	return nil
 }
@@ -95,7 +95,7 @@ func (h *OAuthProviderHandler) EncryptExistingSecrets(ctx context.Context) error
 
 	// Encrypt each secret
 	for _, provider := range toEncrypt {
-		encryptedSecret, encErr := crypto.Encrypt(provider.ClientSecret, h.encryptionKey)
+		encryptedSecret, encErr := crypto.EncryptWithBytesKey(provider.ClientSecret, h.encryptionKey)
 		if encErr != nil {
 			log.Error().Err(encErr).Str("provider", provider.ProviderName).Msg("Failed to encrypt client secret")
 			continue
@@ -428,7 +428,7 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c fiber.Ctx) error {
 	}
 
 	// Encrypt client secret before storing
-	encryptedSecret, err := crypto.Encrypt(req.ClientSecret, h.encryptionKey)
+	encryptedSecret, err := crypto.EncryptWithBytesKey(req.ClientSecret, h.encryptionKey)
 	if err != nil {
 		log.Error().Err(err).Str("provider", req.ProviderName).Msg("Failed to encrypt client secret")
 		return SendInternalError(c, "Failed to encrypt client secret")
@@ -544,7 +544,7 @@ func (h *OAuthProviderHandler) UpdateOAuthProvider(c fiber.Ctx) error {
 	}
 	if req.ClientSecret != nil && *req.ClientSecret != "" {
 		// Encrypt client secret before storing
-		encryptedSecret, encErr := crypto.Encrypt(*req.ClientSecret, h.encryptionKey)
+		encryptedSecret, encErr := crypto.EncryptWithBytesKey(*req.ClientSecret, h.encryptionKey)
 		if encErr != nil {
 			log.Error().Err(encErr).Msg("Failed to encrypt client secret")
 			return SendInternalError(c, "Failed to encrypt client secret")

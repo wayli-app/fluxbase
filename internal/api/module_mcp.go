@@ -156,7 +156,7 @@ func (m *MCPModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 	branchManager := GetService[*branching.Manager](registry)
 	branchRouter := GetService[*branching.Router](registry)
 	if branchManager != nil && cfg.Branching.Enabled {
-		branchStorage := branching.NewStorage(db, cfg.EncryptionKey)
+		branchStorage := branching.NewStorage(db, cfg.EncryptionKeyBytes)
 		toolRegistry.Register(mcptools.NewListBranchesTool(branchStorage))
 		toolRegistry.Register(mcptools.NewGetBranchTool(branchStorage))
 		toolRegistry.Register(mcptools.NewCreateBranchTool(branchManager))

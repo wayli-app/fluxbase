@@ -22,7 +22,7 @@ func TestSecretsStorage_CreateSecret_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("create global secret", func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestSecretsStorage_GetSecret_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("get existing secret", func(t *testing.T) {
@@ -235,7 +235,7 @@ func TestSecretsStorage_ListSecrets_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	// Setup: create secrets in different scopes and namespaces
@@ -299,7 +299,7 @@ func TestSecretsStorage_UpdateSecret_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("update secret value increments version", func(t *testing.T) {
@@ -402,7 +402,7 @@ func TestSecretsStorage_DeleteSecret_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("delete existing secret", func(t *testing.T) {
@@ -428,7 +428,7 @@ func TestSecretsStorage_Versions_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("version history is tracked", func(t *testing.T) {
@@ -500,7 +500,7 @@ func TestSecretsStorage_GetSecretsForNamespace_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	// Setup: create global and namespace-specific secrets
@@ -566,7 +566,7 @@ func TestSecretsStorage_GetStats_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	// Clean up any existing secrets first
@@ -613,7 +613,7 @@ func TestSecretsStorage_EncryptionDecryption_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("encrypted value differs from plaintext", func(t *testing.T) {
@@ -649,7 +649,7 @@ func TestSecretsStorage_EncryptionDecryption_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Decrypt with same key
-		decrypted, err := crypto.Decrypt(encryptedValue, encryptionKey)
+		decrypted, err := crypto.DecryptWithBytesKey(encryptedValue, encryptionKey)
 		require.NoError(t, err)
 		assert.Equal(t, plainValue, decrypted)
 	})
@@ -669,8 +669,8 @@ func TestSecretsStorage_EncryptionDecryption_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to decrypt with wrong key
-		wrongKey := "abcdefghijklmnopqrstuvwxyzABCDEF"
-		_, err = crypto.Decrypt(encryptedValue, wrongKey)
+		wrongKey := []byte("abcdefghijklmnopqrstuvwxyzABCDEF")
+		_, err = crypto.DecryptWithBytesKey(encryptedValue, wrongKey)
 		assert.Error(t, err, "Should fail to decrypt with wrong key")
 	})
 
@@ -699,7 +699,7 @@ func TestSecretsStorage_EncryptionDecryption_Integration(t *testing.T) {
 					Scan(&encryptedValue)
 				require.NoError(t, err)
 
-				decrypted, err := crypto.Decrypt(encryptedValue, encryptionKey)
+				decrypted, err := crypto.DecryptWithBytesKey(encryptedValue, encryptionKey)
 				require.NoError(t, err)
 				assert.Equal(t, value, decrypted)
 			})
@@ -713,7 +713,7 @@ func TestSecretsStorage_VersionEncryption_Integration(t *testing.T) {
 	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("versions store encrypted values", func(t *testing.T) {
@@ -733,7 +733,7 @@ func TestSecretsStorage_VersionEncryption_Integration(t *testing.T) {
 		assert.NotEqual(t, v1, encryptedValue, "Version should store encrypted value")
 
 		// Decrypt and verify
-		decrypted, err := crypto.Decrypt(encryptedValue, encryptionKey)
+		decrypted, err := crypto.DecryptWithBytesKey(encryptedValue, encryptionKey)
 		require.NoError(t, err)
 		assert.Equal(t, v1, decrypted)
 	})
@@ -765,7 +765,7 @@ func TestSecretsStorage_VersionEncryption_Integration(t *testing.T) {
 			var encrypted string
 			_ = rows.Scan(&v, &encrypted)
 
-			decrypted, err := crypto.Decrypt(encrypted, encryptionKey)
+			decrypted, err := crypto.DecryptWithBytesKey(encrypted, encryptionKey)
 			require.NoError(t, err)
 			assert.Equal(t, values[versionNum-1], decrypted, "Version %d should match", v)
 			versionNum++

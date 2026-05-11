@@ -25,7 +25,7 @@ func NewUserManagementHandler(userMgmtService *auth.UserManagementService, authS
 
 func (h *UserManagementHandler) requireService(c fiber.Ctx) error {
 	if h.userMgmtService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "User management service not initialized")
 	}
 	return nil
 }

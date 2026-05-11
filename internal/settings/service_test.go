@@ -557,21 +557,20 @@ func TestExtractJSONStringValue_Unit(t *testing.T) {
 
 func TestCustomSettingsService_Constructor(t *testing.T) {
 	t.Run("create service with nil database", func(t *testing.T) {
-		svc := NewCustomSettingsService(nil, "test-key")
+		svc := NewCustomSettingsService(nil, []byte("test-key"))
 		assert.NotNil(t, svc)
-		assert.Equal(t, "test-key", svc.encryptionKey)
+		assert.Equal(t, []byte("test-key"), svc.encryptionKey)
 	})
 
 	t.Run("create service with empty key", func(t *testing.T) {
-		svc := NewCustomSettingsService(nil, "")
+		svc := NewCustomSettingsService(nil, []byte(""))
 		assert.NotNil(t, svc)
 		assert.Empty(t, svc.encryptionKey)
 	})
 
 	t.Run("create service with valid key", func(t *testing.T) {
-		svc := NewCustomSettingsService(nil, "01234567890123456789012345678901")
+		svc := NewCustomSettingsService(nil, []byte("01234567890123456789012345678901"))
 		assert.NotNil(t, svc)
-		// db field can be nil in tests
-		assert.Equal(t, "01234567890123456789012345678901", svc.encryptionKey)
+		assert.Equal(t, []byte("01234567890123456789012345678901"), svc.encryptionKey)
 	})
 }

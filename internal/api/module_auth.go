@@ -38,7 +38,7 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	}
 
 	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.GetPublicBaseURL())
-	authService.SetEncryptionKey(cfg.EncryptionKey)
+	authService.SetEncryptionKey(cfg.EncryptionKeyBytes)
 	totpRateLimiter := auth.NewTOTPRateLimiter(db, auth.DefaultTOTPRateLimiterConfig())
 	authService.SetTOTPRateLimiter(totpRateLimiter)
 	m.Service = authService
@@ -80,12 +80,12 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	m.InvitationService = invitationService
 	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.GetPublicBaseURL())
 
-	oauthProviderHandler := NewOAuthProviderHandler(db, authService.GetSettingsCache(), cfg.EncryptionKey, cfg.GetPublicBaseURL(), cfg.Auth.OAuthProviders)
+	oauthProviderHandler := NewOAuthProviderHandler(db, authService.GetSettingsCache(), cfg.EncryptionKeyBytes, cfg.GetPublicBaseURL(), cfg.Auth.OAuthProviders)
 	jwtManager, err := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	if err != nil {
 		return fmt.Errorf("failed to create JWT manager: %w", err)
 	}
-	oauthHandler := NewOAuthHandler(db, authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey, cfg.Auth.OAuthProviders)
+	oauthHandler := NewOAuthHandler(db, authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKeyBytes, cfg.Auth.OAuthProviders)
 
 	samlService, samlErr := auth.NewSAMLService(db, cfg.GetPublicBaseURL(), cfg.Auth.SAMLProviders)
 	if samlErr != nil {
@@ -103,7 +103,7 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 		samlHandler = NewSAMLHandler(samlService, authService)
 	}
 
-	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, emailService, cfg.GetPublicBaseURL(), cfg.EncryptionKey, oauthHandler)
+	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, emailService, cfg.GetPublicBaseURL(), cfg.EncryptionKeyBytes, oauthHandler)
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 
 	clientKeyService.SetSettingsCache(authService.GetSettingsCache())

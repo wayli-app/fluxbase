@@ -89,29 +89,21 @@ func (h *SAMLHandler) ListSAMLProviders(c fiber.Ctx) error {
 // GET /auth/saml/metadata/:provider
 func (h *SAMLHandler) GetSPMetadata(c fiber.Ctx) error {
 	if h.samlService == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "SAML is not configured",
-		})
+		return SendNotFound(c, "SAML is not configured")
 	}
 
 	providerName := c.Params("provider")
 	if providerName == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "provider name is required",
-		})
+		return SendBadRequest(c, "provider name is required", "MISSING_PROVIDER")
 	}
 
 	metadata, err := h.samlService.GetSPMetadata(providerName)
 	if err != nil {
 		if errors.Is(err, auth.ErrSAMLProviderNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "SAML provider not found",
-			})
+			return SendNotFound(c, "SAML provider not found")
 		}
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get SP metadata")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to generate metadata",
-		})
+		return SendInternalError(c, "failed to generate metadata")
 	}
 
 	c.Set("Content-Type", "application/xml")
@@ -122,33 +114,24 @@ func (h *SAMLHandler) GetSPMetadata(c fiber.Ctx) error {
 // GET /auth/saml/login/:provider
 func (h *SAMLHandler) InitiateSAMLLogin(c fiber.Ctx) error {
 	if h.samlService == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "SAML is not configured",
-		})
+		return SendNotFound(c, "SAML is not configured")
 	}
 
 	providerName := c.Params("provider")
 	if providerName == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "provider name is required",
-		})
+		return SendBadRequest(c, "provider name is required", "MISSING_PROVIDER")
 	}
 
-	// SECURITY: Validate that provider allows app login
 	tenantID := middleware.GetTenantIDFromContext(c)
 	provider, err := h.samlService.GetProviderForTenant(c.RequestCtx(), providerName, tenantID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "SAML provider not found",
-		})
+		return SendNotFound(c, "SAML provider not found")
 	}
 	if !provider.AllowAppLogin {
 		log.Warn().
 			Str("provider", providerName).
 			Msg("Attempted to use dashboard-only SAML provider for app login")
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "SAML provider not enabled for application login",
-		})
+		return SendForbidden(c, "SAML provider not enabled for application login", "PROVIDER_NOT_ENABLED")
 	}
 
 	// Get redirect URL from query parameter (where to redirect after login)
@@ -164,19 +147,13 @@ func (h *SAMLHandler) InitiateSAMLLogin(c fiber.Ctx) error {
 	authURL, _, err := h.samlService.GenerateAuthRequest(providerName, relayState)
 	if err != nil {
 		if errors.Is(err, auth.ErrSAMLProviderNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "SAML provider not found",
-			})
+			return SendNotFound(c, "SAML provider not found")
 		}
 		if errors.Is(err, auth.ErrSAMLProviderDisabled) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "SAML provider is disabled",
-			})
+			return SendForbidden(c, "SAML provider is disabled", "PROVIDER_DISABLED")
 		}
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to generate SAML AuthnRequest")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to initiate SAML login",
-		})
+		return SendInternalError(c, "failed to initiate SAML login")
 	}
 
 	// Check if client wants JSON response (API call) or redirect (browser)
@@ -195,17 +172,12 @@ func (h *SAMLHandler) InitiateSAMLLogin(c fiber.Ctx) error {
 // POST /auth/saml/acs
 func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 	if h.samlService == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "SAML is not configured",
-		})
+		return SendNotFound(c, "SAML is not configured")
 	}
 
-	// Get SAML response from form data
 	samlResponse := c.FormValue("SAMLResponse")
 	if samlResponse == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "SAMLResponse is required",
-		})
+		return SendBadRequest(c, "SAMLResponse is required", "MISSING_SAML_RESPONSE")
 	}
 
 	relayState := c.FormValue("RelayState")
@@ -230,10 +202,7 @@ func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 
 	if assertion == nil || provider == nil {
 		log.Warn().Msg("Failed to parse SAML assertion with any app-enabled provider")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":   "invalid SAML assertion",
-			"details": "The SAML response could not be validated by any configured provider",
-		})
+		return SendErrorWithCode(c, fiber.StatusUnauthorized, "The SAML response could not be validated by any configured provider", "INVALID_SAML_ASSERTION")
 	}
 
 	// Check for replay attack
@@ -243,19 +212,14 @@ func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 	}
 	if isReplay {
 		log.Warn().Str("assertion_id", assertion.ID).Msg("SAML assertion replay detected")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "SAML assertion has already been used",
-		})
+		return SendErrorWithCode(c, fiber.StatusUnauthorized, "SAML assertion has already been used", "ASSERTION_REPLAY")
 	}
 
 	// Extract user info from assertion
 	email, name, err := h.samlService.ExtractUserInfo(providerName, assertion)
 	if err != nil {
 		log.Warn().Err(err).Str("provider", providerName).Msg("Failed to extract user info from SAML assertion")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "failed to extract user info",
-			"details": err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, err.Error(), "USER_INFO_EXTRACTION_FAILED")
 	}
 
 	// RBAC: Validate group membership if configured (OPTIONAL for app users)
@@ -268,9 +232,7 @@ func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 				Str("email", email).
 				Strs("groups", groups).
 				Msg("App SSO access denied due to group membership")
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": err.Error(),
-			})
+			return SendForbidden(c, err.Error(), "GROUP_MEMBERSHIP_DENIED")
 		}
 	}
 
@@ -282,18 +244,14 @@ func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 	if err != nil {
 		// User doesn't exist - check if auto-create is enabled
 		if !provider.AutoCreateUsers {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "user does not exist and automatic creation is disabled",
-			})
+			return SendForbidden(c, "user does not exist and automatic creation is disabled", "AUTO_CREATE_DISABLED")
 		}
 
 		// Create new user
 		user, err = h.authService.CreateSAMLUser(ctx, email, name, providerName, assertion.NameID, assertion.Attributes)
 		if err != nil {
 			log.Error().Err(err).Str("email", email).Msg("Failed to create SAML user")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "failed to create user",
-			})
+			return SendInternalError(c, "failed to create user")
 		}
 	} else {
 		// Update existing user's SAML identity link
@@ -325,9 +283,7 @@ func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 	signInResp, err := h.authService.GenerateTokensForUser(ctx, user.ID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", user.ID).Msg("Failed to generate tokens")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to generate tokens",
-		})
+		return SendInternalError(c, "failed to generate tokens")
 	}
 	accessToken := signInResp.AccessToken
 	refreshToken := signInResp.RefreshToken
@@ -375,9 +331,7 @@ func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 // GET /auth/saml/slo
 func (h *SAMLHandler) HandleSAMLLogout(c fiber.Ctx) error {
 	if h.samlService == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "SAML is not configured",
-		})
+		return SendNotFound(c, "SAML is not configured")
 	}
 
 	// Check for SAMLRequest (IdP-initiated logout) or SAMLResponse (SP-initiated callback)
@@ -403,9 +357,7 @@ func (h *SAMLHandler) HandleSAMLLogout(c fiber.Ctx) error {
 		return h.handleSPLogoutCallback(c, samlResponse, relayState, c.Method() == "GET")
 	}
 
-	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-		"error": "Missing SAMLRequest or SAMLResponse",
-	})
+	return SendBadRequest(c, "Missing SAMLRequest or SAMLResponse", "MISSING_SAML_PARAM")
 }
 
 // handleIdPInitiatedLogout processes a LogoutRequest from the IdP
@@ -416,10 +368,7 @@ func (h *SAMLHandler) handleIdPInitiatedLogout(c fiber.Ctx, samlRequest, relaySt
 	parsedRequest, providerName, err := h.samlService.ParseLogoutRequest(samlRequest, relayState, isDeflated)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to parse SAML LogoutRequest")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "invalid LogoutRequest",
-			"details": err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, err.Error(), "INVALID_LOGOUT_REQUEST")
 	}
 
 	log.Info().
@@ -448,9 +397,7 @@ func (h *SAMLHandler) handleIdPInitiatedLogout(c fiber.Ctx, samlRequest, relaySt
 	// Generate LogoutResponse to send back to IdP
 	provider, err := h.samlService.GetProvider(providerName)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get provider for logout response",
-		})
+		return SendInternalError(c, "failed to get provider for logout response")
 	}
 
 	// Get IdP's SLO URL to send the response
@@ -464,9 +411,7 @@ func (h *SAMLHandler) handleIdPInitiatedLogout(c fiber.Ctx, samlRequest, relaySt
 	responseURL, err := h.samlService.GenerateLogoutResponse(providerName, parsedRequest.ID, relayState)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to generate LogoutResponse")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to generate logout response",
-		})
+		return SendInternalError(c, "failed to generate logout response")
 	}
 
 	// Redirect to IdP with the LogoutResponse
@@ -479,10 +424,7 @@ func (h *SAMLHandler) handleSPLogoutCallback(c fiber.Ctx, samlResponse, relaySta
 	parsedResponse, providerName, err := h.samlService.ParseLogoutResponse(samlResponse, isDeflated)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to parse SAML LogoutResponse")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "invalid LogoutResponse",
-			"details": err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, err.Error(), "INVALID_LOGOUT_RESPONSE")
 	}
 
 	log.Info().
@@ -527,24 +469,17 @@ func (h *SAMLHandler) handleSPLogoutCallback(c fiber.Ctx, samlResponse, relaySta
 // GET /auth/saml/logout/:provider
 func (h *SAMLHandler) InitiateSAMLLogout(c fiber.Ctx) error {
 	if h.samlService == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "SAML is not configured",
-		})
+		return SendNotFound(c, "SAML is not configured")
 	}
 
 	providerName := c.Params("provider")
 	if providerName == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "provider name is required",
-		})
+		return SendBadRequest(c, "provider name is required", "MISSING_PROVIDER")
 	}
 
-	// Get the current user from the JWT token
 	userID := middleware.GetUserID(c)
 	if userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "authentication required",
-		})
+		return SendUnauthorized(c, "authentication required", "AUTH_REQUIRED")
 	}
 
 	ctx := c.RequestCtx()
@@ -562,9 +497,7 @@ func (h *SAMLHandler) InitiateSAMLLogout(c fiber.Ctx) error {
 
 	// Check if the provider matches
 	if samlSession.ProviderName != providerName {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "provider mismatch",
-		})
+		return SendBadRequest(c, "provider mismatch", "PROVIDER_MISMATCH")
 	}
 
 	// Check if IdP supports SLO
@@ -620,10 +553,7 @@ func (h *SAMLHandler) InitiateSAMLLogout(c fiber.Ctx) error {
 		if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
 			log.Warn().Err(err).Msg("Failed to delete SAML session")
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":   "failed to initiate SAML logout",
-			"details": err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusInternalServerError, err.Error(), "SAML_LOGOUT_FAILED")
 	}
 
 	// Delete local session before redirecting (IdP will confirm logout)

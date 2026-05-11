@@ -87,7 +87,7 @@ func TestManager_ResolveTemplateDatabase_DefaultTenantWithResolver(t *testing.T)
 	}
 
 	parentID := uuid.New()
-	m.storage = NewStorage(nil, "")
+	m.storage = NewStorage(nil, []byte(""))
 	_ = parentID
 
 	branch := &Branch{
@@ -236,7 +236,7 @@ func TestNewManager_WithTenantResolver(t *testing.T) {
 		DatabasePrefix:   "branch_",
 		MaxTotalBranches: 10,
 	}
-	storage := NewStorage(nil, "")
+	storage := NewStorage(nil, []byte(""))
 
 	m, err := NewManager(storage, cfg, nil, "postgres://user:pass@localhost:5432/fluxbase?sslmode=disable")
 	require.NoError(t, err)

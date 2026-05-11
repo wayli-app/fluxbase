@@ -399,23 +399,23 @@ func TestNewDashboardAuthHandler(t *testing.T) {
 	t.Run("creates handler with nil services", func(t *testing.T) {
 		// Test that handler can be created even with nil services
 		// (services are validated at runtime when called)
-		handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", "12345678901234567890123456789012", nil)
+		handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", []byte("12345678901234567890123456789012"), nil)
 
 		assert.NotNil(t, handler)
 		assert.Equal(t, "https://example.com", handler.baseURL)
-		assert.Equal(t, "12345678901234567890123456789012", handler.encryptionKey)
+		assert.Equal(t, []byte("12345678901234567890123456789012"), handler.encryptionKey)
 		assert.NotNil(t, handler.oauthStates)
 		assert.NotNil(t, handler.oauthConfigs)
 	})
 
 	t.Run("creates handler with empty base URL", func(t *testing.T) {
-		handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", "", nil)
+		handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", []byte(""), nil)
 		assert.NotNil(t, handler)
 		assert.Empty(t, handler.baseURL)
 	})
 
 	t.Run("initializes empty maps", func(t *testing.T) {
-		handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", "", nil)
+		handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", []byte(""), nil)
 		assert.Empty(t, handler.oauthStates)
 		assert.Empty(t, handler.oauthConfigs)
 	})
@@ -520,7 +520,7 @@ func TestGetIPAddress(t *testing.T) {
 // =============================================================================
 
 func TestBuildOAuthConfig(t *testing.T) {
-	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", "", nil)
+	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", []byte(""), nil)
 
 	t.Run("Google provider", func(t *testing.T) {
 		config := handler.buildOAuthConfig("google", "client-id", "client-secret", nil, false, nil, nil)
@@ -607,7 +607,7 @@ func TestBuildOAuthConfig(t *testing.T) {
 // =============================================================================
 
 func TestRequireDashboardAuth(t *testing.T) {
-	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", "", nil)
+	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", []byte(""), nil)
 
 	app := newTestApp(t)
 	app.Use(handler.RequireDashboardAuth)
@@ -670,7 +670,7 @@ func TestRequireDashboardAuth(t *testing.T) {
 
 func TestDashboardAuthHandler_InitiateSAMLLogin_SAMLNotConfigured(t *testing.T) {
 	app := newTestApp(t)
-	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", "", nil) // samlService is nil
+	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", []byte(""), nil) // samlService is nil
 
 	app.Get("/dashboard/auth/sso/saml/:provider", handler.InitiateSAMLLogin)
 
@@ -680,15 +680,15 @@ func TestDashboardAuthHandler_InitiateSAMLLogin_SAMLNotConfigured(t *testing.T) 
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
-	assert.Contains(t, string(body), "not_initialized")
+	assert.Contains(t, string(body), "not initialized")
 }
 
 func TestDashboardAuthHandler_SAMLACSCallback_SAMLNotConfigured(t *testing.T) {
 	app := newTestApp(t)
-	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", "", nil) // samlService is nil
+	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", []byte(""), nil) // samlService is nil
 
 	app.Post("/dashboard/auth/sso/saml/acs", handler.SAMLACSCallback)
 
@@ -699,12 +699,12 @@ func TestDashboardAuthHandler_SAMLACSCallback_SAMLNotConfigured(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 }
 
 func TestDashboardAuthHandler_SAMLACSCallback_MissingResponse(t *testing.T) {
 	app := newTestApp(t)
-	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", "", nil)
+	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "", []byte(""), nil)
 
 	app.Post("/dashboard/auth/sso/saml/acs", handler.SAMLACSCallback)
 
@@ -715,7 +715,7 @@ func TestDashboardAuthHandler_SAMLACSCallback_MissingResponse(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 }
 
 // =============================================================================
@@ -723,7 +723,7 @@ func TestDashboardAuthHandler_SAMLACSCallback_MissingResponse(t *testing.T) {
 // =============================================================================
 
 func TestDashboardAuthHandler_OAuthStateManagement(t *testing.T) {
-	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", "", nil)
+	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", []byte(""), nil)
 
 	t.Run("store and retrieve OAuth state", func(t *testing.T) {
 		state := "test-state-123"
@@ -817,7 +817,7 @@ func BenchmarkParseIDTokenClaims(b *testing.B) {
 }
 
 func BenchmarkBuildOAuthConfig(b *testing.B) {
-	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", "", nil)
+	handler := NewDashboardAuthHandler(nil, nil, nil, nil, nil, "https://example.com", []byte(""), nil)
 
 	for i := 0; i < b.N; i++ {
 		_ = handler.buildOAuthConfig("google", "client-id", "client-secret", nil, false, nil, nil)

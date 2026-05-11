@@ -88,11 +88,10 @@ type UpdateSecretSettingRequest struct {
 // CustomSettingsService handles custom admin-managed settings
 type CustomSettingsService struct {
 	database.TenantAware
-	encryptionKey string
+	encryptionKey []byte
 }
 
-// NewCustomSettingsService creates a new custom settings service
-func NewCustomSettingsService(db *database.Connection, encryptionKey string) *CustomSettingsService {
+func NewCustomSettingsService(db *database.Connection, encryptionKey []byte) *CustomSettingsService {
 	return &CustomSettingsService{TenantAware: database.TenantAware{DB: db}, encryptionKey: encryptionKey}
 }
 
@@ -427,7 +426,7 @@ func (s *CustomSettingsService) CreateSecretSetting(ctx context.Context, req Cre
 	// Determine encryption key (user-specific or system)
 	encKey := s.encryptionKey
 	if userID != nil {
-		derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, *userID)
+		derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 		if err != nil {
 			return nil, fmt.Errorf("failed to derive user key: %w", err)
 		}
@@ -435,7 +434,7 @@ func (s *CustomSettingsService) CreateSecretSetting(ctx context.Context, req Cre
 	}
 
 	// Encrypt the value
-	encryptedValue, err := crypto.Encrypt(req.Value, encKey)
+	encryptedValue, err := crypto.EncryptWithBytesKey(req.Value, encKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt secret: %w", err)
 	}
@@ -532,14 +531,14 @@ func (s *CustomSettingsService) UpdateSecretSetting(ctx context.Context, key str
 		// Determine encryption key
 		encKey := s.encryptionKey
 		if userID != nil {
-			derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, *userID)
+			derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 			if err != nil {
 				return nil, fmt.Errorf("failed to derive user key: %w", err)
 			}
 			encKey = derivedKey
 		}
 
-		encrypted, err := crypto.Encrypt(*req.Value, encKey)
+		encrypted, err := crypto.EncryptWithBytesKey(*req.Value, encKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt secret: %w", err)
 		}
@@ -1044,7 +1043,7 @@ func (s *CustomSettingsService) CreateSecretSettingWithTx(ctx context.Context, t
 	// Determine encryption key (user-specific or system)
 	encKey := s.encryptionKey
 	if userID != nil {
-		derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, *userID)
+		derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 		if err != nil {
 			return nil, fmt.Errorf("failed to derive user key: %w", err)
 		}
@@ -1052,7 +1051,7 @@ func (s *CustomSettingsService) CreateSecretSettingWithTx(ctx context.Context, t
 	}
 
 	// Encrypt the value
-	encryptedValue, err := crypto.Encrypt(req.Value, encKey)
+	encryptedValue, err := crypto.EncryptWithBytesKey(req.Value, encKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt secret: %w", err)
 	}
@@ -1145,14 +1144,14 @@ func (s *CustomSettingsService) UpdateSecretSettingWithTx(ctx context.Context, t
 		// Determine encryption key
 		encKey := s.encryptionKey
 		if userID != nil {
-			derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, *userID)
+			derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 			if err != nil {
 				return nil, fmt.Errorf("failed to derive user key: %w", err)
 			}
 			encKey = derivedKey
 		}
 
-		encrypted, err := crypto.Encrypt(*req.Value, encKey)
+		encrypted, err := crypto.EncryptWithBytesKey(*req.Value, encKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt secret: %w", err)
 		}

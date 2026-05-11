@@ -63,9 +63,7 @@ func NewLoggingHandler(loggingService *logging.Service) *LoggingHandler {
 // @Router /admin/logs [get]
 func (h *LoggingHandler) QueryLogs(c fiber.Ctx) error {
 	if h.loggingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Logging service not available",
-		})
+		return SendFeatureDisabled(c, "Logging")
 	}
 
 	opts := storage.LogQueryOptions{}
@@ -132,9 +130,7 @@ func (h *LoggingHandler) QueryLogs(c fiber.Ctx) error {
 	result, err := h.loggingService.Query(ctxForLogs(c), opts)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to query logs")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return SendInternalError(c, "Internal error")
 	}
 
 	return c.JSON(fiber.Map{
@@ -159,9 +155,7 @@ func (h *LoggingHandler) QueryLogs(c fiber.Ctx) error {
 // @Router /admin/logs/executions/{execution_id} [get]
 func (h *LoggingHandler) GetExecutionLogs(c fiber.Ctx) error {
 	if h.loggingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Logging service not available",
-		})
+		return SendFeatureDisabled(c, "Logging")
 	}
 
 	executionID := c.Params("id")
@@ -181,9 +175,7 @@ func (h *LoggingHandler) GetExecutionLogs(c fiber.Ctx) error {
 	entries, err := h.loggingService.GetExecutionLogs(middleware.CtxWithTenant(c), executionID, afterLine)
 	if err != nil {
 		log.Error().Err(err).Str("execution_id", executionID).Msg("Failed to get execution logs")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return SendInternalError(c, "Internal error")
 	}
 
 	return c.JSON(fiber.Map{
@@ -204,17 +196,13 @@ func (h *LoggingHandler) GetExecutionLogs(c fiber.Ctx) error {
 // @Router /admin/logs/stats [get]
 func (h *LoggingHandler) GetLogStats(c fiber.Ctx) error {
 	if h.loggingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Logging service not available",
-		})
+		return SendFeatureDisabled(c, "Logging")
 	}
 
 	stats, err := h.loggingService.Stats(ctxForLogs(c))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get log stats")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return SendInternalError(c, "Internal error")
 	}
 
 	return c.JSON(stats)
@@ -232,16 +220,12 @@ func (h *LoggingHandler) GetLogStats(c fiber.Ctx) error {
 // @Router /admin/logs/flush [post]
 func (h *LoggingHandler) FlushLogs(c fiber.Ctx) error {
 	if h.loggingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Logging service not available",
-		})
+		return SendFeatureDisabled(c, "Logging")
 	}
 
 	if err := h.loggingService.Flush(middleware.CtxWithTenant(c)); err != nil {
 		log.Error().Err(err).Msg("Failed to flush logs")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return SendInternalError(c, "Internal error")
 	}
 
 	return apperrors.SendSuccess(c, "Logs flushed successfully")
@@ -259,9 +243,7 @@ func (h *LoggingHandler) FlushLogs(c fiber.Ctx) error {
 // @Router /admin/logs/test [post]
 func (h *LoggingHandler) GenerateTestLogs(c fiber.Ctx) error {
 	if h.loggingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Logging service not available",
-		})
+		return SendFeatureDisabled(c, "Logging")
 	}
 
 	// Generate test logs of different types and levels

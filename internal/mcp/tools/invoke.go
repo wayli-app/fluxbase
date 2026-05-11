@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -175,6 +176,16 @@ func (t *InvokeFunctionTool) Execute(ctx context.Context, args map[string]any, a
 
 	// Set up default permissions for MCP function invocation
 	perms := runtime.DefaultFunctionPermissions()
+	perms.AllowNet = fn.AllowNet
+	perms.AllowEnv = fn.AllowEnv
+	perms.AllowRead = fn.AllowRead
+	perms.AllowWrite = fn.AllowWrite
+	if fn.AllowedDomains != nil && *fn.AllowedDomains != "" {
+		perms.AllowedDomains = strings.Split(*fn.AllowedDomains, ",")
+		for i := range perms.AllowedDomains {
+			perms.AllowedDomains[i] = strings.TrimSpace(perms.AllowedDomains[i])
+		}
+	}
 
 	// Execute function with default timeout and no secrets for MCP calls
 	resp, err := t.runtime.Execute(ctx, fn.Code, req, perms, nil, nil, nil)

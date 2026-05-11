@@ -21,7 +21,7 @@ type MFAService struct {
 	passwordHasher  *PasswordHasher
 	db              *database.Connection
 	config          *config.AuthConfig
-	encryptionKey   string
+	encryptionKey   []byte
 	totpRateLimiter *TOTPRateLimiter
 }
 
@@ -43,7 +43,7 @@ func NewMFAService(
 	}
 }
 
-func (m *MFAService) SetEncryptionKey(key string) {
+func (m *MFAService) SetEncryptionKey(key []byte) {
 	m.encryptionKey = key
 }
 
@@ -133,10 +133,10 @@ func (m *MFAService) EnableTOTP(ctx context.Context, userID, code string) ([]str
 		return nil, fmt.Errorf("failed to generate backup codes: %w", err)
 	}
 
-	if m.encryptionKey == "" {
+	if len(m.encryptionKey) == 0 {
 		return nil, errors.New("TOTP encryption key not configured - cannot store TOTP secrets securely")
 	}
-	encryptedSecret, err := crypto.Encrypt(secret, m.encryptionKey)
+	encryptedSecret, err := crypto.EncryptWithBytesKey(secret, m.encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt TOTP secret: %w", err)
 	}
@@ -187,10 +187,10 @@ func (m *MFAService) VerifyTOTPWithContext(ctx context.Context, userID, code, ip
 	}
 
 	secret := storedSecret
-	if m.encryptionKey == "" {
+	if len(m.encryptionKey) == 0 {
 		log.Warn().Str("user_id", userID).Msg("TOTP encryption key not configured - TOTP secrets may be stored insecurely")
 	} else {
-		decrypted, err := crypto.Decrypt(storedSecret, m.encryptionKey)
+		decrypted, err := crypto.DecryptWithBytesKey(storedSecret, m.encryptionKey)
 		if err != nil {
 			log.Warn().
 				Err(err).

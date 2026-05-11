@@ -19,16 +19,12 @@ import (
 // batchInsert handles batch insert operations
 func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table database.TableInfo, dataArray []map[string]interface{}, isUpsert bool, ignoreDuplicates bool, defaultToNull bool, onConflict string) error {
 	if len(dataArray) == 0 {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Empty array provided",
-		})
+		return SendBadRequest(c, "Empty array provided", ErrCodeInvalidInput)
 	}
 
 	// Validate batch size limit (H-4)
 	if h.config.API.MaxBatchSize > 0 && len(dataArray) > h.config.API.MaxBatchSize {
-		return c.Status(400).JSON(fiber.Map{
-			"error": fmt.Sprintf("Batch size %d exceeds maximum allowed batch size of %d", len(dataArray), h.config.API.MaxBatchSize),
-		})
+		return SendBadRequest(c, fmt.Sprintf("Batch size %d exceeds maximum allowed batch size of %d", len(dataArray), h.config.API.MaxBatchSize), ErrCodeInvalidInput)
 	}
 
 	// Auto-inject tenant_id into all records if the table has the column
@@ -49,9 +45,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table databa
 	columnNames := make([]string, 0, len(firstRecord)) // Unquoted column names for conflict checking
 	for col := range firstRecord {
 		if !h.columnExists(table, col) {
-			return c.Status(400).JSON(fiber.Map{
-				"error": fmt.Sprintf("Unknown column: %s", col),
-			})
+			return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
 		}
 		columns = append(columns, quoteIdentifier(col))
 		columnNames = append(columnNames, col)
@@ -75,9 +69,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table databa
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
 				geoJSON, err := json.Marshal(val)
 				if err != nil {
-					return c.Status(400).JSON(fiber.Map{
-						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
-					})
+					return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
 				}
 				values = append(values, string(geoJSON))
 				placeholders[i] = fmt.Sprintf("ST_GeomFromGeoJSON($%d)", argCounter)
@@ -110,9 +102,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table databa
 			for _, col := range conflictCols {
 				col = strings.TrimSpace(col)
 				if !h.columnExists(table, col) {
-					return c.Status(400).JSON(fiber.Map{
-						"error": fmt.Sprintf("Unknown column in on_conflict: %s", col),
-					})
+					return SendBadRequest(c, fmt.Sprintf("Unknown column in on_conflict: %s", col), ErrCodeInvalidInput)
 				}
 				quotedConflictCols = append(quotedConflictCols, quoteIdentifier(col))
 				conflictTargetColumns = append(conflictTargetColumns, col)
@@ -124,9 +114,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table databa
 		}
 
 		if conflictTarget == "" {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "Cannot perform upsert: table has no primary key or unique constraint",
-			})
+			return SendBadRequest(c, "Cannot perform upsert: table has no primary key or unique constraint", ErrCodeInvalidInput)
 		}
 
 		// Handle ignore duplicates (DO NOTHING)
@@ -247,25 +235,19 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 		}
 
 		if len(data) == 0 {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "No fields to update",
-			})
+			return SendBadRequest(c, "No fields to update", ErrCodeInvalidInput)
 		}
 
 		// Parse raw query string to preserve multiple values for the same key
 		rawQuery := string(c.Request().URI().QueryString())
 		urlValues, err := url.ParseQuery(rawQuery)
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"error": fmt.Sprintf("Invalid query string: %v", err),
-			})
+			return SendBadRequest(c, fmt.Sprintf("Invalid query string: %v", err), ErrCodeInvalidInput)
 		}
 
 		params, err := h.parser.Parse(urlValues)
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"error": fmt.Sprintf("Invalid query parameters: %v", err),
-			})
+			return SendBadRequest(c, fmt.Sprintf("Invalid query parameters: %v", err), ErrCodeInvalidInput)
 		}
 
 		// Build SET clause
@@ -275,9 +257,7 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 
 		for col, val := range data {
 			if !h.columnExists(table, col) {
-				return c.Status(400).JSON(fiber.Map{
-					"error": fmt.Sprintf("Unknown column: %s", col),
-				})
+				return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
 			}
 
 			quotedCol := quoteIdentifier(col)
@@ -286,9 +266,7 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
 				geoJSON, err := json.Marshal(val)
 				if err != nil {
-					return c.Status(400).JSON(fiber.Map{
-						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
-					})
+					return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
 				}
 				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", quotedCol, argCounter))
 				values = append(values, string(geoJSON))
@@ -365,23 +343,17 @@ func (h *RESTHandler) makeBatchDeleteHandler(table database.TableInfo) fiber.Han
 		rawQuery := string(c.Request().URI().QueryString())
 		urlValues, err := url.ParseQuery(rawQuery)
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"error": fmt.Sprintf("Invalid query string: %v", err),
-			})
+			return SendBadRequest(c, fmt.Sprintf("Invalid query string: %v", err), ErrCodeInvalidInput)
 		}
 
 		params, err := h.parser.Parse(urlValues)
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"error": fmt.Sprintf("Invalid query parameters: %v", err),
-			})
+			return SendBadRequest(c, fmt.Sprintf("Invalid query parameters: %v", err), ErrCodeInvalidInput)
 		}
 
 		// Require at least one filter for safety
 		if len(params.Filters) == 0 {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "Batch delete requires at least one filter. Use DELETE /:id for single deletes",
-			})
+			return SendBadRequest(c, "Batch delete requires at least one filter. Use DELETE /:id for single deletes", ErrCodeInvalidInput)
 		}
 
 		// Build WHERE clause from filters

@@ -14,23 +14,23 @@ func TestService_SetEncryptionKey(t *testing.T) {
 	service := &Service{mfaService: &MFAService{}}
 
 	t.Run("sets encryption key", func(t *testing.T) {
-		key := "test-encryption-key-123"
+		key := []byte("test-encryption-key-123")
 		service.SetEncryptionKey(key)
 
 		assert.Equal(t, key, service.mfaService.encryptionKey)
 	})
 
 	t.Run("can be updated multiple times", func(t *testing.T) {
-		service.SetEncryptionKey("key1")
-		assert.Equal(t, "key1", service.mfaService.encryptionKey)
+		service.SetEncryptionKey([]byte("key1"))
+		assert.Equal(t, []byte("key1"), service.mfaService.encryptionKey)
 
-		service.SetEncryptionKey("key2")
-		assert.Equal(t, "key2", service.mfaService.encryptionKey)
+		service.SetEncryptionKey([]byte("key2"))
+		assert.Equal(t, []byte("key2"), service.mfaService.encryptionKey)
 	})
 
 	t.Run("empty string is allowed", func(t *testing.T) {
-		service.SetEncryptionKey("")
-		assert.Equal(t, "", service.mfaService.encryptionKey)
+		service.SetEncryptionKey([]byte(""))
+		assert.Equal(t, []byte(""), service.mfaService.encryptionKey)
 	})
 }
 

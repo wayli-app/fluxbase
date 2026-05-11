@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -83,21 +84,21 @@ func TestSecretStructs(t *testing.T) {
 
 // TestNewStorage tests the Storage constructor
 func TestNewStorage(t *testing.T) {
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 
 	storage := NewStorage(nil, encryptionKey)
 
 	if storage == nil {
 		t.Fatal("expected storage to not be nil")
 	}
-	if storage.encryptionKey != encryptionKey {
+	if !bytes.Equal(storage.encryptionKey, encryptionKey) {
 		t.Error("expected encryption key to be set")
 	}
 }
 
 // TestEncryptionIntegration tests that encryption/decryption works with the storage layer
 func TestEncryptionIntegration(t *testing.T) {
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 
 	tests := []struct {
 		name       string
@@ -114,7 +115,7 @@ func TestEncryptionIntegration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encrypt
-			encrypted, err := crypto.Encrypt(tt.plainValue, encryptionKey)
+			encrypted, err := crypto.EncryptWithBytesKey(tt.plainValue, encryptionKey)
 			if err != nil {
 				t.Fatalf("failed to encrypt: %v", err)
 			}
@@ -125,7 +126,7 @@ func TestEncryptionIntegration(t *testing.T) {
 			}
 
 			// Decrypt
-			decrypted, err := crypto.Decrypt(encrypted, encryptionKey)
+			decrypted, err := crypto.DecryptWithBytesKey(encrypted, encryptionKey)
 			if err != nil {
 				t.Fatalf("failed to decrypt: %v", err)
 			}
@@ -139,17 +140,17 @@ func TestEncryptionIntegration(t *testing.T) {
 
 // TestEncryptionWithWrongKey verifies that decryption fails with wrong key
 func TestEncryptionWithWrongKey(t *testing.T) {
-	key1 := "12345678901234567890123456789012"
-	key2 := "abcdefghijklmnopqrstuvwxyzABCDEF"
+	key1 := []byte("12345678901234567890123456789012")
+	key2 := []byte("abcdefghijklmnopqrstuvwxyzABCDEF")
 
 	plainValue := "my-secret-value"
 
-	encrypted, err := crypto.Encrypt(plainValue, key1)
+	encrypted, err := crypto.EncryptWithBytesKey(plainValue, key1)
 	if err != nil {
 		t.Fatalf("failed to encrypt: %v", err)
 	}
 
-	_, err = crypto.Decrypt(encrypted, key2)
+	_, err = crypto.DecryptWithBytesKey(encrypted, key2)
 	if err == nil {
 		t.Error("expected decryption to fail with wrong key")
 	}
@@ -391,7 +392,7 @@ func TestSecret_EdgeCases(t *testing.T) {
 
 func TestStorage_Initialization(t *testing.T) {
 	t.Run("storage with valid 32-byte key", func(t *testing.T) {
-		key := "12345678901234567890123456789012" // exactly 32 bytes
+		key := []byte("12345678901234567890123456789012")
 		storage := NewStorage(nil, key)
 
 		if storage == nil {
@@ -403,13 +404,13 @@ func TestStorage_Initialization(t *testing.T) {
 	})
 
 	t.Run("storage fields are set correctly", func(t *testing.T) {
-		key := "12345678901234567890123456789012"
+		key := []byte("12345678901234567890123456789012")
 		storage := NewStorage(nil, key)
 
 		if storage.db != nil {
 			t.Error("db should be nil when initialized with nil")
 		}
-		if storage.encryptionKey != key {
+		if !bytes.Equal(storage.encryptionKey, key) {
 			t.Error("encryption key should match input")
 		}
 	})
@@ -458,34 +459,34 @@ func BenchmarkSecretSummary_Creation(b *testing.B) {
 }
 
 func BenchmarkEncryption(b *testing.B) {
-	key := "12345678901234567890123456789012"
+	key := []byte("12345678901234567890123456789012")
 	plainValue := "my-secret-password-value"
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = crypto.Encrypt(plainValue, key)
+		_, _ = crypto.EncryptWithBytesKey(plainValue, key)
 	}
 }
 
 func BenchmarkDecryption(b *testing.B) {
-	key := "12345678901234567890123456789012"
+	key := []byte("12345678901234567890123456789012")
 	plainValue := "my-secret-password-value"
-	encrypted, _ := crypto.Encrypt(plainValue, key)
+	encrypted, _ := crypto.EncryptWithBytesKey(plainValue, key)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = crypto.Decrypt(encrypted, key)
+		_, _ = crypto.DecryptWithBytesKey(encrypted, key)
 	}
 }
 
 func BenchmarkEncryptDecrypt_RoundTrip(b *testing.B) {
-	key := "12345678901234567890123456789012"
+	key := []byte("12345678901234567890123456789012")
 	plainValue := "my-secret-password-value"
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		encrypted, _ := crypto.Encrypt(plainValue, key)
-		_, _ = crypto.Decrypt(encrypted, key)
+		encrypted, _ := crypto.EncryptWithBytesKey(plainValue, key)
+		_, _ = crypto.DecryptWithBytesKey(encrypted, key)
 	}
 }
 

@@ -23,26 +23,20 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 	// Get tenant-specific storage service
 	svc, err := h.getService(c)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get storage service",
-		})
+		return SendInternalError(c, "failed to get storage service")
 	}
 
 	bucket := c.Params("bucket")
 	key := c.Params("*") // Capture the rest of the path
 
 	if bucket == "" || key == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bucket and key are required",
-		})
+		return SendBadRequest(c, "bucket and key are required", ErrCodeMissingField)
 	}
 
 	// H-20: Sanitize the filename/key to prevent path traversal and control characters
 	key = sanitizeFilename(key)
 	if key == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid filename after sanitization",
-		})
+		return SendBadRequest(c, "invalid filename after sanitization", ErrCodeInvalidInput)
 	}
 
 	// H-19: Check if bucket exists before upload
@@ -55,29 +49,21 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 	).Scan(&bucketExists)
 	if err != nil {
 		log.Error().Err(err).Str("bucket", bucket).Msg("Failed to check bucket existence")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to validate bucket",
-		})
+		return SendInternalError(c, "failed to validate bucket")
 	}
 	if !bucketExists {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": fmt.Sprintf("bucket '%s' does not exist", bucket),
-		})
+		return SendNotFound(c, fmt.Sprintf("bucket '%s' does not exist", bucket))
 	}
 
 	// Get file from form data
 	file, err := c.FormFile("file")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "file is required",
-		})
+		return SendBadRequest(c, "file is required", ErrCodeMissingField)
 	}
 
 	// Validate file size against global limit
 	if err := svc.ValidateUploadSize(file.Size); err != nil {
-		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusRequestEntityTooLarge, err.Error(), ErrCodeInvalidInput)
 	}
 
 	// Get bucket settings for additional validation
@@ -91,16 +77,12 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 	).Scan(&bucketMaxFileSize, &bucketAllowedMimeTypes)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Error().Err(err).Str("bucket", bucket).Msg("Failed to get bucket settings")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to validate bucket settings",
-		})
+		return SendInternalError(c, "failed to validate bucket settings")
 	}
 
 	// Validate file size against bucket-specific limit
 	if bucketMaxFileSize != nil && *bucketMaxFileSize > 0 && file.Size > *bucketMaxFileSize {
-		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
-			"error": fmt.Sprintf("file size %d exceeds bucket maximum of %d bytes", file.Size, *bucketMaxFileSize),
-		})
+		return SendErrorWithCode(c, fiber.StatusRequestEntityTooLarge, fmt.Sprintf("file size %d exceeds bucket maximum of %d bytes", file.Size, *bucketMaxFileSize), ErrCodeInvalidInput)
 	}
 
 	// Detect content type early for MIME validation
@@ -127,18 +109,14 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 			}
 		}
 		if !mimeAllowed {
-			return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
-				"error": fmt.Sprintf("file type %s is not allowed for this bucket", contentType),
-			})
+			return SendErrorWithCode(c, fiber.StatusUnsupportedMediaType, fmt.Sprintf("file type %s is not allowed for this bucket", contentType), ErrCodeInvalidFormat)
 		}
 	}
 
 	// Open the uploaded file
 	src, err := file.Open()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to open uploaded file",
-		})
+		return SendInternalError(c, "failed to open uploaded file")
 	}
 	defer func() { _ = src.Close() }()
 
@@ -164,9 +142,7 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 	object, err := svc.Provider.Upload(ctx, bucket, key, src, file.Size, opts)
 	if err != nil {
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to upload file")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to upload file",
-		})
+		return SendInternalError(c, "failed to upload file")
 	}
 
 	// Start database transaction to store metadata
@@ -175,9 +151,7 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 		// Delete from provider since DB insert failed
 		_ = svc.Provider.Delete(ctx, bucket, key)
 		log.Error().Err(err).Msg("Failed to start transaction for file upload")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -185,9 +159,7 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		_ = svc.Provider.Delete(ctx, bucket, key)
 		log.Error().Err(err).Msg("Failed to set RLS context")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 
 	// Convert metadata map to JSONB
@@ -222,22 +194,16 @@ func (h *StorageHandler) UploadFile(c fiber.Ctx) error {
 
 		if strings.Contains(errMsg, "permission denied") || strings.Contains(errMsg, "policy") {
 			log.Debug().Str("detail", errMsg).Msg("Upload blocked by RLS policy")
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "insufficient permissions to upload file",
-			})
+			return SendForbidden(c, "insufficient permissions to upload file", ErrCodeAccessDenied)
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		_ = svc.Provider.Delete(ctx, bucket, key)
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to commit file upload")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to save file metadata",
-		})
+		return SendInternalError(c, "failed to save file metadata")
 	}
 
 	log.Info().
@@ -269,9 +235,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 	// Get tenant-specific storage service
 	svc, err := h.getService(c)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get storage service",
-		})
+		return SendInternalError(c, "failed to get storage service")
 	}
 
 	bucket := c.Params("bucket")
@@ -289,9 +253,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 	}
 
 	if bucket == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bucket is required",
-		})
+		return SendBadRequest(c, "bucket is required", ErrCodeMissingField)
 	}
 
 	ctx := c.RequestCtx()
@@ -300,9 +262,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 	tx, err := h.getPool(c).Begin(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to start transaction for file download")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to download file",
-		})
+		return SendInternalError(c, "failed to download file")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -312,9 +272,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to download file",
-		})
+		return SendInternalError(c, "failed to download file")
 	}
 
 	// Check if user has permission to access this file (RLS will filter)
@@ -328,22 +286,16 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 	`, bucket, key).Scan(&objectID, &mimeType, &fileSize)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "file not found or insufficient permissions",
-			})
+			return SendNotFound(c, "file not found or insufficient permissions")
 		}
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to check file permissions")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to download file",
-		})
+		return SendInternalError(c, "failed to download file")
 	}
 
 	// Commit transaction (permission check passed)
 	if err := tx.Commit(ctx); err != nil {
 		log.Error().Err(err).Msg("Failed to commit file download transaction")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to download file",
-		})
+		return SendInternalError(c, "failed to download file")
 	}
 
 	// Parse download options
@@ -358,14 +310,10 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 	reader, object, err := svc.Provider.Download(ctx, bucket, key, opts)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "file not found",
-			})
+			return SendNotFound(c, "file not found")
 		}
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to download file from provider")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to download file",
-		})
+		return SendInternalError(c, "failed to download file")
 	}
 
 	// Parse transform options from query parameters
@@ -387,9 +335,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 		limiterKey := c.IP() + ":" + getUserID(c)
 		if limiter := h.getTransformLimiter(limiterKey); limiter != nil && !limiter.Allow() {
 			_ = reader.Close()
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error": "transform rate limit exceeded",
-			})
+			return SendErrorWithCode(c, fiber.StatusTooManyRequests, "transform rate limit exceeded", ErrCodeTooManyRequests)
 		}
 
 		// Check cache first (before acquiring transform slot)
@@ -407,9 +353,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 		// Acquire transform slot (concurrency limit)
 		if !h.acquireTransformSlot(5 * time.Second) {
 			_ = reader.Close()
-			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"error": "transform service busy, try again later",
-			})
+			return SendErrorWithCode(c, fiber.StatusServiceUnavailable, "transform service busy, try again later", "SERVICE_UNAVAILABLE")
 		}
 		defer h.releaseTransformSlot()
 
@@ -425,9 +369,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 			// Re-download original since we consumed the reader
 			reader, object, err = svc.Provider.Download(ctx, bucket, key, opts)
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "failed to download file",
-				})
+				return SendInternalError(c, "failed to download file")
 			}
 			responseReader = reader
 		} else if result != nil {
@@ -446,9 +388,7 @@ func (h *StorageHandler) DownloadFile(c fiber.Ctx) error {
 			// Re-download original since we consumed the reader
 			reader, object, err = svc.Provider.Download(ctx, bucket, key, opts)
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "failed to download file",
-				})
+				return SendInternalError(c, "failed to download file")
 			}
 			responseReader = reader
 		}
@@ -528,24 +468,18 @@ func (h *StorageHandler) DeleteFile(c fiber.Ctx) error {
 	// Get tenant-specific storage service
 	svc, err := h.getService(c)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get storage service",
-		})
+		return SendInternalError(c, "failed to get storage service")
 	}
 
 	bucket := c.Params("bucket")
 	key := c.Params("*")
 
 	if bucket == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bucket is required",
-		})
+		return SendBadRequest(c, "bucket is required", ErrCodeMissingField)
 	}
 
 	if key == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "key is required",
-		})
+		return SendBadRequest(c, "key is required", ErrCodeMissingField)
 	}
 
 	ctx := c.RequestCtx()
@@ -554,18 +488,14 @@ func (h *StorageHandler) DeleteFile(c fiber.Ctx) error {
 	tx, err := h.getPool(c).Begin(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to start transaction for file deletion")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to delete file",
-		})
+		return SendInternalError(c, "failed to delete file")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to delete file",
-		})
+		return SendInternalError(c, "failed to delete file")
 	}
 
 	// Delete from database (RLS will check permissions)
@@ -575,14 +505,10 @@ func (h *StorageHandler) DeleteFile(c fiber.Ctx) error {
 	`, bucket, key)
 	if err != nil {
 		if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "policy") {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "insufficient permissions to delete file",
-			})
+			return SendForbidden(c, "insufficient permissions to delete file", ErrCodeAccessDenied)
 		}
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to delete file from database")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to delete file",
-		})
+		return SendInternalError(c, "failed to delete file")
 	}
 
 	// Check if any rows were affected (file existed and was deleted)
@@ -598,21 +524,15 @@ func (h *StorageHandler) DeleteFile(c fiber.Ctx) error {
 			// If we can't check existence, log it but still return 404
 			// This is safer than returning 500 for a delete operation
 			log.Warn().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to check file existence after delete returned 0 rows")
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "file not found",
-			})
+			return SendNotFound(c, "file not found")
 		}
 
 		if fileExists {
 			// File exists but RLS prevented delete - return 403
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "insufficient permissions to delete file",
-			})
+			return SendForbidden(c, "insufficient permissions to delete file", ErrCodeAccessDenied)
 		}
 		// File doesn't exist at all
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "file not found",
-		})
+		return SendNotFound(c, "file not found")
 	}
 
 	// Delete from storage provider
@@ -630,9 +550,7 @@ func (h *StorageHandler) DeleteFile(c fiber.Ctx) error {
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to commit file deletion")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to delete file",
-		})
+		return SendInternalError(c, "failed to delete file")
 	}
 
 	log.Info().
@@ -655,9 +573,7 @@ func (h *StorageHandler) GetFileInfo(c fiber.Ctx) error {
 	}
 
 	if bucket == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bucket is required",
-		})
+		return SendBadRequest(c, "bucket is required", ErrCodeMissingField)
 	}
 
 	ctx := c.RequestCtx()
@@ -665,9 +581,7 @@ func (h *StorageHandler) GetFileInfo(c fiber.Ctx) error {
 	tx, err := h.getPool(c).Begin(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to start transaction for getting file info")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get file info",
-		})
+		return SendInternalError(c, "failed to get file info")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -676,9 +590,7 @@ func (h *StorageHandler) GetFileInfo(c fiber.Ctx) error {
 
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get file info",
-		})
+		return SendInternalError(c, "failed to get file info")
 	}
 
 	var id string
@@ -695,21 +607,15 @@ func (h *StorageHandler) GetFileInfo(c fiber.Ctx) error {
 	`, bucket, key).Scan(&id, &mimeType, &size, &metadata, &ownerID, &createdAt, &updatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "file not found or insufficient permissions",
-			})
+			return SendNotFound(c, "file not found or insufficient permissions")
 		}
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to get file metadata")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get file info",
-		})
+		return SendInternalError(c, "failed to get file info")
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		log.Error().Err(err).Msg("Failed to commit get file info transaction")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to get file info",
-		})
+		return SendInternalError(c, "failed to get file info")
 	}
 
 	contentType := "application/octet-stream"
@@ -755,9 +661,7 @@ func (h *StorageHandler) ListFiles(c fiber.Ctx) error {
 	bucket := c.Params("bucket")
 
 	if bucket == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bucket is required",
-		})
+		return SendBadRequest(c, "bucket is required", ErrCodeMissingField)
 	}
 
 	prefix := c.Query("prefix", "")
@@ -770,17 +674,13 @@ func (h *StorageHandler) ListFiles(c fiber.Ctx) error {
 	tx, err := h.getPool(c).Begin(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to start transaction for listing files")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to list files",
-		})
+		return SendInternalError(c, "failed to list files")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to list files",
-		})
+		return SendInternalError(c, "failed to list files")
 	}
 
 	type StorageObject struct {

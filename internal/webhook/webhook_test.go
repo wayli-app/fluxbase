@@ -620,7 +620,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true, // Allow localhost for test
+			allowPrivateIPs: true, // Allow localhost for test
 		}
 
 		webhook := &Webhook{
@@ -667,7 +667,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -721,7 +721,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -773,7 +773,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -825,7 +825,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -856,7 +856,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -888,7 +888,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 100 * time.Millisecond}, // Short timeout
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -912,7 +912,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 1 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -937,7 +937,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -968,7 +968,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -1001,7 +1001,7 @@ func TestSendWebhookSync(t *testing.T) {
 				service := &WebhookService{
 					db:              nil,
 					client:          &http.Client{Timeout: 5 * time.Second},
-					AllowPrivateIPs: true,
+					allowPrivateIPs: true,
 				}
 
 				webhook := &Webhook{
@@ -1033,7 +1033,7 @@ func TestSendWebhookSync(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -1068,7 +1068,7 @@ func TestSendWebhookSync(t *testing.T) {
 				service := &WebhookService{
 					db:              nil,
 					client:          &http.Client{Timeout: 5 * time.Second},
-					AllowPrivateIPs: true,
+					allowPrivateIPs: true,
 				}
 
 				webhook := &Webhook{
@@ -1102,7 +1102,7 @@ func TestDeliver(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -1132,7 +1132,7 @@ func TestDeliver(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -1163,7 +1163,7 @@ func TestDeliver(t *testing.T) {
 		service := &WebhookService{
 			db:              nil,
 			client:          &http.Client{Timeout: 5 * time.Second},
-			AllowPrivateIPs: true,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
