@@ -40,6 +40,5 @@ func (m *GraphQLModule) Init(ctx context.Context, registry *ServiceRegistry) err
 		log.Warn().Msg("GraphQL introspection is enabled — consider setting graphql.introspection to false in production")
 	}
 
-	registry.Register(m.Handler)
 	return nil
 }

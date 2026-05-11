@@ -37,8 +37,6 @@ func (m *StorageModule) Init(ctx context.Context, registry *ServiceRegistry) err
 
 	m.Handler = NewStorageHandler(storageManager, db, cfg, &cfg.Storage.Transforms)
 
-	registry.Register(storageManager)
 	registry.Register(m.Service)
-	registry.Register(m.Handler)
 	return nil
 }

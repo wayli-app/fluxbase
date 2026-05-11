@@ -82,6 +82,7 @@ type Server struct {
 
 	// Service registry for module-based initialization
 	registry *ServiceRegistry
+	modules  []Module
 }
 
 // NewServer creates a new HTTP server
@@ -154,7 +155,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	metricsMod := &MetricsModule{Metrics: metricsObj, StartTime: metricsStart}
 	bgMod := &BackgroundServicesModule{}
 
-	if err := InitModules(context.Background(), s.registry, []Module{
+	mods := []Module{
 		emailMod,
 		secretsMod,
 		storageMod,
@@ -175,9 +176,12 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		mcpMod,
 		metricsMod,
 		bgMod,
-	}); err != nil {
+	}
+
+	if err := InitModules(context.Background(), s.registry, mods); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize modules")
 	}
+	s.modules = mods
 
 	s.Secrets.Storage = secretsMod.Storage
 	s.Secrets.Handler = secretsMod.Handler
@@ -571,107 +575,16 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
-	if s.Scaling.FunctionsLeader != nil {
-		log.Info().Msg("Stopping functions scheduler leader election")
-		s.Scaling.FunctionsLeader.Stop()
-	}
-	if s.Scaling.JobsLeader != nil {
-		log.Info().Msg("Stopping jobs scheduler leader election")
-		s.Scaling.JobsLeader.Stop()
-	}
-	if s.Scaling.RPCLeader != nil {
-		log.Info().Msg("Stopping RPC scheduler leader election")
-		s.Scaling.RPCLeader.Stop()
-	}
-
-	if s.Realtime.Listener != nil {
-		log.Info().Msg("Stopping realtime listener")
-		s.Realtime.Listener.Stop()
-	}
-
-	if s.Realtime.Manager != nil {
-		log.Info().Msg("Closing WebSocket connections")
-		s.Realtime.Manager.Shutdown()
-	}
-
-	if s.Functions.Scheduler != nil {
-		s.Functions.Scheduler.Stop()
-	}
-
-	if s.Jobs.Scheduler != nil {
-		s.Jobs.Scheduler.Stop()
-	}
-	if s.Jobs.Manager != nil {
-		s.Jobs.Manager.Stop()
-	}
-
-	if s.RPC.Scheduler != nil {
-		s.RPC.Scheduler.Stop()
-	}
-
-	if s.RPC.Handler != nil {
-		s.RPC.Handler.GetExecutor().Stop()
-	}
-
-	if s.Webhook.Trigger != nil {
-		s.Webhook.Trigger.Stop()
-	}
-
-	if s.AI.Conversations != nil {
-		s.AI.Conversations.Close()
-	}
+	ShutdownModules(ctx, s.modules)
 
 	if s.Middleware.Idempotency != nil {
 		s.Middleware.Idempotency.Stop()
-	}
-
-	if s.Auth.OAuth != nil {
-		s.Auth.OAuth.Stop()
-	}
-
-	if s.Branching.Scheduler != nil {
-		s.Branching.Scheduler.Stop()
-	}
-
-	if s.Branching.Router != nil {
-		log.Info().Msg("Closing branch connection pools")
-		s.Branching.Router.CloseAllPools()
-	}
-	if s.Branching.Manager != nil {
-		log.Info().Msg("Closing branch manager")
-		s.Branching.Manager.Close()
-	}
-
-	if s.Metrics.StopChan != nil {
-		close(s.Metrics.StopChan)
-	}
-
-	if s.Metrics.Server != nil {
-		if err := s.Metrics.Server.Shutdown(ctx); err != nil {
-			log.Warn().Err(err).Msg("Failed to shutdown metrics server")
-		}
 	}
 
 	if s.tracer != nil {
 		if err := s.tracer.Shutdown(ctx); err != nil {
 			log.Warn().Err(err).Msg("Failed to shutdown OpenTelemetry tracer")
 		}
-	}
-
-	if s.Logging.Retention != nil {
-		log.Info().Msg("Stopping log retention cleanup service")
-		s.Logging.Retention.Stop()
-	}
-
-	if s.Logging.Service != nil {
-		log.Info().Msg("Closing central logging service")
-		if err := s.Logging.Service.Close(); err != nil {
-			log.Warn().Err(err).Msg("Failed to close logging service")
-		}
-	}
-
-	if s.Schema.Cache != nil {
-		s.Schema.Cache.Close()
 	}
 
 	if s.pubSub != nil {

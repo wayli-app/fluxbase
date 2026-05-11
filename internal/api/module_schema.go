@@ -62,3 +62,10 @@ func (m *SchemaModule) Init(ctx context.Context, registry *ServiceRegistry) erro
 	registry.Register(ddlHandler)
 	return nil
 }
+
+func (m *SchemaModule) Shutdown(ctx context.Context) error {
+	if m.Cache != nil {
+		m.Cache.Close()
+	}
+	return nil
+}

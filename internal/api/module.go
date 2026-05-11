@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/rs/zerolog"
+
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
 	"github.com/nimbleflux/fluxbase/internal/pubsub"
@@ -14,6 +16,10 @@ import (
 type Module interface {
 	Name() string
 	Init(ctx context.Context, registry *ServiceRegistry) error
+}
+
+type Shutdowner interface {
+	Shutdown(ctx context.Context) error
 }
 
 type ServiceRegistry struct {
@@ -61,4 +67,14 @@ func InitModules(ctx context.Context, registry *ServiceRegistry, mods []Module) 
 		}
 	}
 	return nil
+}
+
+func ShutdownModules(ctx context.Context, mods []Module) {
+	for i := len(mods) - 1; i >= 0; i-- {
+		if s, ok := mods[i].(Shutdowner); ok {
+			if err := s.Shutdown(ctx); err != nil {
+				zerolog.Ctx(ctx).Error().Err(err).Str("module", mods[i].Name()).Msg("Module shutdown failed")
+			}
+		}
+	}
 }

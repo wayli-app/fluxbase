@@ -138,10 +138,13 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	registry.Register(m.SystemSettingsService)
 	registry.Register(m.UserMgmtService)
 	registry.Register(m.InvitationService)
-	registry.Register(m.Handlers)
-	registry.Register(m.SQLHandler)
-	registry.Register(m.RequireAuth)
-	registry.Register(m.OptionalAuth)
 
+	return nil
+}
+
+func (m *AuthModule) Shutdown(ctx context.Context) error {
+	if m.Handlers != nil && m.Handlers.OAuth != nil {
+		m.Handlers.OAuth.Stop()
+	}
 	return nil
 }

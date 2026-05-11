@@ -132,3 +132,4 @@ docs/plans/
 **/test-results/
 admin/playwright-report/
 .tanstack/
+fluxbase

@@ -49,3 +49,13 @@ func (m *RPCModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		Msg("RPC components initialized")
 	return nil
 }
+
+func (m *RPCModule) Shutdown(ctx context.Context) error {
+	if m.Scheduler != nil {
+		m.Scheduler.Stop()
+	}
+	if m.Handler != nil {
+		m.Handler.GetExecutor().Stop()
+	}
+	return nil
+}

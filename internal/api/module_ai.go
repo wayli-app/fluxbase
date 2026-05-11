@@ -199,7 +199,6 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		}
 	}
 
-	registry.Register(aiStorage)
 	if vectorHandler != nil {
 		registry.Register(vectorHandler)
 	}
@@ -208,6 +207,13 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 	}
 	if kbStorage != nil {
 		registry.Register(kbStorage)
+	}
+	return nil
+}
+
+func (m *AIModule) Shutdown(ctx context.Context) error {
+	if m.Conversations != nil {
+		m.Conversations.Close()
 	}
 	return nil
 }

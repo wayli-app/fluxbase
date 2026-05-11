@@ -135,3 +135,10 @@ func (m *TenancyModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	registry.Register(tenantStorage)
 	return nil
 }
+
+func (m *TenancyModule) Shutdown(ctx context.Context) error {
+	if m.Manager != nil && m.Manager.GetRouter() != nil {
+		m.Manager.GetRouter().Close()
+	}
+	return nil
+}
