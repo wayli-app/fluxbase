@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/logging"
 	"github.com/nimbleflux/fluxbase/internal/realtime"
@@ -79,7 +81,18 @@ func (m *RealtimeModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	m.Monitor = monitoringHandler
 
 	registry.Register(realtimeManager)
-	registry.Register(realtimeHandler)
 	registry.Register(realtimeListener)
+	return nil
+}
+
+func (m *RealtimeModule) Shutdown(ctx context.Context) error {
+	if m.Listener != nil {
+		log.Info().Msg("Stopping realtime listener")
+		m.Listener.Stop()
+	}
+	if m.Manager != nil {
+		log.Info().Msg("Closing WebSocket connections")
+		m.Manager.Shutdown()
+	}
 	return nil
 }

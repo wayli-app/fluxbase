@@ -127,3 +127,19 @@ func leaderElect(db *database.Connection, cfg *config.ScalingConfig, name string
 	startFn()
 	return nil
 }
+
+func (m *BackgroundServicesModule) Shutdown(ctx context.Context) error {
+	if m.FunctionsLeader != nil {
+		log.Info().Msg("Stopping functions scheduler leader election")
+		m.FunctionsLeader.Stop()
+	}
+	if m.JobsLeader != nil {
+		log.Info().Msg("Stopping jobs scheduler leader election")
+		m.JobsLeader.Stop()
+	}
+	if m.RPCLeader != nil {
+		log.Info().Msg("Stopping RPC scheduler leader election")
+		m.RPCLeader.Stop()
+	}
+	return nil
+}

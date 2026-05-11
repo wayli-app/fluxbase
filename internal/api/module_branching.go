@@ -97,3 +97,18 @@ type branchFDWRepairer struct {
 func (r *branchFDWRepairer) RepairFDWForBranch(ctx context.Context, branchDBURL string, tenantID uuid.UUID) error {
 	return r.manager.RepairFDWForBranch(ctx, branchDBURL, tenantID)
 }
+
+func (m *BranchingModule) Shutdown(ctx context.Context) error {
+	if m.Scheduler != nil {
+		m.Scheduler.Stop()
+	}
+	if m.Router != nil {
+		log.Info().Msg("Closing branch connection pools")
+		m.Router.CloseAllPools()
+	}
+	if m.Manager != nil {
+		log.Info().Msg("Closing branch manager")
+		m.Manager.Close()
+	}
+	return nil
+}

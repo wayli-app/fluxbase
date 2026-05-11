@@ -13,10 +13,12 @@ Fluxbase is a single-binary Backend-as-a-Service (BaaS). PostgreSQL is the only 
 
 ```
 cmd/fluxbase/main.go     # Server entry point (setup + server creation)
-internal/api/module.go   # Module interface + ServiceRegistry (dependency injection)
-internal/api/module_*.go # 19 business logic modules (one per domain)
+ internal/api/module.go   # Module interface + ServiceRegistry (dependency injection)
+internal/api/module_*.go # 20 business logic modules (one per domain)
 internal/api/server.go   # Server struct, NewServer, module wiring
-internal/api/server_init.go # Infrastructure: initCore, setupMiddlewares, setupRoutes
+internal/api/server_init.go # Infrastructure: initCore
+internal/api/server_middlewares.go # Middleware setup
+internal/api/server_routes.go # Route setup
 internal/database/retry.go      # ConnectWithRetry extracted from main.go
 internal/tenantdb/bootstrap_keys.go # EnsureDefaultTenantAndKeys, EnsureServiceKey
 internal/tenantdb/backfill.go   # BackfillTenantIDToDefault
@@ -71,12 +73,16 @@ test/e2e/                # End-to-end tests
 Server initialization uses a module-based dependency injection system:
 
 - **`Module` interface** — `Name()` + `Init(ctx, *ServiceRegistry) error`
-- **`ServiceRegistry`** — stores config, DB, PubSub, and registered services; modules read dependencies via `GetService[T]()`
-- **19 modules** in dependency order: Email → Secrets → Storage → Logging → Auth → Webhook → Extensions → Tenancy → Settings → Schema → Functions → Jobs → RPC → AI → Realtime → Branching → GraphQL → MCP → Metrics
+- **`Shutdowner` interface** — optional `Shutdown(ctx context.Context) error`; modules with stoppable resources implement this for clean teardown
+- **`ServiceRegistry`** — stores config, DB, PubSub, RateLimiter, and registered services; modules read dependencies via `GetService[T]()`
+- **20 modules** in dependency order: Email → Secrets → Storage → Logging → Auth → Webhook → Extensions → Tenancy → Settings → Schema → Functions → Jobs → RPC → AI → Realtime → Branching → GraphQL → MCP → Metrics → BackgroundServices
+- Modules shut down in reverse order via `ShutdownModules()`
 - `GetService[T]()` uses `reflect.TypeOf` — only works with concrete pointer types (e.g., `*auth.Service`), not interfaces. Use `registry.PubSub` field for `pubsub.PubSub`
 - Modules register outputs via `registry.Register()` so downstream modules can find them
 
-**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring), `server_init.go` (remaining infrastructure: initCore, initBackgroundServices, setupMiddlewares, setupRoutes)
+**Two-phase wiring:** After `InitModules()` completes, `NewServer()` copies module outputs to `Server` struct fields (handler groups). This bridge is manual boilerplate — each new sub-handler requires both a module field and a Server field assignment.
+
+**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring + Shutdown), `server_init.go` (initCore), `server_middlewares.go` (middleware setup), `server_routes.go` (route setup)
 
 ## Database Schemas
 
@@ -756,7 +762,6 @@ func TestFunctionName_Scenario_ExpectedBehavior(t *testing.T)
 - Feature guides: `docs/src/content/docs/guides/<feature>.md`
 - API reference: `docs/src/content/docs/api/` (auto-generated from SDK)
 - Project overview: `CLAUDE.md` (this file)
-- Implementation notes: `IMPLEMENTATION_ANALYSIS.md`
 
 **Documentation checklist:**
 

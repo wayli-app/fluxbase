@@ -59,7 +59,16 @@ func (m *JobsModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	m.Scheduler = jobsScheduler
 
 	registry.Register(jobsManager)
-	registry.Register(jobsHandler)
 	registry.Register(jobsScheduler)
+	return nil
+}
+
+func (m *JobsModule) Shutdown(ctx context.Context) error {
+	if m.Scheduler != nil {
+		m.Scheduler.Stop()
+	}
+	if m.Manager != nil {
+		m.Manager.Stop()
+	}
 	return nil
 }

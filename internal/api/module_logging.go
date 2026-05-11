@@ -54,3 +54,17 @@ func (m *LoggingModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	registry.Register(loggingService)
 	return nil
 }
+
+func (m *LoggingModule) Shutdown(ctx context.Context) error {
+	if m.Retention != nil {
+		log.Info().Msg("Stopping log retention cleanup service")
+		m.Retention.Stop()
+	}
+	if m.Service != nil {
+		log.Info().Msg("Closing central logging service")
+		if err := m.Service.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close logging service")
+		}
+	}
+	return nil
+}

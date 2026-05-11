@@ -17,6 +17,5 @@ func (m *SecretsModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	m.Storage = secrets.NewStorage(registry.DB, registry.Config.EncryptionKeyBytes)
 	m.Handler = secrets.NewHandler(m.Storage)
 	registry.Register(m.Storage)
-	registry.Register(m.Handler)
 	return nil
 }

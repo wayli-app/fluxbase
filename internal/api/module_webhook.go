@@ -29,6 +29,12 @@ func (m *WebhookModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	m.Trigger = webhookTriggerService
 	m.Handler = NewWebhookHandler(webhookService)
 	registry.Register(webhookTriggerService)
-	registry.Register(m.Handler)
+	return nil
+}
+
+func (m *WebhookModule) Shutdown(ctx context.Context) error {
+	if m.Trigger != nil {
+		m.Trigger.Stop()
+	}
 	return nil
 }

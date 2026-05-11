@@ -51,3 +51,10 @@ func (m *FunctionsModule) Init(ctx context.Context, registry *ServiceRegistry) e
 	registry.Register(functionsScheduler)
 	return nil
 }
+
+func (m *FunctionsModule) Shutdown(ctx context.Context) error {
+	if m.Scheduler != nil {
+		m.Scheduler.Stop()
+	}
+	return nil
+}

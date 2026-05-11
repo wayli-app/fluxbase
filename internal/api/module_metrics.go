@@ -70,3 +70,15 @@ func (m *MetricsModule) Init(ctx context.Context, registry *ServiceRegistry) err
 
 	return nil
 }
+
+func (m *MetricsModule) Shutdown(ctx context.Context) error {
+	if m.StopChan != nil {
+		close(m.StopChan)
+	}
+	if m.Server != nil {
+		if err := m.Server.Shutdown(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to shutdown metrics server")
+		}
+	}
+	return nil
+}
