@@ -53,7 +53,7 @@ func querySQL(t *testing.T, tc *test.TestContext, sql string, args ...interface{
 
 func markJobRunning(t *testing.T, tc *test.TestContext, jobID string) {
 	t.Helper()
-	execSQL(t, tc, `UPDATE jobs.queue SET status = 'running', started_at = NOW(), worker_id = gen_random_uuid() WHERE id = $1 AND status = 'pending'`, jobID)
+	execSQL(t, tc, `UPDATE jobs.queue SET status = 'running', started_at = NOW(), worker_id = NULL WHERE id = $1 AND status = 'pending'`, jobID)
 }
 
 func markJobFailed(t *testing.T, tc *test.TestContext, jobID string) {
