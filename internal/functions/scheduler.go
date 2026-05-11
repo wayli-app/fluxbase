@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
@@ -218,6 +220,12 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID s
 	perms.AllowEnv = fn.AllowEnv
 	perms.AllowRead = fn.AllowRead
 	perms.AllowWrite = fn.AllowWrite
+	if fn.AllowedDomains != nil && *fn.AllowedDomains != "" {
+		perms.AllowedDomains = strings.Split(*fn.AllowedDomains, ",")
+		for i := range perms.AllowedDomains {
+			perms.AllowedDomains[i] = strings.TrimSpace(perms.AllowedDomains[i])
+		}
+	}
 
 	var timeoutOverride *time.Duration
 	if fn.TimeoutSeconds > 0 {

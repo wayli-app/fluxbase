@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS edge_functions (
     allow_env boolean DEFAULT true,
     allow_read boolean DEFAULT false,
     allow_write boolean DEFAULT false,
+    allowed_domains text DEFAULT NULL,
     allow_unauthenticated boolean DEFAULT false,
     is_public boolean DEFAULT true,
     cron_schedule text,
@@ -108,6 +109,8 @@ COMMENT ON COLUMN functions.edge_functions.rate_limit_per_hour IS 'Maximum reque
 
 
 COMMENT ON COLUMN functions.edge_functions.rate_limit_per_day IS 'Maximum requests per day per user/IP. NULL means unlimited.';
+
+COMMENT ON COLUMN functions.edge_functions.allowed_domains IS 'Comma-separated list of allowed domains for outbound network access. NULL means unrestricted.';
 
 --
 -- Name: idx_functions_edge_functions_cron_schedule; Type: INDEX; Schema: -; Owner: -

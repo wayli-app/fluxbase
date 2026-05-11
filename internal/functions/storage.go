@@ -16,7 +16,7 @@ var allowedFunctionColumns = map[string]bool{
 	"original_code": true, "is_bundled": true, "bundle_error": true,
 	"enabled": true, "timeout_seconds": true, "memory_limit_mb": true,
 	"allow_net": true, "allow_env": true, "allow_read": true,
-	"allow_write": true, "allow_unauthenticated": true, "is_public": true,
+	"allow_write": true, "allowed_domains": true, "allow_unauthenticated": true, "is_public": true,
 	"cron_schedule": true, "version": true, "created_by": true,
 	"source": true, "needs_rebundle": true, "cors_origins": true,
 	"cors_methods": true, "cors_headers": true, "cors_credentials": true,
@@ -44,6 +44,7 @@ type EdgeFunction struct {
 	AllowEnv             bool      `json:"allow_env"`
 	AllowRead            bool      `json:"allow_read"`
 	AllowWrite           bool      `json:"allow_write"`
+	AllowedDomains       *string   `json:"allowed_domains"`
 	AllowUnauthenticated bool      `json:"allow_unauthenticated"`  // Allow invocation without authentication
 	IsPublic             bool      `json:"is_public"`              // Whether function is publicly listed
 	DisableExecutionLogs bool      `json:"disable_execution_logs"` // Disable execution log creation
@@ -81,6 +82,7 @@ type EdgeFunctionSummary struct {
 	AllowEnv             bool       `json:"allow_env"`
 	AllowRead            bool       `json:"allow_read"`
 	AllowWrite           bool       `json:"allow_write"`
+	AllowedDomains       *string    `json:"allowed_domains"`
 	AllowUnauthenticated bool       `json:"allow_unauthenticated"`
 	IsPublic             bool       `json:"is_public"`
 	DisableExecutionLogs bool       `json:"disable_execution_logs"`
@@ -154,11 +156,11 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 		INSERT INTO functions.edge_functions (
 			name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, timeout_seconds, memory_limit_mb,
-			allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+			allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 			cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 			rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 			cron_schedule, created_by, source
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
 		RETURNING id, version, created_at, updated_at
 	`
 
@@ -167,7 +169,7 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 			ctx, query,
 			fn.Name, fn.Namespace, fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
 			fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
-			fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowUnauthenticated, fn.IsPublic, fn.DisableExecutionLogs,
+			fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowedDomains, fn.AllowUnauthenticated, fn.IsPublic, fn.DisableExecutionLogs,
 			fn.CorsOrigins, fn.CorsMethods, fn.CorsHeaders, fn.CorsCredentials, fn.CorsMaxAge,
 			fn.RateLimitPerMinute, fn.RateLimitPerHour, fn.RateLimitPerDay,
 			fn.CronSchedule, fn.CreatedBy, fn.Source,
@@ -187,7 +189,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 
 	query := `
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -203,7 +205,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 		return tx.QueryRow(ctx, query, name, database.TenantOrNil(tenantID)).Scan(
 			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
 			&fn.Version, &fn.CronSchedule, &fn.Enabled,
-			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 			&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 			&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -221,7 +223,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 func (s *Storage) GetFunctionForSync(ctx context.Context, name string, tenantID string) (*EdgeFunction, error) {
 	query := `
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -237,7 +239,7 @@ func (s *Storage) GetFunctionForSync(ctx context.Context, name string, tenantID 
 		return tx.QueryRow(ctx, query, name, database.TenantOrNil(tenantID)).Scan(
 			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
 			&fn.Version, &fn.CronSchedule, &fn.Enabled,
-			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 			&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 			&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -255,7 +257,7 @@ func (s *Storage) GetFunctionForSync(ctx context.Context, name string, tenantID 
 func (s *Storage) ListFunctionsForSync(ctx context.Context, tenantID string) ([]EdgeFunctionSummary, error) {
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -278,7 +280,7 @@ func (s *Storage) ListFunctionsForSync(ctx context.Context, tenantID string) ([]
 			err := rows.Scan(
 				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
-				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -303,7 +305,7 @@ func (s *Storage) GetFunctionByNamespace(ctx context.Context, name string, names
 
 	query := `
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -317,7 +319,7 @@ func (s *Storage) GetFunctionByNamespace(ctx context.Context, name string, names
 		return tx.QueryRow(ctx, query, name, namespace, database.TenantOrNil(tenantID)).Scan(
 			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
 			&fn.Version, &fn.CronSchedule, &fn.Enabled,
-			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 			&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 			&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -336,7 +338,7 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunctionSummary, err
 
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -359,7 +361,7 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunctionSummary, err
 			err := rows.Scan(
 				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
-				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -384,7 +386,7 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunctionSummary, err
 func (s *Storage) ListFunctionsByNamespaceForSync(ctx context.Context, namespace string, tenantID string) ([]EdgeFunctionSummary, error) {
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -407,7 +409,7 @@ func (s *Storage) ListFunctionsByNamespaceForSync(ctx context.Context, namespace
 			err := rows.Scan(
 				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
-				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -432,7 +434,7 @@ func (s *Storage) ListAllFunctions(ctx context.Context) ([]EdgeFunctionSummary, 
 
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -454,7 +456,7 @@ func (s *Storage) ListAllFunctions(ctx context.Context) ([]EdgeFunctionSummary, 
 			err := rows.Scan(
 				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
-				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -509,7 +511,7 @@ func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string
 
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -532,7 +534,7 @@ func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string
 			err := rows.Scan(
 				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
-				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
@@ -556,7 +558,7 @@ func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string
 func (s *Storage) ListAllFunctionsAllTenants(ctx context.Context) ([]EdgeFunctionSummary, error) {
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allowed_domains, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 		       created_at, updated_at, created_by, source, tenant_id
@@ -578,7 +580,7 @@ func (s *Storage) ListAllFunctionsAllTenants(ctx context.Context) ([]EdgeFunctio
 			err := rows.Scan(
 				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
-				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowedDomains, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
 				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,

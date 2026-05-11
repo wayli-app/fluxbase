@@ -339,6 +339,7 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 		AllowEnv             *bool   `json:"allow_env"`
 		AllowRead            *bool   `json:"allow_read"`
 		AllowWrite           *bool   `json:"allow_write"`
+		AllowedDomains       *string `json:"allowed_domains"`
 		AllowUnauthenticated *bool   `json:"allow_unauthenticated"`
 		IsPublic             *bool   `json:"is_public"`
 		CorsOrigins          *string `json:"cors_origins"`
@@ -551,6 +552,7 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 		AllowEnv:             util.ValueOr(req.AllowEnv, true),
 		AllowRead:            util.ValueOr(req.AllowRead, false),
 		AllowWrite:           util.ValueOr(req.AllowWrite, false),
+		AllowedDomains:       req.AllowedDomains,
 		AllowUnauthenticated: allowUnauthenticated,
 		IsPublic:             isPublic,
 		CorsOrigins:          corsOrigins,
