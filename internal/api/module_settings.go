@@ -36,7 +36,7 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	systemSettingsService := GetService[*auth.SystemSettingsService](registry)
 	captchaService := GetService[*auth.CaptchaService](registry)
 
-	unifiedSettingsService := settings.NewUnifiedService(db, cfg, cfg.EncryptionKey)
+	unifiedSettingsService := settings.NewUnifiedService(db, cfg, 	cfg.EncryptionKeyBytes)
 	m.Unified = unifiedSettingsService
 	m.Instance = NewInstanceSettingsHandler(unifiedSettingsService)
 
@@ -52,10 +52,10 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 
 	m.System = NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 
-	customSettingsService := settings.NewCustomSettingsService(db, cfg.EncryptionKey)
+	customSettingsService := settings.NewCustomSettingsService(db, 	cfg.EncryptionKeyBytes)
 	m.Custom = NewCustomSettingsHandler(customSettingsService)
 
-	secretsService := settings.NewSecretsService(db, cfg.EncryptionKey)
+	secretsService := settings.NewSecretsService(db, 	cfg.EncryptionKeyBytes)
 	m.Service = secretsService
 
 	userSettingsHandler := NewUserSettingsHandler(db, customSettingsService)

@@ -214,3 +214,56 @@ func DecryptWithBytesKey(ciphertext string, key []byte) (string, error) {
 
 	return string(plaintext), nil
 }
+
+// EncryptIfNotEmptyWithBytesKey encrypts the value only if it's non-empty using a []byte key.
+// Returns empty string for empty input.
+func EncryptIfNotEmptyWithBytesKey(plaintext string, key []byte) (string, error) {
+	if plaintext == "" {
+		return "", nil
+	}
+	return EncryptWithBytesKey(plaintext, key)
+}
+
+// DecryptIfNotEmptyWithBytesKey decrypts the value only if it's non-empty using a []byte key.
+// Returns empty string for empty input.
+func DecryptIfNotEmptyWithBytesKey(ciphertext string, key []byte) (string, error) {
+	if ciphertext == "" {
+		return "", nil
+	}
+	return DecryptWithBytesKey(ciphertext, key)
+}
+
+// DeriveUserKeyWithBytesKey derives a user-specific encryption key from a []byte master key using HKDF.
+// Returns []byte instead of string so callers can zero the derived key after use.
+func DeriveUserKeyWithBytesKey(masterKey []byte, userID, purpose string) ([]byte, error) {
+	if len(masterKey) != 32 {
+		return nil, ErrInvalidKey
+	}
+
+	hkdfReader := hkdf.New(sha256.New, masterKey, []byte(userID), []byte(purpose))
+
+	derivedKey := make([]byte, 32)
+	if _, err := io.ReadFull(hkdfReader, derivedKey); err != nil {
+		return nil, fmt.Errorf("failed to derive user key: %w", err)
+	}
+
+	return derivedKey, nil
+}
+
+// ValidateKeyWithBytes checks if the key is valid for AES-256 encryption.
+func ValidateKeyWithBytes(key []byte) error {
+	if len(key) == 0 {
+		return errors.New("encryption key is not set")
+	}
+	if len(key) != 32 {
+		return ErrInvalidKey
+	}
+	return nil
+}
+
+// ZeroBytes zeros a byte slice by filling it with zeroes.
+func ZeroBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+}

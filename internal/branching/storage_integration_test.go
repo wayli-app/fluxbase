@@ -24,7 +24,7 @@ func TestStorage_CreateBranch_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	t.Run("creates branch successfully", func(t *testing.T) {
 		branch := &Branch{
@@ -70,7 +70,7 @@ func TestStorage_GetBranch_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	// Create test branch
 	branchID := uuid.New()
@@ -113,7 +113,7 @@ func TestStorage_GetBranchBySlug_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	// Create test branch
 	slug := fmt.Sprintf("slug-test-branch-%s", uuid.New().String())
@@ -152,7 +152,7 @@ func TestStorage_UpdateBranchStatus_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	// Create test branch
 	branch := &Branch{
@@ -198,7 +198,7 @@ func TestStorage_DeleteBranch_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	// Create test branch
 	branch := &Branch{
@@ -229,7 +229,7 @@ func TestStorage_CountBranches_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	t.Run("counts all branches", func(t *testing.T) {
 		count, err := storage.CountBranches(context.Background(), ListBranchesFilter{})
@@ -252,7 +252,7 @@ func TestStorage_Transaction_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	t.Run("executes transaction successfully", func(t *testing.T) {
 		err := storage.Transaction(context.Background(), func(tx pgx.Tx) error {
@@ -279,7 +279,7 @@ func TestStorage_Helpers_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	t.Run("gets pool", func(t *testing.T) {
 		pool := storage.GetPool()
@@ -298,7 +298,7 @@ func TestStorage_SetBranchExpiresAt_Integration(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), storageTestEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(storageTestEncryptionKey))
 
 	// Create test branch
 	branch := &Branch{

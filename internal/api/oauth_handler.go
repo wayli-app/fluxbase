@@ -32,19 +32,19 @@ type OAuthHandler struct {
 	stateStore      *auth.StateStore
 	logoutService   *auth.OAuthLogoutService
 	baseURL         string
-	encryptionKey   string                       // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
+	encryptionKey   []byte                       // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
 	configProviders []config.OAuthProviderConfig // OAuth providers from config file
 	stopCleanup     chan struct{}                // Signal to stop cleanup goroutines
 	stopped         int32                        // Atomic flag to prevent double-close (0=running, 1=stopped)
 }
 
 // NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL, encryptionKey string, configProviders []config.OAuthProviderConfig) *OAuthHandler {
+func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL string, encryptionKey []byte, configProviders []config.OAuthProviderConfig) *OAuthHandler {
 	stateStore := auth.NewStateStore()
 
 	// SECURITY: Validate encryption key for OAuth token storage
 	// OAuth tokens (refresh tokens especially) are sensitive credentials that should be encrypted at rest
-	if encryptionKey == "" {
+	if len(encryptionKey) == 0 {
 		log.Error().Msg("SECURITY WARNING: FLUXBASE_ENCRYPTION_KEY not set - OAuth tokens will be stored UNENCRYPTED in database. " +
 			"Set a 32-byte encryption key in production to protect OAuth refresh tokens.")
 	} else if len(encryptionKey) != 32 {
@@ -53,7 +53,7 @@ func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager 
 			Int("required_length", 32).
 			Msg("SECURITY WARNING: FLUXBASE_ENCRYPTION_KEY must be exactly 32 bytes for AES-256 - OAuth tokens will be stored UNENCRYPTED. " +
 				"Fix the key length to enable encryption.")
-		encryptionKey = "" // Clear invalid key
+		encryptionKey = nil // Clear invalid key
 	}
 
 	// Create logout service
@@ -477,7 +477,7 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 
 	// Decrypt client secret if encrypted
 	if isEncrypted && clientSecret != "" {
-		decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+		decryptedSecret, decErr := crypto.DecryptWithBytesKey(clientSecret, h.encryptionKey)
 		if decErr != nil {
 			log.Error().Err(decErr).Str("provider", providerName).Msg("Failed to decrypt client secret")
 			return nil, fmt.Errorf("failed to decrypt client secret for provider '%s'", providerName)
@@ -657,17 +657,17 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 			idTokenToStore = idTokenRaw
 		}
 
-		if h.encryptionKey != "" {
+		if len(h.encryptionKey) > 0 {
 			var encErr error
-			accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.AccessToken, h.encryptionKey)
+			accessTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(token.AccessToken, h.encryptionKey)
 			if encErr != nil {
 				return fmt.Errorf("failed to encrypt access token: %w", encErr)
 			}
-			refreshTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.RefreshToken, h.encryptionKey)
+			refreshTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(token.RefreshToken, h.encryptionKey)
 			if encErr != nil {
 				return fmt.Errorf("failed to encrypt refresh token: %w", encErr)
 			}
-			idTokenToStore, encErr = crypto.EncryptIfNotEmpty(idTokenToStore, h.encryptionKey)
+			idTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(idTokenToStore, h.encryptionKey)
 			if encErr != nil {
 				return fmt.Errorf("failed to encrypt id token: %w", encErr)
 			}
@@ -769,8 +769,8 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	// Decrypt client secret if encrypted
 	clientSecretDecrypted := ""
 	if clientSecret != nil && *clientSecret != "" {
-		if isEncrypted && h.encryptionKey != "" {
-			decrypted, err := crypto.Decrypt(*clientSecret, h.encryptionKey)
+		if isEncrypted && len(h.encryptionKey) > 0 {
+			decrypted, err := crypto.DecryptWithBytesKey(*clientSecret, h.encryptionKey)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to decrypt client secret for logout")
 			} else {
@@ -799,8 +799,8 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	if storedToken != nil && revocationEndpoint != nil && *revocationEndpoint != "" {
 		// Decrypt access token if encrypted
 		accessToken := storedToken.AccessToken
-		if h.encryptionKey != "" && accessToken != "" {
-			decrypted, err := crypto.Decrypt(accessToken, h.encryptionKey)
+		if len(h.encryptionKey) > 0 && accessToken != "" {
+			decrypted, err := crypto.DecryptWithBytesKey(accessToken, h.encryptionKey)
 			if err == nil {
 				accessToken = decrypted
 			}
@@ -841,8 +841,8 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 				if storedToken != nil && storedToken.IDToken != "" {
 					idToken = storedToken.IDToken
 					// Decrypt if encrypted
-					if h.encryptionKey != "" {
-						decrypted, err := crypto.Decrypt(idToken, h.encryptionKey)
+					if len(h.encryptionKey) > 0 {
+						decrypted, err := crypto.DecryptWithBytesKey(idToken, h.encryptionKey)
 						if err == nil {
 							idToken = decrypted
 						}
@@ -987,9 +987,9 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 	refreshToken := storedToken.RefreshToken
 	idToken := storedToken.IDToken
 
-	if h.encryptionKey != "" {
+	if len(h.encryptionKey) > 0 {
 		if accessToken != "" {
-			decrypted, decErr := crypto.Decrypt(accessToken, h.encryptionKey)
+			decrypted, decErr := crypto.DecryptWithBytesKey(accessToken, h.encryptionKey)
 			if decErr == nil {
 				accessToken = decrypted
 			} else {
@@ -997,13 +997,13 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 			}
 		}
 		if refreshToken != "" {
-			decrypted, decErr := crypto.Decrypt(refreshToken, h.encryptionKey)
+			decrypted, decErr := crypto.DecryptWithBytesKey(refreshToken, h.encryptionKey)
 			if decErr == nil {
 				refreshToken = decrypted
 			}
 		}
 		if idToken != "" {
-			decrypted, decErr := crypto.Decrypt(idToken, h.encryptionKey)
+			decrypted, decErr := crypto.DecryptWithBytesKey(idToken, h.encryptionKey)
 			if decErr == nil {
 				idToken = decrypted
 			}
@@ -1045,19 +1045,19 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 				refreshTokenToStore := newToken.RefreshToken
 				idTokenToStore := idToken
 
-				if h.encryptionKey != "" {
+				if len(h.encryptionKey) > 0 {
 					var encErr error
-					accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(newToken.AccessToken, h.encryptionKey)
+					accessTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(newToken.AccessToken, h.encryptionKey)
 					if encErr != nil {
 						log.Warn().Err(encErr).Str("provider", providerName).Msg("Failed to encrypt refreshed access token")
 						return
 					}
-					refreshTokenToStore, encErr = crypto.EncryptIfNotEmpty(newToken.RefreshToken, h.encryptionKey)
+					refreshTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(newToken.RefreshToken, h.encryptionKey)
 					if encErr != nil {
 						log.Warn().Err(encErr).Str("provider", providerName).Msg("Failed to encrypt refreshed refresh token")
 						return
 					}
-					idTokenToStore, encErr = crypto.EncryptIfNotEmpty(idTokenToStore, h.encryptionKey)
+					idTokenToStore, encErr = crypto.EncryptIfNotEmptyWithBytesKey(idTokenToStore, h.encryptionKey)
 					if encErr != nil {
 						log.Warn().Err(encErr).Str("provider", providerName).Msg("Failed to encrypt refreshed id token")
 						return
@@ -1142,7 +1142,7 @@ func (h *OAuthHandler) getProviderConfigForToken(ctx context.Context, providerNa
 	}
 
 	if isEncrypted && clientSecret != "" {
-		decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+		decryptedSecret, decErr := crypto.DecryptWithBytesKey(clientSecret, h.encryptionKey)
 		if decErr != nil {
 			log.Error().Err(decErr).Str("provider", providerName).Msg("Failed to decrypt client secret")
 			return nil, fmt.Errorf("failed to decrypt client secret for provider '%s'", providerName)

@@ -62,7 +62,7 @@ type cachedSetting struct {
 type UnifiedService struct {
 	database.TenantAware
 	config             *config.Config
-	encryptionKey      string
+	encryptionKey      []byte
 	tenantConfigLoader *config.TenantConfigLoader
 	cache              map[string]map[string]*cachedSetting // tenantID -> path -> setting
 	overridable        map[string]bool                      // cached overridable settings
@@ -71,7 +71,7 @@ type UnifiedService struct {
 }
 
 // NewUnifiedService creates a new unified settings service
-func NewUnifiedService(db *database.Connection, cfg *config.Config, encryptionKey string) *UnifiedService {
+func NewUnifiedService(db *database.Connection, cfg *config.Config, encryptionKey []byte) *UnifiedService {
 	return &UnifiedService{
 		TenantAware:   database.TenantAware{DB: db},
 		config:        cfg,
@@ -491,10 +491,10 @@ func (s *UnifiedService) SetInstanceSetting(ctx context.Context, path string, va
 
 	// Encrypt if secret
 	if isSecret {
-		if s.encryptionKey == "" {
+		if len(s.encryptionKey) == 0 {
 			return ErrSecretKeyRequired
 		}
-		encrypted, err := crypto.Encrypt(fmt.Sprintf("%v", value), s.encryptionKey)
+		encrypted, err := crypto.EncryptWithBytesKey(fmt.Sprintf("%v", value), s.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt secret value: %w", err)
 		}
@@ -589,10 +589,10 @@ func (s *UnifiedService) SetTenantSetting(ctx context.Context, tenantID, path st
 
 	// Encrypt if secret
 	if isSecret {
-		if s.encryptionKey == "" {
+		if len(s.encryptionKey) == 0 {
 			return ErrSecretKeyRequired
 		}
-		encrypted, err := crypto.Encrypt(fmt.Sprintf("%v", value), s.encryptionKey)
+		encrypted, err := crypto.EncryptWithBytesKey(fmt.Sprintf("%v", value), s.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt secret value: %w", err)
 		}
@@ -948,11 +948,11 @@ func (s *UnifiedService) InvalidateCache(tenantID, path string) {
 
 // DecryptSecret decrypts an encrypted secret value
 func (s *UnifiedService) DecryptSecret(encryptedValue string) (string, error) {
-	if s.encryptionKey == "" {
+	if len(s.encryptionKey) == 0 {
 		return "", ErrSecretKeyRequired
 	}
 
-	decrypted, err := crypto.Decrypt(encryptedValue, s.encryptionKey)
+	decrypted, err := crypto.DecryptWithBytesKey(encryptedValue, s.encryptionKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt: %w", err)
 	}

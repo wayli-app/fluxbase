@@ -192,7 +192,7 @@ func TestSecretsHandler_ListSecrets_Integration(t *testing.T) {
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
 	// Setup: create test secrets via storage
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	globalSecret := &secrets.Secret{Name: "GLOBAL_LIST_TEST", Scope: "global"}
@@ -259,7 +259,7 @@ func TestSecretsHandler_GetSecret_Integration(t *testing.T) {
 	uniqueEmail := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("get existing secret", func(t *testing.T) {
@@ -303,7 +303,7 @@ func TestSecretsHandler_UpdateSecret_Integration(t *testing.T) {
 	uniqueEmail := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("update secret value", func(t *testing.T) {
@@ -399,7 +399,7 @@ func TestSecretsHandler_DeleteSecret_Integration(t *testing.T) {
 	uniqueEmail := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("delete existing secret", func(t *testing.T) {
@@ -446,7 +446,7 @@ func TestSecretsHandler_GetVersions_Integration(t *testing.T) {
 	uniqueEmail := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("get version history", func(t *testing.T) {
@@ -491,7 +491,7 @@ func TestSecretsHandler_Rollback_Integration(t *testing.T) {
 	uniqueEmail := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("rollback to previous version", func(t *testing.T) {
@@ -541,7 +541,7 @@ func TestSecretsHandler_GetStats_Integration(t *testing.T) {
 	uniqueEmail := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	// Clean up existing secrets
@@ -599,7 +599,7 @@ func TestSecretsHandler_Expiration_Integration(t *testing.T) {
 	uniqueEmail := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 	_, token := createTestUserWithToken(t, tc, uniqueEmail, "password123")
 
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 	storage := secrets.NewStorage(tc.DB, encryptionKey)
 
 	t.Run("expired secret is marked in list", func(t *testing.T) {
@@ -638,7 +638,7 @@ func setupSecretsApp(t *testing.T, tc *testutil.IntegrationTestContext) *fiber.A
 	db := tc.DB
 
 	// Create encryption key (32 bytes for AES-256)
-	encryptionKey := "12345678901234567890123456789012"
+	encryptionKey := []byte("12345678901234567890123456789012")
 
 	// Create storage
 	storage := secrets.NewStorage(db, encryptionKey)

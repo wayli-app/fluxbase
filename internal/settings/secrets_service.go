@@ -26,11 +26,10 @@ var (
 // and custom handlers. It should NEVER be exposed via API endpoints.
 type SecretsService struct {
 	database.TenantAware
-	encryptionKey string
+	encryptionKey []byte
 }
 
-// NewSecretsService creates a new secrets service for server-side decryption
-func NewSecretsService(db *database.Connection, encryptionKey string) *SecretsService {
+func NewSecretsService(db *database.Connection, encryptionKey []byte) *SecretsService {
 	return &SecretsService{TenantAware: database.TenantAware{DB: db}, encryptionKey: encryptionKey}
 }
 
@@ -54,13 +53,13 @@ func (s *SecretsService) GetUserSecret(ctx context.Context, userID uuid.UUID, ke
 	}
 
 	// Derive user-specific key
-	derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, userID)
+	derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 	if err != nil {
 		return "", fmt.Errorf("failed to derive user key: %w", err)
 	}
 
 	// Decrypt
-	plaintext, err := crypto.Decrypt(encryptedValue, derivedKey)
+	plaintext, err := crypto.DecryptWithBytesKey(encryptedValue, derivedKey)
 	if err != nil {
 		return "", ErrDecryptionFailed
 	}
@@ -88,7 +87,7 @@ func (s *SecretsService) GetSystemSecret(ctx context.Context, key string) (strin
 	}
 
 	// Use master key for system secrets
-	plaintext, err := crypto.Decrypt(encryptedValue, s.encryptionKey)
+	plaintext, err := crypto.DecryptWithBytesKey(encryptedValue, s.encryptionKey)
 	if err != nil {
 		return "", ErrDecryptionFailed
 	}
@@ -112,7 +111,7 @@ func (s *SecretsService) GetUserSecrets(ctx context.Context, userID uuid.UUID) (
 		defer rows.Close()
 
 		// Derive user-specific key once
-		derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, userID)
+		derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 		if err != nil {
 			return fmt.Errorf("failed to derive user key: %w", err)
 		}
@@ -123,7 +122,7 @@ func (s *SecretsService) GetUserSecrets(ctx context.Context, userID uuid.UUID) (
 				return err
 			}
 
-			plaintext, err := crypto.Decrypt(encryptedValue, derivedKey)
+			plaintext, err := crypto.DecryptWithBytesKey(encryptedValue, derivedKey)
 			if err != nil {
 				// Log warning but continue with other secrets
 				continue
@@ -162,7 +161,7 @@ func (s *SecretsService) GetSystemSecrets(ctx context.Context) (map[string]strin
 				return err
 			}
 
-			plaintext, err := crypto.Decrypt(encryptedValue, s.encryptionKey)
+			plaintext, err := crypto.DecryptWithBytesKey(encryptedValue, s.encryptionKey)
 			if err != nil {
 				// Log warning but continue with other secrets
 				continue
@@ -184,7 +183,7 @@ func (s *SecretsService) GetSystemSecrets(ctx context.Context) (map[string]strin
 // This encrypts the value and stores it in the database.
 func (s *SecretsService) SetSystemSecret(ctx context.Context, key, value, description string) error {
 	// Encrypt with master key for system secrets
-	encryptedValue, err := crypto.Encrypt(value, s.encryptionKey)
+	encryptedValue, err := crypto.EncryptWithBytesKey(value, s.encryptionKey)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt secret: %w", err)
 	}
@@ -210,13 +209,13 @@ func (s *SecretsService) SetSystemSecret(ctx context.Context, key, value, descri
 // This encrypts the value with a user-derived key and stores it in the database.
 func (s *SecretsService) SetUserSecret(ctx context.Context, userID uuid.UUID, key, value, description string) error {
 	// Derive user-specific key
-	derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, userID)
+	derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 	if err != nil {
 		return fmt.Errorf("failed to derive user key: %w", err)
 	}
 
 	// Encrypt with user-derived key
-	encryptedValue, err := crypto.Encrypt(value, derivedKey)
+	encryptedValue, err := crypto.EncryptWithBytesKey(value, derivedKey)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt secret: %w", err)
 	}
@@ -308,11 +307,11 @@ func (s *SecretsService) GetUserSetting(ctx context.Context, userID uuid.UUID, k
 
 	if isSecret && encryptedValue != nil {
 		// Derive user-specific key and decrypt
-		derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, userID)
+		derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 		if err != nil {
 			return "", fmt.Errorf("failed to derive user key: %w", err)
 		}
-		return crypto.Decrypt(*encryptedValue, derivedKey)
+		return crypto.DecryptWithBytesKey(*encryptedValue, derivedKey)
 	}
 
 	// For non-secrets, extract string value from JSONB
@@ -342,7 +341,7 @@ func (s *SecretsService) GetSystemSetting(ctx context.Context, key string) (stri
 
 	if isSecret && encryptedValue != nil {
 		// Use master key for system secrets
-		return crypto.Decrypt(*encryptedValue, s.encryptionKey)
+		return crypto.DecryptWithBytesKey(*encryptedValue, s.encryptionKey)
 	}
 
 	// For non-secrets, extract string value from JSONB
@@ -365,7 +364,7 @@ func (s *SecretsService) GetAllUserSettings(ctx context.Context, userID uuid.UUI
 		defer rows.Close()
 
 		// Derive user-specific key once for all secrets
-		derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, userID)
+		derivedKey, err := crypto.DeriveUserKeyWithBytesKey(s.encryptionKey, userID.String(), "fluxbase-user-settings-v1")
 		if err != nil {
 			return fmt.Errorf("failed to derive user key: %w", err)
 		}
@@ -381,7 +380,7 @@ func (s *SecretsService) GetAllUserSettings(ctx context.Context, userID uuid.UUI
 			}
 
 			if isSecret && encryptedValue != nil {
-				plaintext, err := crypto.Decrypt(*encryptedValue, derivedKey)
+				plaintext, err := crypto.DecryptWithBytesKey(*encryptedValue, derivedKey)
 				if err != nil {
 					// Skip settings that fail to decrypt
 					continue
@@ -427,7 +426,7 @@ func (s *SecretsService) GetAllSystemSettings(ctx context.Context) (map[string]s
 			}
 
 			if isSecret && encryptedValue != nil {
-				plaintext, err := crypto.Decrypt(*encryptedValue, s.encryptionKey)
+				plaintext, err := crypto.DecryptWithBytesKey(*encryptedValue, s.encryptionKey)
 				if err != nil {
 					// Skip settings that fail to decrypt
 					continue

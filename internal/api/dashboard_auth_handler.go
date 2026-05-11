@@ -37,7 +37,7 @@ type DashboardAuthHandler struct {
 	samlService   *auth.SAMLService
 	emailService  email.Service
 	baseURL       string
-	encryptionKey string
+	encryptionKey []byte
 	oauthHandler  *OAuthHandler // Reference to app OAuth handler for state validation
 
 	// OAuth state storage (in production, use Redis or database)
@@ -56,7 +56,7 @@ type dashboardOAuthState struct {
 }
 
 // NewDashboardAuthHandler creates a new dashboard auth handler
-func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, emailService email.Service, baseURL, encryptionKey string, oauthHandler *OAuthHandler) *DashboardAuthHandler {
+func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, emailService email.Service, baseURL string, encryptionKey []byte, oauthHandler *OAuthHandler) *DashboardAuthHandler {
 	return &DashboardAuthHandler{
 		authService:   authService,
 		jwtManager:    jwtManager,
@@ -888,7 +888,7 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c fiber.Ctx) error {
 
 	// Decrypt client secret if encrypted
 	if isEncrypted && clientSecret != "" {
-		decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+		decryptedSecret, decErr := crypto.DecryptWithBytesKey(clientSecret, h.encryptionKey)
 		if decErr != nil {
 			log.Error().Err(decErr).Str("provider", providerName).Msg("Failed to decrypt client secret")
 			return SendInternalError(c, "Failed to decrypt client secret")

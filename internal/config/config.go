@@ -46,7 +46,8 @@ type Config struct {
 	// EncryptionKey is used to encrypt sensitive data stored in the database (e.g., client keys, credentials)
 	// Must be exactly 32 bytes for AES-256. Generate with: openssl rand -base64 32 | head -c 32
 	// Only required if you configure providers (Email, AI) through the admin dashboard instead of env vars
-	EncryptionKey string `mapstructure:"encryption_key"`
+	EncryptionKey      string `mapstructure:"encryption_key"`
+	EncryptionKeyBytes []byte
 }
 
 // AdminConfig contains admin dashboard settings
@@ -873,6 +874,7 @@ func (c *Config) Validate() error {
 	if len(c.EncryptionKey) != 32 {
 		return fmt.Errorf("encryption_key must be exactly 32 bytes for AES-256, got %d bytes", len(c.EncryptionKey))
 	}
+	c.EncryptionKeyBytes = []byte(c.EncryptionKey)
 
 	// Validate base URL
 	if c.BaseURL != "" {

@@ -20,10 +20,10 @@ import (
 type Storage struct {
 	database.TenantAware
 	pool          *pgxpool.Pool
-	encryptionKey string
+	encryptionKey []byte
 }
 
-func NewStorage(db *database.Connection, encryptionKey string) *Storage {
+func NewStorage(db *database.Connection, encryptionKey []byte) *Storage {
 	var pool *pgxpool.Pool
 	if db != nil {
 		pool = db.Pool()
@@ -690,7 +690,7 @@ func (s *Storage) GetGitHubConfig(ctx context.Context, repository string) (*GitH
 	}
 
 	if encryptedSecret != nil && *encryptedSecret != "" {
-		decrypted, err := crypto.Decrypt(*encryptedSecret, s.encryptionKey)
+		decrypted, err := crypto.DecryptWithBytesKey(*encryptedSecret, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt webhook secret: %w", err)
 		}
@@ -704,7 +704,7 @@ func (s *Storage) GetGitHubConfig(ctx context.Context, repository string) (*GitH
 func (s *Storage) UpsertGitHubConfig(ctx context.Context, config *GitHubConfig) error {
 	var encryptedSecret *string
 	if config.WebhookSecret != nil && *config.WebhookSecret != "" {
-		encrypted, err := crypto.Encrypt(*config.WebhookSecret, s.encryptionKey)
+		encrypted, err := crypto.EncryptWithBytesKey(*config.WebhookSecret, s.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt webhook secret: %w", err)
 		}
@@ -801,7 +801,7 @@ func (s *Storage) ListGitHubConfigs(ctx context.Context, tenantID *uuid.UUID) ([
 			}
 
 			if encryptedSecret != nil && *encryptedSecret != "" {
-				decrypted, err := crypto.Decrypt(*encryptedSecret, s.encryptionKey)
+				decrypted, err := crypto.DecryptWithBytesKey(*encryptedSecret, s.encryptionKey)
 				if err != nil {
 					return fmt.Errorf("failed to decrypt webhook secret: %w", err)
 				}

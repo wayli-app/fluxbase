@@ -702,6 +702,7 @@ func (l *TenantConfigLoader) deepCopyConfig(base *Config) *Config {
 	cpy.PublicBaseURL = base.PublicBaseURL
 	cpy.Debug = base.Debug
 	cpy.EncryptionKey = base.EncryptionKey
+	cpy.EncryptionKeyBytes = base.EncryptionKeyBytes
 
 	// Deep copy overridable sections
 	cpy.Auth = *DeepCopyAuthConfig(&base.Auth)

@@ -21,7 +21,7 @@ import (
 
 func TestNewOAuthHandler(t *testing.T) {
 	t.Run("creates handler with valid encryption key", func(t *testing.T) {
-		validKey := "12345678901234567890123456789012" // 32 bytes
+		validKey := []byte("12345678901234567890123456789012")
 		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", validKey, nil)
 		defer handler.Stop()
 
@@ -33,8 +33,7 @@ func TestNewOAuthHandler(t *testing.T) {
 	})
 
 	t.Run("creates handler with empty encryption key", func(t *testing.T) {
-		// Should warn but still create handler
-		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 		defer handler.Stop()
 
 		assert.NotNil(t, handler)
@@ -42,8 +41,7 @@ func TestNewOAuthHandler(t *testing.T) {
 	})
 
 	t.Run("clears invalid encryption key", func(t *testing.T) {
-		// Key must be exactly 32 bytes for AES-256
-		invalidKey := "short-key"
+		invalidKey := []byte("short-key")
 		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", invalidKey, nil)
 		defer handler.Stop()
 
@@ -52,7 +50,7 @@ func TestNewOAuthHandler(t *testing.T) {
 	})
 
 	t.Run("creates handler with nil dependencies", func(t *testing.T) {
-		handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+		handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 		defer handler.Stop()
 		assert.NotNil(t, handler)
 	})
@@ -63,7 +61,7 @@ func TestNewOAuthHandler(t *testing.T) {
 // =============================================================================
 
 func TestExtractEmail(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	tests := []struct {
@@ -146,7 +144,7 @@ func TestExtractEmail(t *testing.T) {
 // =============================================================================
 
 func TestExtractProviderUserID(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	tests := []struct {
@@ -233,7 +231,7 @@ func TestExtractProviderUserID(t *testing.T) {
 // =============================================================================
 
 func TestGetStandardEndpoint(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	t.Run("Google provider", func(t *testing.T) {
@@ -282,7 +280,7 @@ func TestGetStandardEndpoint(t *testing.T) {
 
 func TestOAuthHandler_Callback_Validation(t *testing.T) {
 	app := fiber.New()
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	app.Get("/api/v1/auth/oauth/:provider/callback", handler.Callback)
@@ -342,7 +340,7 @@ func TestOAuthHandler_Callback_Validation(t *testing.T) {
 
 func TestOAuthHandler_Logout_Validation(t *testing.T) {
 	app := fiber.New()
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	app.Post("/api/v1/auth/oauth/:provider/logout", handler.Logout)
@@ -383,7 +381,7 @@ func TestOAuthHandler_Logout_Validation(t *testing.T) {
 
 func TestOAuthHandler_LogoutCallback_Validation(t *testing.T) {
 	app := fiber.New()
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	app.Get("/api/v1/auth/oauth/:provider/logout/callback", handler.LogoutCallback)
@@ -410,7 +408,7 @@ func TestOAuthHandler_LogoutCallback_Validation(t *testing.T) {
 // =============================================================================
 
 func TestOAuthHandler_GetAndValidateState(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	t.Run("valid state returns metadata", func(t *testing.T) {
@@ -505,7 +503,7 @@ func TestOAuth2ConfigConstruction(t *testing.T) {
 // =============================================================================
 
 func TestOAuthHandler_StateStoreIntegration(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	t.Run("multiple states can be stored", func(t *testing.T) {
@@ -560,7 +558,7 @@ func TestOAuthHandler_StateStoreIntegration(t *testing.T) {
 
 func TestOAuthHandler_ErrorDescriptionExtraction(t *testing.T) {
 	app := fiber.New()
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	app.Get("/api/v1/auth/oauth/:provider/callback", handler.Callback)
@@ -613,7 +611,7 @@ func TestOAuthHandler_ErrorDescriptionExtraction(t *testing.T) {
 // =============================================================================
 
 func BenchmarkExtractEmail(b *testing.B) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 	userInfo := map[string]interface{}{
 		"email": "user@example.com",
@@ -627,7 +625,7 @@ func BenchmarkExtractEmail(b *testing.B) {
 }
 
 func BenchmarkExtractProviderUserID(b *testing.B) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 	userInfo := map[string]interface{}{
 		"email": "user@example.com",
@@ -640,7 +638,7 @@ func BenchmarkExtractProviderUserID(b *testing.B) {
 }
 
 func BenchmarkGetStandardEndpoint(b *testing.B) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	for i := 0; i < b.N; i++ {
@@ -649,7 +647,7 @@ func BenchmarkGetStandardEndpoint(b *testing.B) {
 }
 
 func BenchmarkGenerateAndValidateState(b *testing.B) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	for i := 0; i < b.N; i++ {
@@ -669,7 +667,7 @@ func BenchmarkGenerateAndValidateState(b *testing.B) {
 
 func TestNewOAuthHandler_Stop(t *testing.T) {
 	t.Run("stop prevents double-close", func(t *testing.T) {
-		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 		defer handler.Stop()
 
 		// First stop should work
@@ -698,7 +696,7 @@ func TestNewOAuthHandler_Stop(t *testing.T) {
 }
 
 func TestExtractEmail_EdgeCases(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	tests := []struct {
@@ -774,7 +772,7 @@ func TestExtractEmail_EdgeCases(t *testing.T) {
 }
 
 func TestExtractProviderUserID_EdgeCases(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	tests := []struct {
@@ -843,7 +841,7 @@ func TestExtractProviderUserID_EdgeCases(t *testing.T) {
 }
 
 func TestGetStandardEndpoint_AllProviders(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 
 	providers := []string{
@@ -872,7 +870,7 @@ func TestGetStandardEndpoint_AllProviders(t *testing.T) {
 
 func TestOAuthHandler_Callback_MultipleErrorScenarios(t *testing.T) {
 	app := fiber.New()
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	app.Get("/api/v1/auth/oauth/:provider/callback", handler.Callback)
@@ -920,7 +918,7 @@ func TestOAuthHandler_Callback_MultipleErrorScenarios(t *testing.T) {
 }
 
 func TestOAuthHandler_StateStoreIntegration_Concurrent(t *testing.T) {
-	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 	defer handler.Stop()
 
 	t.Run("concurrent state operations", func(t *testing.T) {
@@ -1004,7 +1002,7 @@ func TestOAuth2Config_EndpointVariations(t *testing.T) {
 }
 
 func TestOAuthHandler_HandlerProperties(t *testing.T) {
-	validKey := "12345678901234567890123456789012"
+	validKey := []byte("12345678901234567890123456789012")
 
 	handler := NewOAuthHandler(nil, nil, nil, "https://example.com", validKey, nil)
 	defer handler.Stop()
@@ -1022,7 +1020,7 @@ func TestOAuthHandler_HandlerProperties(t *testing.T) {
 // =============================================================================
 
 func BenchmarkExtractEmailVariousFormats(b *testing.B) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 	userInfos := []map[string]interface{}{
 		{"email": "user@example.com"},
@@ -1038,7 +1036,7 @@ func BenchmarkExtractEmailVariousFormats(b *testing.B) {
 }
 
 func BenchmarkExtractUserIDVariousFormats(b *testing.B) {
-	handler := NewOAuthHandler(nil, nil, nil, "", "", nil)
+	handler := NewOAuthHandler(nil, nil, nil, "", []byte(""), nil)
 	defer handler.Stop()
 	userInfos := []map[string]interface{}{
 		{"id": "12345"},
@@ -1055,7 +1053,7 @@ func BenchmarkExtractUserIDVariousFormats(b *testing.B) {
 
 func BenchmarkOAuthHandlerStop(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", "", nil)
+		handler := NewOAuthHandler(nil, nil, nil, "https://example.com", []byte(""), nil)
 		handler.Stop()
 	}
 }

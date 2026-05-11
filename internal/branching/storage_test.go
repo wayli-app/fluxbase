@@ -16,7 +16,7 @@ import (
 
 func TestNewStorage(t *testing.T) {
 	t.Run("creates storage with nil database", func(t *testing.T) {
-		storage := NewStorage(nil, "test-encryption-key-32-chars!")
+		storage := NewStorage(nil, []byte("test-encryption-key-32-chars!"))
 		assert.NotNil(t, storage)
 	})
 }

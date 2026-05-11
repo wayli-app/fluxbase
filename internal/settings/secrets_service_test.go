@@ -257,18 +257,17 @@ func TestExtractJSONStringValue_SecurityCases(t *testing.T) {
 func TestNewSecretsService(t *testing.T) {
 	t.Run("creates service with nil db", func(t *testing.T) {
 		// This tests the constructor doesn't panic
-		svc := NewSecretsService(nil, "encryption-key")
+		svc := NewSecretsService(nil, []byte("encryption-key"))
 		assert.NotNil(t, svc)
 	})
 
 	t.Run("creates service with empty key", func(t *testing.T) {
-		svc := NewSecretsService(nil, "")
+		svc := NewSecretsService(nil, []byte(""))
 		assert.NotNil(t, svc)
 	})
 
 	t.Run("creates service with valid key", func(t *testing.T) {
-		// Use a 32-byte key (256-bit)
-		key := "01234567890123456789012345678901"
+		key := []byte("01234567890123456789012345678901")
 		svc := NewSecretsService(nil, key)
 		assert.NotNil(t, svc)
 	})

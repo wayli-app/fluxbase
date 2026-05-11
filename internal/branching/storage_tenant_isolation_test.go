@@ -27,7 +27,7 @@ func TestStorage_TenantIsolation(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), tenantIsolationEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(tenantIsolationEncryptionKey))
 
 	tenantA := uuid.New()
 	tenantB := uuid.New()
@@ -101,7 +101,7 @@ func TestStorage_GetBranch_TenantFilter(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), tenantIsolationEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(tenantIsolationEncryptionKey))
 
 	tenantA := uuid.New()
 	tenantB := uuid.New()
@@ -201,7 +201,7 @@ func TestStorage_InstanceLevelBranch(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), tenantIsolationEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(tenantIsolationEncryptionKey))
 
 	slug := fmt.Sprintf("instance-branch-%s", uuid.New().String()[:8])
 	branch := &Branch{
@@ -256,7 +256,7 @@ func TestStorage_DeleteBranch_TenantFilter(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), tenantIsolationEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(tenantIsolationEncryptionKey))
 
 	tenantA := uuid.New()
 	tenantB := uuid.New()
@@ -339,7 +339,7 @@ func TestStorage_ListBranches_TenantFilter(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), tenantIsolationEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(tenantIsolationEncryptionKey))
 
 	tenantA := uuid.New()
 	tenantB := uuid.New()
@@ -434,7 +434,7 @@ func TestStorage_CountBranches_TenantFilter(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), tenantIsolationEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(tenantIsolationEncryptionKey))
 
 	tenantA := uuid.New()
 	tenantB := uuid.New()
@@ -510,7 +510,7 @@ func TestStorage_CountBranchesByTenant(t *testing.T) {
 	testCtx := dbhelpers.NewDBTestContext(t)
 	defer testCtx.Close()
 
-	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), tenantIsolationEncryptionKey)
+	storage := NewStorage(database.NewConnectionWithPool(testCtx.Pool), []byte(tenantIsolationEncryptionKey))
 
 	tenantID := uuid.New()
 
