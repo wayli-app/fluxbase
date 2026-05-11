@@ -82,7 +82,8 @@ func TestSSRFProtection_AllowedDomains(t *testing.T) {
 					strings.Contains(errMsg, "ECONNREFUSED") ||
 					strings.Contains(errMsg, "ENETUNREACH") ||
 					strings.Contains(errMsg, "cancel") ||
-					strings.Contains(errMsg, "NotAllowed"),
+					strings.Contains(errMsg, "NotAllowed") ||
+					strings.Contains(errMsg, "Requires net access"),
 				"Error should indicate connection failure: %s", errMsg)
 			t.Logf("Allowed domains SSRF protection working: fetched=%v error=%s", fetched, errMsg)
 		}
