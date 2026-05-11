@@ -323,7 +323,7 @@ func TestHandleWebhook_BranchingDisabled(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "branching_disabled", result["error"])
+	assert.Equal(t, "BRANCHING_DISABLED", result["code"])
 }
 
 func TestHandleWebhook_MissingEventHeader(t *testing.T) {
@@ -351,7 +351,7 @@ func TestHandleWebhook_MissingEventHeader(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "missing_event", result["error"])
+	assert.Equal(t, "MISSING_EVENT", result["code"])
 }
 
 func TestHandleWebhook_InvalidPayload(t *testing.T) {
@@ -378,7 +378,7 @@ func TestHandleWebhook_InvalidPayload(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "invalid_payload", result["error"])
+	assert.Equal(t, "INVALID_PAYLOAD", result["code"])
 }
 
 func TestHandleWebhook_MissingRepository(t *testing.T) {
@@ -407,7 +407,7 @@ func TestHandleWebhook_MissingRepository(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "missing_repository", result["error"])
+	assert.Equal(t, "MISSING_REPOSITORY", result["code"])
 }
 
 // =============================================================================

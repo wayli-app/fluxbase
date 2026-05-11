@@ -45,7 +45,7 @@ func NewOAuthProviderHandler(db *database.Connection, settingsCache *auth.Settin
 
 func (h *OAuthProviderHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return SendNotInitialized(c, "Database")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Database not initialized")
 	}
 	return nil
 }

@@ -683,7 +683,7 @@ func TestDashboardAuthHandler_InitiateSAMLLogin_SAMLNotConfigured(t *testing.T) 
 	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
-	assert.Contains(t, string(body), "NOT_INITIALIZED")
+	assert.Contains(t, string(body), "not initialized")
 }
 
 func TestDashboardAuthHandler_SAMLACSCallback_SAMLNotConfigured(t *testing.T) {
@@ -699,7 +699,7 @@ func TestDashboardAuthHandler_SAMLACSCallback_SAMLNotConfigured(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 }
 
 func TestDashboardAuthHandler_SAMLACSCallback_MissingResponse(t *testing.T) {
@@ -715,7 +715,7 @@ func TestDashboardAuthHandler_SAMLACSCallback_MissingResponse(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 }
 
 // =============================================================================

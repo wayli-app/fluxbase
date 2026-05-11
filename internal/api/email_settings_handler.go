@@ -46,7 +46,7 @@ func NewEmailSettingsHandler(
 
 func (h *EmailSettingsHandler) requireService(c fiber.Ctx) error {
 	if h.settingsService == nil || h.settingsCache == nil {
-		return SendNotInitialized(c, "Email settings service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Email settings service not initialized")
 	}
 	return nil
 }

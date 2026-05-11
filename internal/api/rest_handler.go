@@ -33,7 +33,7 @@ func NewRESTHandler(db *database.Connection, parser *QueryParser, schemaCache *d
 
 func (h *RESTHandler) requireSchemaCache(c fiber.Ctx) error {
 	if h.schemaCache == nil {
-		return SendInternalError(c, "Service not initialized")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Schema cache not initialized")
 	}
 	return nil
 }

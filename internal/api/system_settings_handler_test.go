@@ -403,10 +403,10 @@ func TestSystemSettingsInternalErrors(t *testing.T) {
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		body, _ := io.ReadAll(resp.Body)
-		assert.Contains(t, string(body), "NOT_INITIALIZED")
+		assert.Contains(t, string(body), "not initialized")
 	})
 
-	t.Run("delete setting with nil service returns 500", func(t *testing.T) {
+	t.Run("delete setting with nil service returns 503", func(t *testing.T) {
 		app := newTestApp(t)
 		handler := NewSystemSettingsHandler(nil, nil)
 		app.Delete("/settings/*", handler.DeleteSetting)
@@ -419,7 +419,7 @@ func TestSystemSettingsInternalErrors(t *testing.T) {
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		body, _ := io.ReadAll(resp.Body)
-		assert.Contains(t, string(body), "NOT_INITIALIZED")
+		assert.Contains(t, string(body), "not initialized")
 	})
 }
 

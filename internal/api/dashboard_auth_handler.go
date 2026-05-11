@@ -73,21 +73,21 @@ func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager 
 
 func (h *DashboardAuthHandler) requireAuthService(c fiber.Ctx) error {
 	if h.authService == nil {
-		return SendNotInitialized(c, "Auth service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Auth service not initialized")
 	}
 	return nil
 }
 
 func (h *DashboardAuthHandler) requireJWTManager(c fiber.Ctx) error {
 	if h.jwtManager == nil {
-		return SendNotInitialized(c, "JWT manager")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "JWT manager not initialized")
 	}
 	return nil
 }
 
 func (h *DashboardAuthHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return SendNotInitialized(c, "Database")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Database not initialized")
 	}
 	return nil
 }

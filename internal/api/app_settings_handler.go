@@ -29,7 +29,7 @@ func NewAppSettingsHandler(settingsService *auth.SystemSettingsService, settings
 
 func (h *AppSettingsHandler) requireService(c fiber.Ctx) error {
 	if h.settingsService == nil {
-		return SendNotInitialized(c, "Settings service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Settings service not initialized")
 	}
 	return nil
 }

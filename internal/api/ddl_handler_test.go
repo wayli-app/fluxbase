@@ -566,32 +566,52 @@ func TestDDLHandler_AddColumn_AllOptions(t *testing.T) {
 		{
 			name:       "nullable column",
 			body:       `{"name": "test_col", "type": "text", "nullable": true}`,
-			wantStatus: 500, // nil DB causes internal error after validation
+			wantStatus: fiber.StatusServiceUnavailable, // nil DB caught by guard
 		},
 		{
 			name:       "not nullable column",
 			body:       `{"name": "test_col", "type": "text", "nullable": false}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "with default value",
 			body:       `{"name": "test_col", "type": "text", "defaultValue": "default"}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "with NOW() default",
 			body:       `{"name": "created_at", "type": "timestamptz", "nullable": false, "defaultValue": "NOW()"}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
-			name:       "with gen_random_uuid() default",
-			body:       `{"name": "id", "type": "uuid", "nullable": false, "defaultValue": "gen_random_uuid()"}`,
-			wantStatus: 500,
+			name:       "with string default",
+			body:       `{"name": "status", "type": "text", "defaultValue": "'active'"}`,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "with current_timestamp default",
 			body:       `{"name": "created_at", "type": "timestamp", "nullable": false, "defaultValue": "current_timestamp"}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
+		},
+		{
+			name:       "with default value",
+			body:       `{"name": "test_col", "type": "text", "defaultValue": "default"}`,
+			wantStatus: fiber.StatusServiceUnavailable,
+		},
+		{
+			name:       "with NOW() default",
+			body:       `{"name": "created_at", "type": "timestamptz", "nullable": false, "defaultValue": "NOW()"}`,
+			wantStatus: fiber.StatusServiceUnavailable,
+		},
+		{
+			name:       "with gen_random_uuid() default",
+			body:       `{"name": "id", "type": "uuid", "nullable": false, "defaultValue": "gen_random_uuid()"}`,
+			wantStatus: fiber.StatusServiceUnavailable,
+		},
+		{
+			name:       "with current_timestamp default",
+			body:       `{"name": "created_at", "type": "timestamp", "nullable": false, "defaultValue": "current_timestamp"}`,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 	}
 
@@ -627,21 +647,21 @@ func TestDDLHandler_DropColumn_Params(t *testing.T) {
 			schema:     "public",
 			table:      "test_table",
 			column:     "test_column",
-			wantStatus: 500, // nil DB causes error after validation
+			wantStatus: fiber.StatusServiceUnavailable, // nil DB caught by guard
 		},
 		{
 			name:       "schema with underscores",
 			schema:     "my_schema",
 			table:      "my_table",
 			column:     "my_column",
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "schema with numbers",
 			schema:     "schema123",
 			table:      "table456",
 			column:     "column789",
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 	}
 
@@ -677,28 +697,28 @@ func TestDDLHandler_RenameTable_VariousNames(t *testing.T) {
 			schema:     "public",
 			table:      "old_table",
 			newName:    "new_table",
-			wantStatus: 500, // nil DB causes error after validation
+			wantStatus: fiber.StatusServiceUnavailable, // nil DB caught by guard
 		},
 		{
 			name:       "rename to name with underscores",
 			schema:     "public",
 			table:      "old",
 			newName:    "new_name_test",
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "rename to mixed case",
 			schema:     "public",
 			table:      "old",
 			newName:    "NewTable",
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "rename to name with numbers",
 			schema:     "public",
 			table:      "old",
 			newName:    "table123",
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 	}
 
@@ -892,42 +912,42 @@ func TestDDLHandler_NilDatabase(t *testing.T) {
 			method:     "POST",
 			url:        "/ddl/schemas",
 			body:       `{"name": "test"}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "CreateTable",
 			method:     "POST",
 			url:        "/ddl/tables",
 			body:       `{"schema": "public", "name": "test", "columns": [{"name": "id", "type": "uuid"}]}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "DeleteTable",
 			method:     "DELETE",
 			url:        "/ddl/tables/public/test_table",
 			body:       "",
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "AddColumn",
 			method:     "POST",
 			url:        "/ddl/tables/public/test_table/columns",
 			body:       `{"name": "col", "type": "text"}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "DropColumn",
 			method:     "DELETE",
 			url:        "/ddl/tables/public/test_table/columns/col",
 			body:       "",
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 		{
 			name:       "RenameTable",
 			method:     "PATCH",
 			url:        "/ddl/tables/public/test_table",
 			body:       `{"newName": "new_test"}`,
-			wantStatus: 500,
+			wantStatus: fiber.StatusServiceUnavailable,
 		},
 	}
 

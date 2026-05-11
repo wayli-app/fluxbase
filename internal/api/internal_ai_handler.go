@@ -29,14 +29,14 @@ func NewInternalAIHandler(aiStorage *ai.Storage, embeddingService *ai.EmbeddingS
 
 func (h *InternalAIHandler) requireAIStorage(c fiber.Ctx) error {
 	if h.aiStorage == nil {
-		return SendNotInitialized(c, "AI storage")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "AI storage not initialized")
 	}
 	return nil
 }
 
 func (h *InternalAIHandler) requireEmbeddingService(c fiber.Ctx) error {
 	if h.embeddingService == nil {
-		return SendNotInitialized(c, "Embedding service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Embedding service not initialized")
 	}
 	return nil
 }

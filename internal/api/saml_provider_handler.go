@@ -45,14 +45,14 @@ func NewSAMLProviderHandler(db *database.Connection, samlService *auth.SAMLServi
 
 func (h *SAMLProviderHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return SendNotInitialized(c, "Database")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Database not initialized")
 	}
 	return nil
 }
 
 func (h *SAMLProviderHandler) requireSAMLService(c fiber.Ctx) error {
 	if h.samlService == nil {
-		return SendNotInitialized(c, "SAML service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "SAML service not initialized")
 	}
 	return nil
 }

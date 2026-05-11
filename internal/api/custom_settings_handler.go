@@ -23,7 +23,7 @@ func NewCustomSettingsHandler(settingsService *settings.CustomSettingsService) *
 
 func (h *CustomSettingsHandler) requireService(c fiber.Ctx) error {
 	if h.settingsService == nil {
-		return SendNotInitialized(c, "Settings service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Settings service not initialized")
 	}
 	return nil
 }

@@ -28,7 +28,7 @@ func NewRealtimeAdminHandler(db *database.Connection) *RealtimeAdminHandler {
 
 func (h *RealtimeAdminHandler) requireService(c fiber.Ctx) error {
 	if h.db == nil {
-		return SendNotInitialized(c, "Database")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Database not initialized")
 	}
 	return nil
 }

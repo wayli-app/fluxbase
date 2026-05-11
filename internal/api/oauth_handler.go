@@ -109,21 +109,21 @@ func NewOAuthHandler(db *database.Connection, authSvc *auth.Service, jwtManager 
 
 func (h *OAuthHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return SendNotInitialized(c, "Database")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Database not initialized")
 	}
 	return nil
 }
 
 func (h *OAuthHandler) requireAuthService(c fiber.Ctx) error {
 	if h.authSvc == nil {
-		return SendNotInitialized(c, "Auth service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Auth service not initialized")
 	}
 	return nil
 }
 
 func (h *OAuthHandler) requireLogoutService(c fiber.Ctx) error {
 	if h.logoutService == nil {
-		return SendNotInitialized(c, "Logout service")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Logout service not initialized")
 	}
 	return nil
 }
