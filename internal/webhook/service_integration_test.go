@@ -22,7 +22,7 @@ func TestWebhookService_Deliver(t *testing.T) {
 	t.Run("deliver webhook with AllowPrivateIPs", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1, // Bypass SSRF protection for testing
+			allowPrivateIPs: true, // Bypass SSRF protection for testing
 		}
 
 		// Create test server
@@ -69,7 +69,7 @@ func TestWebhookService_Deliver(t *testing.T) {
 		secret := "test-secret-key"
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		receivedSignature := ""
@@ -112,7 +112,7 @@ func TestWebhookService_Deliver(t *testing.T) {
 	t.Run("deliver webhook with timeout", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		// Create server that delays response
@@ -144,7 +144,7 @@ func TestWebhookService_Deliver(t *testing.T) {
 	t.Run("deliver webhook handles error response", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +176,7 @@ func TestWebhookService_Deliver(t *testing.T) {
 	t.Run("deliver webhook with custom headers", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		receivedHeaders := make(map[string]string)
@@ -228,7 +228,7 @@ func TestWebhookService_ContextCancellation(t *testing.T) {
 	t.Run("context cancellation stops delivery", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -267,7 +267,7 @@ func TestWebhookService_ErrorHandling(t *testing.T) {
 	t.Run("invalid URL is rejected", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 0, // Enforce SSRF protection
+			allowPrivateIPs: false, // Enforce SSRF protection
 		}
 
 		webhook := &Webhook{
@@ -293,7 +293,7 @@ func TestWebhookService_ErrorHandling(t *testing.T) {
 	t.Run("connection error is propagated", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 100 * time.Millisecond},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		webhook := &Webhook{
@@ -324,7 +324,7 @@ func TestWebhookService_PayloadHandling(t *testing.T) {
 	t.Run("payload with old record", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		var receivedPayload WebhookPayload
@@ -364,7 +364,7 @@ func TestWebhookService_PayloadHandling(t *testing.T) {
 	t.Run("payload with complex JSON", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		var receivedPayload WebhookPayload
@@ -482,7 +482,7 @@ func TestWebhookService_SSRFProtection(t *testing.T) {
 	t.Run("SSRF protection blocks private IPs", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 0, // Enforce SSRF protection
+			allowPrivateIPs: false, // Enforce SSRF protection
 		}
 
 		// Use a test server that simulates being on a private IP
@@ -516,7 +516,7 @@ func TestWebhookService_SSRFProtection(t *testing.T) {
 	t.Run("SSRF protection allows public IPs when AllowPrivateIPs is true", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1, // Bypass for testing
+			allowPrivateIPs: true, // Bypass for testing
 		}
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -601,7 +601,7 @@ func TestWebhookService_Timestamps(t *testing.T) {
 	t.Run("payload timestamp is set", func(t *testing.T) {
 		service := &WebhookService{
 			client:          &http.Client{Timeout: 5 * time.Second},
-			allowPrivateIPs: 1,
+			allowPrivateIPs: true,
 		}
 
 		var receivedPayload WebhookPayload
@@ -646,7 +646,7 @@ func TestWebhookService_Timestamps(t *testing.T) {
 func BenchmarkWebhookService_Deliver(b *testing.B) {
 	service := &WebhookService{
 		client:          &http.Client{Timeout: 5 * time.Second},
-		allowPrivateIPs: 1,
+		allowPrivateIPs: true,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
