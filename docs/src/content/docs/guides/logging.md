@@ -216,7 +216,7 @@ docker run -e FLUXBASE_DEBUG=true fluxbase/fluxbase:latest
 ```yaml
 services:
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:latest:latest
+    image: ghcr.io/nimbleflux/fluxbase:latest
     environment:
       - FLUXBASE_DEBUG=true
 ```
@@ -240,7 +240,7 @@ spec:
     spec:
       containers:
         - name: fluxbase
-          image: ghcr.io/nimbleflux/fluxbase:latest:latest
+          image: ghcr.io/nimbleflux/fluxbase:latest
           envFrom:
             - configMapRef:
                 name: fluxbase-config
@@ -611,7 +611,7 @@ docker logs fluxbase 2>&1 | grep '"message":"User authenticated"'
 # docker-compose.yml
 services:
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:latest:latest
+    image: ghcr.io/nimbleflux/fluxbase:latest
     logging:
       driver: "json-file"
       options:
@@ -696,7 +696,7 @@ setup.kibana:
 # docker-compose.yml
 services:
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:latest:latest
+    image: ghcr.io/nimbleflux/fluxbase:latest
     logging:
       driver: awslogs
       options:
@@ -713,7 +713,7 @@ services:
 # docker-compose.yml
 services:
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:latest:latest
+    image: ghcr.io/nimbleflux/fluxbase:latest
     logging:
       driver: gcplogs
       options:
@@ -839,7 +839,7 @@ Configure log rotation to prevent disk space issues:
 # docker-compose.yml
 services:
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:latest:latest
+    image: ghcr.io/nimbleflux/fluxbase:latest
     logging:
       driver: "json-file"
       options:
@@ -861,7 +861,7 @@ metadata:
 spec:
   containers:
     - name: fluxbase
-      image: ghcr.io/nimbleflux/fluxbase:latest:latest
+      image: ghcr.io/nimbleflux/fluxbase:latest
       # Logs are automatically rotated by kubelet
       # Default: 10MB per file, max 5 files
 ```

@@ -179,16 +179,22 @@ async function handler(req) {
 
 ```typescript
 async function handler(req) {
-  // Database client is available via env
-  const dbUrl = Deno.env.get("DATABASE_URL");
+  // Use the Fluxbase SDK via environment variables for database access
+  const baseUrl = Deno.env.get("FLUXBASE_BASE_URL") || "http://localhost:8080";
+  const token = Deno.env.get("FLUXBASE_SERVICE_TOKEN") || Deno.env.get("FLUXBASE_USER_TOKEN");
 
-  // Use pg client or any PostgreSQL library
-  const result = await fetch(`${dbUrl}/users`);
+  // Query using the REST API
+  const response = await fetch(`${baseUrl}/rest/v1/users`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  const data = await response.json();
 
-  return {
-    status: 200,
-    body: JSON.stringify(result),
-  };
+  return new Response(JSON.stringify(data), {
+    headers: { "Content-Type": "application/json" },
+  });
 }
 ```
 
