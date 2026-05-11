@@ -31,14 +31,14 @@ func NewBranchHandler(manager *branching.Manager, router *branching.Router, cfg 
 
 func (h *BranchHandler) requireManager(c fiber.Ctx) error {
 	if h.manager == nil {
-		return SendNotInitialized(c, "Branch manager")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Branch manager not initialized")
 	}
 	return nil
 }
 
 func (h *BranchHandler) requireRouter(c fiber.Ctx) error {
 	if h.router == nil {
-		return SendNotInitialized(c, "Branch router")
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Branch router not initialized")
 	}
 	return nil
 }
