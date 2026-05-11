@@ -88,7 +88,6 @@ func (s *WebhookService) SetAllowPrivateIPs(allow bool) {
 	s.mu.Lock()
 	s.allowPrivateIPs = allow
 	s.mu.Unlock()
-	log.Debug().Bool("allow", allow).Msg("SetAllowPrivateIPs called")
 }
 
 func (s *WebhookService) AllowPrivateIPs() bool {
@@ -740,11 +739,7 @@ func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, 
 	// SECURITY FIX: Validate webhook URL at request time to prevent DNS rebinding attacks
 	// An attacker could create a webhook with a URL that initially resolves to a public IP,
 	// then change the DNS to point to a private IP (e.g., 169.254.169.254 for cloud metadata)
-	allowed := s.AllowPrivateIPs()
-	if !allowed {
-		log.Debug().
-			Str("url", webhook.URL).
-			Msg("Webhook SSRF check blocking (AllowPrivateIPs=false)")
+	if !s.AllowPrivateIPs() {
 		if err := validateWebhookURL(webhook.URL); err != nil {
 			return fmt.Errorf("webhook URL validation failed (possible DNS rebinding attack): %w", err)
 		}
