@@ -12,11 +12,8 @@ import (
 )
 
 type RealtimeModule struct {
-	Admin    *RealtimeAdminHandler
-	Manager  *realtime.Manager
-	Handler  *realtime.RealtimeHandler
-	Listener *realtime.ListenerPool
-	Monitor  *MonitoringHandler
+	Handlers   *RealtimeHandlers
+	Monitoring *MonitoringHandlers
 }
 
 func (m *RealtimeModule) Name() string { return "realtime" }
@@ -25,7 +22,8 @@ func (m *RealtimeModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	cfg := registry.Config
 	db := registry.DB
 
-	m.Admin = NewRealtimeAdminHandler(db)
+	m.Handlers = &RealtimeHandlers{}
+	m.Handlers.Admin = NewRealtimeAdminHandler(db)
 
 	realtimeManager := realtime.NewManagerWithConfig(ctx, realtime.ManagerConfig{
 		MaxConnections:         cfg.Realtime.MaxConnections,
@@ -63,9 +61,9 @@ func (m *RealtimeModule) Init(ctx context.Context, registry *ServiceRegistry) er
 		},
 	)
 
-	m.Manager = realtimeManager
-	m.Handler = realtimeHandler
-	m.Listener = realtimeListener
+	m.Handlers.Manager = realtimeManager
+	m.Handlers.Handler = realtimeHandler
+	m.Handlers.Listener = realtimeListener
 
 	storageSvc := GetService[*storage.Service](registry)
 	var storageProvider storage.Provider
@@ -78,7 +76,7 @@ func (m *RealtimeModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	if loggingSvc != nil {
 		monitoringHandler.SetLoggingService(loggingSvc)
 	}
-	m.Monitor = monitoringHandler
+	m.Monitoring = &MonitoringHandlers{Handler: monitoringHandler}
 
 	registry.Register(realtimeManager)
 	registry.Register(realtimeListener)
@@ -86,13 +84,15 @@ func (m *RealtimeModule) Init(ctx context.Context, registry *ServiceRegistry) er
 }
 
 func (m *RealtimeModule) Shutdown(ctx context.Context) error {
-	if m.Listener != nil {
-		log.Info().Msg("Stopping realtime listener")
-		m.Listener.Stop()
-	}
-	if m.Manager != nil {
-		log.Info().Msg("Closing WebSocket connections")
-		m.Manager.Shutdown()
+	if m.Handlers != nil {
+		if m.Handlers.Listener != nil {
+			log.Info().Msg("Stopping realtime listener")
+			m.Handlers.Listener.Stop()
+		}
+		if m.Handlers.Manager != nil {
+			log.Info().Msg("Closing WebSocket connections")
+			m.Handlers.Manager.Shutdown()
+		}
 	}
 	return nil
 }

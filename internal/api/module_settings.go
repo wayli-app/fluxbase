@@ -12,18 +12,9 @@ import (
 )
 
 type SettingsModule struct {
-	Unified         *settings.UnifiedService
-	Instance        *InstanceSettingsHandler
-	Tenant          *TenantSettingsHandler
-	System          *SystemSettingsHandler
-	Custom          *CustomSettingsHandler
-	Service         *settings.SecretsService
-	User            *UserSettingsHandler
-	App             *AppSettingsHandler
-	Handler         *SettingsHandler
-	EmailTemplate   *EmailTemplateHandler
-	EmailSettings   *EmailSettingsHandler
-	CaptchaSettings *CaptchaSettingsHandler
+	Handlers *SettingsHandlers
+	Email    *EmailHandlers
+	Captcha  *CaptchaHandlers
 }
 
 func (m *SettingsModule) Name() string { return "settings" }
@@ -37,37 +28,40 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	captchaService := GetService[*auth.CaptchaService](registry)
 
 	unifiedSettingsService := settings.NewUnifiedService(db, cfg, cfg.EncryptionKeyBytes)
-	m.Unified = unifiedSettingsService
-	m.Instance = NewInstanceSettingsHandler(unifiedSettingsService)
+	m.Handlers = &SettingsHandlers{}
+	m.Handlers.Unified = unifiedSettingsService
+	m.Handlers.Instance = NewInstanceSettingsHandler(unifiedSettingsService)
 
 	var tenantStorage *tenantdb.Repository
 	if ts := GetService[*tenantdb.Repository](registry); ts != nil {
 		tenantStorage = ts
 	}
-	m.Tenant = NewTenantSettingsHandler(unifiedSettingsService, tenantStorage)
+	m.Handlers.Tenant = NewTenantSettingsHandler(unifiedSettingsService, tenantStorage)
 
 	tenantConfigResolver := NewTenantConfigResolver(db, cfg, unifiedSettingsService)
 	registry.Register(tenantConfigResolver)
 	log.Info().Msg("Tenant config resolver initialized for dynamic settings")
 
-	m.System = NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
+	m.Handlers.System = NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 
 	customSettingsService := settings.NewCustomSettingsService(db, cfg.EncryptionKeyBytes)
-	m.Custom = NewCustomSettingsHandler(customSettingsService)
+	m.Handlers.Custom = NewCustomSettingsHandler(customSettingsService)
 
 	secretsService := settings.NewSecretsService(db, cfg.EncryptionKeyBytes)
-	m.Service = secretsService
+	m.Handlers.Service = secretsService
 
 	userSettingsHandler := NewUserSettingsHandler(db, customSettingsService)
 	userSettingsHandler.SetSecretsService(secretsService)
-	m.User = userSettingsHandler
+	m.Handlers.User = userSettingsHandler
 
-	m.App = NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache(), cfg)
-	m.Handler = NewSettingsHandler(db)
+	m.Handlers.App = NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache(), cfg)
+	m.Handlers.Handler = NewSettingsHandler(db)
 
-	m.EmailTemplate = NewEmailTemplateHandler(db, emailManager.WrapAsService())
+	m.Email = &EmailHandlers{
+		Template: NewEmailTemplateHandler(db, emailManager.WrapAsService()),
+	}
 
-	m.EmailSettings = NewEmailSettingsHandler(
+	m.Email.Settings = NewEmailSettingsHandler(
 		systemSettingsService,
 		authService.GetSettingsCache(),
 		emailManager,
@@ -82,13 +76,15 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
 	}
 
-	m.CaptchaSettings = NewCaptchaSettingsHandler(
-		systemSettingsService,
-		authService.GetSettingsCache(),
-		secretsService,
-		&cfg.Security,
-		captchaService,
-	)
+	m.Captcha = &CaptchaHandlers{
+		Settings: NewCaptchaSettingsHandler(
+			systemSettingsService,
+			authService.GetSettingsCache(),
+			secretsService,
+			&cfg.Security,
+			captchaService,
+		),
+	}
 
 	if captchaService != nil {
 		if err := captchaService.ReloadFromSettings(ctx, authService.GetSettingsCache(), &cfg.Security); err != nil {

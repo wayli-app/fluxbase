@@ -123,10 +123,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	metricsObj := observability.NewMetrics()
 	metricsStart := time.Now()
-	s.Metrics = &MetricsComponents{
-		Metrics:   metricsObj,
-		StartTime: metricsStart,
-	}
 
 	s.initCore()
 
@@ -152,7 +148,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	branchingMod := &BranchingModule{}
 	graphqlMod := &GraphQLModule{}
 	mcpMod := &MCPModule{}
-	metricsMod := &MetricsModule{Metrics: metricsObj, StartTime: metricsStart}
+	metricsMod := &MetricsModule{Handlers: &MetricsComponents{Metrics: metricsObj, StartTime: metricsStart}}
 	bgMod := &BackgroundServicesModule{}
 
 	mods := []Module{
@@ -183,109 +179,62 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 	s.modules = mods
 
-	s.Secrets.Storage = secretsMod.Storage
-	s.Secrets.Handler = secretsMod.Handler
-	s.Storage.Handler = storageMod.Handler
-	s.Logging.Service = loggingMod.Service
-	s.Logging.Handler = loggingMod.Handler
-	s.Logging.Retention = loggingMod.Retention
+	s.Secrets = secretsMod.Handlers
+	s.Storage = storageMod.Handlers
+	s.Logging = loggingMod.Handlers
 	s.Auth = authMod.Handlers
 	s.sqlHandler = authMod.SQLHandler
 	s.requireAuth = authMod.RequireAuth
 	s.optionalAuth = authMod.OptionalAuth
-	s.Webhook.Handler = webhookMod.Handler
-	s.Webhook.Trigger = webhookMod.Trigger
-	s.Extensions.Handler = extensionsMod.Handler
+	s.Webhook = webhookMod.Handlers
+	s.Extensions = extensionsMod.Handlers
 
-	s.Tenancy.ServiceKey = tenancyMod.Key
-	s.Tenancy.Manager = tenancyMod.Manager
-	s.Tenancy.Storage = tenancyMod.Storage
-	s.Tenancy.Tenant = tenancyMod.Tenant
-	if tenancyMod.TenantDB != nil {
-		s.Middleware.TenantDB = tenancyMod.TenantDB
+	s.Tenancy = tenancyMod.Handlers
+	if tenancyMod.Middleware != nil && tenancyMod.Middleware.TenantDB != nil {
+		s.Middleware.TenantDB = tenancyMod.Middleware.TenantDB
 	}
 
-	s.Settings.Unified = settingsMod.Unified
-	s.Settings.Instance = settingsMod.Instance
-	s.Settings.Tenant = settingsMod.Tenant
-	s.Settings.System = settingsMod.System
-	s.Settings.Custom = settingsMod.Custom
-	s.Settings.Service = settingsMod.Service
-	s.Settings.User = settingsMod.User
-	s.Settings.App = settingsMod.App
-	s.Settings.Handler = settingsMod.Handler
-	s.Email.Template = settingsMod.EmailTemplate
-	s.Email.Settings = settingsMod.EmailSettings
-	s.Captcha.Settings = settingsMod.CaptchaSettings
+	s.Settings = settingsMod.Handlers
+	s.Email = settingsMod.Email
+	s.Captcha = settingsMod.Captcha
 
-	s.Schema.DDL = schemaMod.DDL
-	s.Schema.Cache = schemaMod.Cache
-	s.Schema.Migrations = schemaMod.Migrations
-	s.Schema.Export = schemaMod.Export
-	s.Schema.InternalSchema = schemaMod.Internal
+	s.Schema = schemaMod.Handlers
 	s.rest = schemaMod.RESTHandler
 
-	s.Functions.Handler = functionsMod.Handler
-	s.Functions.Scheduler = functionsMod.Scheduler
+	s.Functions = functionsMod.Handlers
 
-	s.Jobs.Manager = jobsMod.Manager
-	s.Jobs.Handler = jobsMod.Handler
-	s.Jobs.Scheduler = jobsMod.Scheduler
+	s.Jobs = jobsMod.Handlers
 
-	s.RPC.Handler = rpcMod.Handler
-	s.RPC.Scheduler = rpcMod.Scheduler
+	s.RPC = rpcMod.Handlers
 
-	s.AI = &AIHandlers{
-		Handler:         aiMod.Handler,
-		Chat:            aiMod.Chat,
-		Conversations:   aiMod.Conversations,
-		Metrics:         aiMod.Metrics,
-		KnowledgeBase:   aiMod.KnowledgeBase,
-		KBStorage:       aiMod.KBStorage,
-		DocProcessor:    aiMod.DocProcessor,
-		TableExportSync: aiMod.TableExportSync,
-		VectorManager:   aiMod.VectorManager,
-		VectorHandler:   aiMod.VectorHandler,
-		Internal:        aiMod.Internal,
+	s.AI = aiMod.Handlers
+	s.Quota = aiMod.Quota
+
+	s.Realtime = realtimeMod.Handlers
+	s.Monitoring = realtimeMod.Monitoring
+
+	s.Branching = branchingMod.Handlers
+
+	s.GraphQL = graphqlMod.Handlers
+
+	s.MCP = mcpMod.Handlers
+
+	s.Metrics = metricsMod.Handlers
+
+	s.Scaling = bgMod.Handlers
+
+	if s.Webhook != nil && s.Webhook.Trigger != nil {
+		if err := s.Webhook.Trigger.Start(context.Background()); err != nil {
+			log.Error().Err(err).Msg("Failed to start webhook trigger service")
+		}
 	}
-	s.Quota.Handler = aiMod.QuotaHandler
-
-	s.Realtime.Admin = realtimeMod.Admin
-	s.Realtime.Manager = realtimeMod.Manager
-	s.Realtime.Handler = realtimeMod.Handler
-	s.Realtime.Listener = realtimeMod.Listener
-	s.Monitoring.Handler = realtimeMod.Monitor
-
-	s.Branching.Manager = branchingMod.Manager
-	s.Branching.Router = branchingMod.Router
-	s.Branching.Handler = branchingMod.Handler
-	s.Branching.GitHub = branchingMod.GitHub
-	s.Branching.Scheduler = branchingMod.Scheduler
-
-	s.GraphQL.Handler = graphqlMod.Handler
-
-	s.MCP.Handler = mcpMod.Handler
-	s.MCP.OAuth = mcpMod.OAuth
-	s.MCP.CustomManager = mcpMod.CustomManager
-	s.MCP.CustomHandler = mcpMod.CustomHandler
-
-	s.Metrics.Server = metricsMod.Server
-	s.Metrics.StopChan = metricsMod.StopChan
-
-	s.Scaling.FunctionsLeader = bgMod.FunctionsLeader
-	s.Scaling.JobsLeader = bgMod.JobsLeader
-	s.Scaling.RPCLeader = bgMod.RPCLeader
-
-	if err := s.Webhook.Trigger.Start(context.Background()); err != nil {
-		log.Error().Err(err).Msg("Failed to start webhook trigger service")
-	}
-	if s.Logging.Retention != nil {
+	if s.Logging != nil && s.Logging.Retention != nil {
 		s.Logging.Retention.Start()
 		log.Info().
 			Dur("interval", s.config.Logging.RetentionCheckInterval).
 			Msg("Log retention cleanup service started")
 	}
-	if s.Branching.Scheduler != nil {
+	if s.Branching != nil && s.Branching.Scheduler != nil {
 		s.Branching.Scheduler.Start()
 	}
 

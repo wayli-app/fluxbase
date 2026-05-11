@@ -14,10 +14,7 @@ import (
 )
 
 type MetricsModule struct {
-	Metrics   *observability.Metrics
-	Server    *observability.MetricsServer
-	StopChan  chan struct{}
-	StartTime time.Time
+	Handlers *MetricsComponents
 }
 
 func (m *MetricsModule) Name() string { return "metrics" }
@@ -30,39 +27,39 @@ func (m *MetricsModule) Init(ctx context.Context, registry *ServiceRegistry) err
 		return nil
 	}
 
-	m.Server = observability.NewMetricsServer(cfg.Metrics.Port, cfg.Metrics.Path)
-	if err := m.Server.Start(); err != nil {
+	m.Handlers.Server = observability.NewMetricsServer(cfg.Metrics.Port, cfg.Metrics.Path)
+	if err := m.Handlers.Server.Start(); err != nil {
 		log.Error().Err(err).Msg("Failed to start metrics server")
 	}
 
-	db.SetMetrics(m.Metrics)
+	db.SetMetrics(m.Handlers.Metrics)
 
 	storageSvc := GetService[*storage.Service](registry)
 	if storageSvc != nil {
-		storageSvc.SetMetrics(m.Metrics)
+		storageSvc.SetMetrics(m.Handlers.Metrics)
 	}
 
 	authService := GetService[*auth.Service](registry)
 	if authService != nil {
-		authService.SetMetrics(m.Metrics)
+		authService.SetMetrics(m.Handlers.Metrics)
 	}
 
 	realtimeManager := GetService[*realtime.Manager](registry)
 	if realtimeManager != nil {
-		realtimeManager.SetMetrics(m.Metrics)
+		realtimeManager.SetMetrics(m.Handlers.Metrics)
 	}
 
-	middleware.SetRateLimiterMetrics(m.Metrics)
+	middleware.SetRateLimiterMetrics(m.Handlers.Metrics)
 
-	m.StopChan = make(chan struct{})
+	m.Handlers.StopChan = make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				m.Metrics.UpdateUptime(m.StartTime)
-			case <-m.StopChan:
+				m.Handlers.Metrics.UpdateUptime(m.Handlers.StartTime)
+			case <-m.Handlers.StopChan:
 				return
 			}
 		}
@@ -72,12 +69,14 @@ func (m *MetricsModule) Init(ctx context.Context, registry *ServiceRegistry) err
 }
 
 func (m *MetricsModule) Shutdown(ctx context.Context) error {
-	if m.StopChan != nil {
-		close(m.StopChan)
-	}
-	if m.Server != nil {
-		if err := m.Server.Shutdown(ctx); err != nil {
-			log.Warn().Err(err).Msg("Failed to shutdown metrics server")
+	if m.Handlers != nil {
+		if m.Handlers.StopChan != nil {
+			close(m.Handlers.StopChan)
+		}
+		if m.Handlers.Server != nil {
+			if err := m.Handlers.Server.Shutdown(ctx); err != nil {
+				log.Warn().Err(err).Msg("Failed to shutdown metrics server")
+			}
 		}
 	}
 	return nil

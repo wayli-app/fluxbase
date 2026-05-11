@@ -12,13 +12,13 @@ import (
 )
 
 type RPCModule struct {
-	Handler   *rpc.Handler
-	Scheduler *rpc.Scheduler
+	Handlers *RPCHandlers
 }
 
 func (m *RPCModule) Name() string { return "rpc" }
 
 func (m *RPCModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &RPCHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 
@@ -37,8 +37,10 @@ func (m *RPCModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 	rpcScheduler := rpc.NewScheduler(rpcStorage, rpcHandler.GetExecutor())
 	rpcHandler.SetScheduler(rpcScheduler)
 
-	m.Handler = rpcHandler
-	m.Scheduler = rpcScheduler
+	m.Handlers = &RPCHandlers{
+		Handler:   rpcHandler,
+		Scheduler: rpcScheduler,
+	}
 
 	registry.Register(rpcHandler)
 	registry.Register(rpcScheduler)
@@ -51,11 +53,13 @@ func (m *RPCModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 }
 
 func (m *RPCModule) Shutdown(ctx context.Context) error {
-	if m.Scheduler != nil {
-		m.Scheduler.Stop()
-	}
-	if m.Handler != nil {
-		m.Handler.GetExecutor().Stop()
+	if m.Handlers != nil {
+		if m.Handlers.Scheduler != nil {
+			m.Handlers.Scheduler.Stop()
+		}
+		if m.Handlers.Handler != nil {
+			m.Handlers.Handler.GetExecutor().Stop()
+		}
 	}
 	return nil
 }

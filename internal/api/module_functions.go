@@ -11,8 +11,7 @@ import (
 )
 
 type FunctionsModule struct {
-	Handler   *functions.Handler
-	Scheduler *functions.Scheduler
+	Handlers *FunctionsHandlers
 }
 
 func (m *FunctionsModule) Name() string { return "functions" }
@@ -44,8 +43,10 @@ func (m *FunctionsModule) Init(ctx context.Context, registry *ServiceRegistry) e
 		functionsHandler.SetRateLimiter(registry.RateLimiter)
 	}
 
-	m.Handler = functionsHandler
-	m.Scheduler = functionsScheduler
+	m.Handlers = &FunctionsHandlers{
+		Handler:   functionsHandler,
+		Scheduler: functionsScheduler,
+	}
 
 	registry.Register(functionsHandler)
 	registry.Register(functionsScheduler)
@@ -53,8 +54,8 @@ func (m *FunctionsModule) Init(ctx context.Context, registry *ServiceRegistry) e
 }
 
 func (m *FunctionsModule) Shutdown(ctx context.Context) error {
-	if m.Scheduler != nil {
-		m.Scheduler.Stop()
+	if m.Handlers != nil && m.Handlers.Scheduler != nil {
+		m.Handlers.Scheduler.Stop()
 	}
 	return nil
 }

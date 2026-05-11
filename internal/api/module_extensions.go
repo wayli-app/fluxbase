@@ -7,12 +7,13 @@ import (
 )
 
 type ExtensionsModule struct {
-	Handler *extensions.Handler
+	Handlers *ExtensionsHandlers
 }
 
 func (m *ExtensionsModule) Name() string { return "extensions" }
 
 func (m *ExtensionsModule) Init(ctx context.Context, registry *ServiceRegistry) error {
-	m.Handler = extensions.NewHandler(extensions.NewService(registry.DB))
+	m.Handlers = &ExtensionsHandlers{}
+	m.Handlers.Handler = extensions.NewHandler(extensions.NewService(registry.DB))
 	return nil
 }

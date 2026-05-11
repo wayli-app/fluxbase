@@ -22,10 +22,7 @@ import (
 )
 
 type MCPModule struct {
-	Handler       *mcp.Handler
-	OAuth         *MCPOAuthHandler
-	CustomManager *custom.Manager
-	CustomHandler *CustomMCPHandler
+	Handlers *MCPHandlers
 }
 
 func (m *MCPModule) Name() string { return "mcp" }
@@ -36,8 +33,9 @@ func (m *MCPModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 
 	authService := GetService[*auth.Service](registry)
 
-	m.Handler = mcp.NewHandler(&cfg.MCP, db)
-	m.OAuth = NewMCPOAuthHandler(db, &cfg.MCP, authService, cfg.BaseURL, cfg.GetPublicBaseURL())
+	m.Handlers = &MCPHandlers{}
+	m.Handlers.Handler = mcp.NewHandler(&cfg.MCP, db)
+	m.Handlers.OAuth = NewMCPOAuthHandler(db, &cfg.MCP, authService, cfg.BaseURL, cfg.GetPublicBaseURL())
 
 	if !cfg.MCP.Enabled {
 		return nil
@@ -54,7 +52,7 @@ func (m *MCPModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		vectorHandler = vh
 	}
 
-	mcpServer := m.Handler.Server()
+	mcpServer := m.Handlers.Handler.Server()
 	toolRegistry := mcpServer.ToolRegistry()
 
 	toolRegistry.Register(mcptools.NewThinkTool())
@@ -195,12 +193,12 @@ func (m *MCPModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		mcpInternalURL = "http://localhost" + cfg.Server.Address
 	}
 	customExecutor := custom.NewExecutor(cfg.Auth.JWTSecret, mcpInternalURL, nil)
-	m.CustomManager = custom.NewManager(customStorage, customExecutor, toolRegistry, resourceRegistry)
-	m.CustomHandler = NewCustomMCPHandler(customStorage, m.CustomManager, &cfg.MCP)
+	m.Handlers.CustomManager = custom.NewManager(customStorage, customExecutor, toolRegistry, resourceRegistry)
+	m.Handlers.CustomHandler = NewCustomMCPHandler(customStorage, m.Handlers.CustomManager, &cfg.MCP)
 
 	loadCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := m.CustomManager.LoadAndRegisterAll(loadCtx); err != nil {
+	if err := m.Handlers.CustomManager.LoadAndRegisterAll(loadCtx); err != nil {
 		log.Warn().Err(err).Msg("Failed to load some custom MCP tools/resources")
 	}
 
@@ -209,8 +207,8 @@ func (m *MCPModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		Int("resources", len(resourceRegistry.ListResources(&mcp.AuthContext{IsServiceRole: true}))).
 		Msg("MCP Server initialized with tools and resources")
 
-	if cfg.MCP.Enabled && cfg.MCP.AutoLoadOnBoot && m.CustomManager != nil {
-		if err := m.CustomManager.AutoLoadFromDir(context.Background(), cfg.MCP.ToolsDir); err != nil {
+	if cfg.MCP.Enabled && cfg.MCP.AutoLoadOnBoot && m.Handlers.CustomManager != nil {
+		if err := m.Handlers.CustomManager.AutoLoadFromDir(context.Background(), cfg.MCP.ToolsDir); err != nil {
 			log.Error().Err(err).Msg("Failed to auto-load custom MCP tools")
 		} else {
 			log.Info().Msg("Custom MCP tools auto-loaded successfully")

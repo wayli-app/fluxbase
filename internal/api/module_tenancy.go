@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
@@ -14,11 +13,8 @@ import (
 )
 
 type TenancyModule struct {
-	Manager  *tenantdb.Manager
-	Storage  *tenantdb.Repository
-	Tenant   *TenantHandler
-	Key      *ServiceKeyHandler
-	TenantDB fiber.Handler
+	Handlers   *TenancyHandlers
+	Middleware *MiddlewareComponents
 }
 
 func (m *TenancyModule) Name() string { return "tenancy" }
@@ -27,10 +23,11 @@ func (m *TenancyModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	cfg := registry.Config
 	db := registry.DB
 
-	m.Key = NewServiceKeyHandler(db)
+	m.Handlers = &TenancyHandlers{}
+	m.Handlers.ServiceKey = NewServiceKeyHandler(db)
 
 	if !cfg.Tenants.Enabled {
-		m.Tenant = NewTenantHandler(db, nil, nil, nil, nil, cfg)
+		m.Handlers.Tenant = NewTenantHandler(db, nil, nil, nil, nil, cfg)
 		return nil
 	}
 
@@ -113,8 +110,8 @@ func (m *TenancyModule) Init(ctx context.Context, registry *ServiceRegistry) err
 		}
 	}
 
-	m.Manager = tenantManager
-	m.Storage = tenantStorage
+	m.Handlers.Manager = tenantManager
+	m.Handlers.Storage = tenantStorage
 
 	invitationService := GetService[*auth.InvitationService](registry)
 	emailService := GetService[*email.Manager](registry)
@@ -122,13 +119,15 @@ func (m *TenancyModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	if emailService != nil {
 		emailSvc = emailService.WrapAsService()
 	}
-	m.Tenant = NewTenantHandler(db, tenantManager, tenantStorage, invitationService, emailSvc, cfg)
+	m.Handlers.Tenant = NewTenantHandler(db, tenantManager, tenantStorage, invitationService, emailSvc, cfg)
 
 	if tenantManager.GetRouter() != nil {
-		m.TenantDB = middleware.TenantDBMiddleware(middleware.TenantDBConfig{
-			Router:     tenantManager.GetRouter(),
-			Repository: tenantStorage,
-		})
+		m.Middleware = &MiddlewareComponents{
+			TenantDB: middleware.TenantDBMiddleware(middleware.TenantDBConfig{
+				Router:     tenantManager.GetRouter(),
+				Repository: tenantStorage,
+			}),
+		}
 	}
 
 	registry.Register(tenantManager)
@@ -137,8 +136,8 @@ func (m *TenancyModule) Init(ctx context.Context, registry *ServiceRegistry) err
 }
 
 func (m *TenancyModule) Shutdown(ctx context.Context) error {
-	if m.Manager != nil && m.Manager.GetRouter() != nil {
-		m.Manager.GetRouter().Close()
+	if m.Handlers != nil && m.Handlers.Manager != nil && m.Handlers.Manager.GetRouter() != nil {
+		m.Handlers.Manager.GetRouter().Close()
 	}
 	return nil
 }

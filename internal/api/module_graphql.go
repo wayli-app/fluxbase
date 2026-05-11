@@ -9,12 +9,13 @@ import (
 )
 
 type GraphQLModule struct {
-	Handler *GraphQLHandler
+	Handlers *GraphQLHandlers
 }
 
 func (m *GraphQLModule) Name() string { return "graphql" }
 
 func (m *GraphQLModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &GraphQLHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 
@@ -24,11 +25,11 @@ func (m *GraphQLModule) Init(ctx context.Context, registry *ServiceRegistry) err
 
 	schemaCache := GetService[*database.SchemaCache](registry)
 
-	m.Handler = NewGraphQLHandler(db, schemaCache, &cfg.GraphQL, cfg)
+	m.Handlers.Handler = NewGraphQLHandler(db, schemaCache, &cfg.GraphQL, cfg)
 
 	ddlHandler := GetService[*DDLHandler](registry)
-	if ddlHandler != nil && m.Handler != nil {
-		ddlHandler.SetGraphQLInvalidator(m.Handler.InvalidateSchema)
+	if ddlHandler != nil && m.Handlers.Handler != nil {
+		ddlHandler.SetGraphQLInvalidator(m.Handlers.Handler.InvalidateSchema)
 	}
 
 	log.Info().
