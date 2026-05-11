@@ -207,6 +207,5 @@ type QuotaHandlers struct {
 type MiddlewareComponents struct {
 	Tenant      fiber.Handler
 	TenantDB    fiber.Handler
-	Branch      fiber.Handler
 	Idempotency *middleware.IdempotencyMiddleware
 }

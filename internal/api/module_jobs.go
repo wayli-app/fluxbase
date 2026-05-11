@@ -13,9 +13,7 @@ import (
 )
 
 type JobsModule struct {
-	Manager   *jobs.Manager
-	Handler   *jobs.Handler
-	Scheduler *jobs.Scheduler
+	Handlers *JobsHandlers
 }
 
 func (m *JobsModule) Name() string { return "jobs" }
@@ -46,17 +44,19 @@ func (m *JobsModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	if settingsSecrets != nil {
 		jobsManager.SetSettingsSecretsService(settingsSecrets)
 	}
-	m.Manager = jobsManager
-
 	jobsHandler, err := jobs.NewHandler(db, &cfg.Jobs, jobsManager, authService, loggingService, cfg.Deno.NpmRegistry, cfg.Deno.JsrRegistry)
 	if err != nil {
 		return err
 	}
-	m.Handler = jobsHandler
 
 	jobsScheduler := jobs.NewScheduler(db)
 	jobsHandler.SetScheduler(jobsScheduler)
-	m.Scheduler = jobsScheduler
+
+	m.Handlers = &JobsHandlers{
+		Manager:   jobsManager,
+		Handler:   jobsHandler,
+		Scheduler: jobsScheduler,
+	}
 
 	registry.Register(jobsManager)
 	registry.Register(jobsScheduler)
@@ -64,11 +64,13 @@ func (m *JobsModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 }
 
 func (m *JobsModule) Shutdown(ctx context.Context) error {
-	if m.Scheduler != nil {
-		m.Scheduler.Stop()
-	}
-	if m.Manager != nil {
-		m.Manager.Stop()
+	if m.Handlers != nil {
+		if m.Handlers.Scheduler != nil {
+			m.Handlers.Scheduler.Stop()
+		}
+		if m.Handlers.Manager != nil {
+			m.Handlers.Manager.Stop()
+		}
 	}
 	return nil
 }

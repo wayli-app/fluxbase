@@ -15,9 +15,7 @@ import (
 )
 
 type BackgroundServicesModule struct {
-	FunctionsLeader *scaling.LeaderElector
-	JobsLeader      *scaling.LeaderElector
-	RPCLeader       *scaling.LeaderElector
+	Handlers *ScalingHandlers
 }
 
 func (m *BackgroundServicesModule) Name() string { return "background-services" }
@@ -42,7 +40,8 @@ func (m *BackgroundServicesModule) Init(ctx context.Context, registry *ServiceRe
 
 	functionsScheduler := GetService[*functions.Scheduler](registry)
 	if functionsScheduler != nil {
-		m.FunctionsLeader = leaderElect(
+		m.Handlers = &ScalingHandlers{}
+		m.Handlers.FunctionsLeader = leaderElect(
 			db, &cfg.Scaling,
 			"functions-scheduler", scaling.FunctionsSchedulerLockID,
 			func() {
@@ -73,7 +72,7 @@ func (m *BackgroundServicesModule) Init(ctx context.Context, registry *ServiceRe
 
 		jobsScheduler := GetService[*jobs.Scheduler](registry)
 		if jobsScheduler != nil {
-			m.JobsLeader = leaderElect(
+			m.Handlers.JobsLeader = leaderElect(
 				db, &cfg.Scaling,
 				"jobs-scheduler", scaling.JobsSchedulerLockID,
 				func() {
@@ -92,7 +91,7 @@ func (m *BackgroundServicesModule) Init(ctx context.Context, registry *ServiceRe
 
 	rpcScheduler := GetService[*rpc.Scheduler](registry)
 	if cfg.RPC.Enabled && rpcScheduler != nil {
-		m.RPCLeader = leaderElect(
+		m.Handlers.RPCLeader = leaderElect(
 			db, &cfg.Scaling,
 			"rpc-scheduler", scaling.RPCSchedulerLockID,
 			func() {
@@ -129,17 +128,20 @@ func leaderElect(db *database.Connection, cfg *config.ScalingConfig, name string
 }
 
 func (m *BackgroundServicesModule) Shutdown(ctx context.Context) error {
-	if m.FunctionsLeader != nil {
+	if m.Handlers == nil {
+		return nil
+	}
+	if m.Handlers.FunctionsLeader != nil {
 		log.Info().Msg("Stopping functions scheduler leader election")
-		m.FunctionsLeader.Stop()
+		m.Handlers.FunctionsLeader.Stop()
 	}
-	if m.JobsLeader != nil {
+	if m.Handlers.JobsLeader != nil {
 		log.Info().Msg("Stopping jobs scheduler leader election")
-		m.JobsLeader.Stop()
+		m.Handlers.JobsLeader.Stop()
 	}
-	if m.RPCLeader != nil {
+	if m.Handlers.RPCLeader != nil {
 		log.Info().Msg("Stopping RPC scheduler leader election")
-		m.RPCLeader.Stop()
+		m.Handlers.RPCLeader.Stop()
 	}
 	return nil
 }

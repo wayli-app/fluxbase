@@ -9,9 +9,9 @@ import (
 )
 
 type StorageModule struct {
-	Manager *storage.Manager
-	Service *storage.Service
-	Handler *StorageHandler
+	Handlers *StorageHandlers
+	Manager  *storage.Manager
+	Service  *storage.Service
 }
 
 func (m *StorageModule) Name() string { return "storage" }
@@ -35,7 +35,9 @@ func (m *StorageModule) Init(ctx context.Context, registry *ServiceRegistry) err
 		log.Warn().Err(err).Msg("Failed to ensure default bucket DB records")
 	}
 
-	m.Handler = NewStorageHandler(storageManager, db, cfg, &cfg.Storage.Transforms)
+	m.Handlers = &StorageHandlers{
+		Handler: NewStorageHandler(storageManager, db, cfg, &cfg.Storage.Transforms),
+	}
 
 	registry.Register(m.Service)
 	return nil

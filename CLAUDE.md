@@ -80,7 +80,7 @@ Server initialization uses a module-based dependency injection system:
 - `GetService[T]()` uses `reflect.TypeOf` — only works with concrete pointer types (e.g., `*auth.Service`), not interfaces. Use `registry.PubSub` field for `pubsub.PubSub`
 - Modules register outputs via `registry.Register()` so downstream modules can find them
 
-**Two-phase wiring:** After `InitModules()` completes, `NewServer()` copies module outputs to `Server` struct fields (handler groups). This bridge is manual boilerplate — each new sub-handler requires both a module field and a Server field assignment.
+**Handler group wiring:** Each module creates its handler group struct during `Init()` and stores it in `m.Handlers`. After `InitModules()`, `NewServer()` assigns `s.X = xMod.Handlers` for each module (~20 lines). Modules with cross-group outputs (Settings→Email/Captcha, AI→Quota, Realtime→Monitoring, Tenancy→Middleware) populate additional handler groups. A few modules have direct Server fields (Auth→`sqlHandler`/`requireAuth`/`optionalAuth`, Schema→`rest`).
 
 **Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring + Shutdown), `server_init.go` (initCore), `server_middlewares.go` (middleware setup), `server_routes.go` (route setup)
 

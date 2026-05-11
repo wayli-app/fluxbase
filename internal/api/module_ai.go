@@ -15,18 +15,8 @@ import (
 )
 
 type AIModule struct {
-	Handler         *ai.Handler
-	Chat            *ai.ChatHandler
-	Conversations   *ai.ConversationManager
-	Metrics         *observability.Metrics
-	KnowledgeBase   *ai.KnowledgeBaseHandler
-	KBStorage       *ai.KnowledgeBaseStorage
-	DocProcessor    *ai.DocumentProcessor
-	TableExportSync *ai.TableExportSyncService
-	VectorManager   *VectorManager
-	VectorHandler   *VectorHandler
-	Internal        *InternalAIHandler
-	QuotaHandler    *QuotaHandler
+	Handlers *AIHandlers
+	Quota    *QuotaHandlers
 }
 
 func (m *AIModule) Name() string { return "ai" }
@@ -178,18 +168,20 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 			Msg("Internal AI handler initialized for MCP tools/functions/jobs")
 	}
 
-	m.Handler = aiHandler
-	m.Chat = aiChatHandler
-	m.Conversations = aiConversations
-	m.Metrics = aiMetrics
-	m.KnowledgeBase = knowledgeBaseHandler
-	m.KBStorage = kbStorage
-	m.DocProcessor = docProcessor
-	m.TableExportSync = tableExportSyncService
-	m.VectorManager = vectorManager
-	m.VectorHandler = vectorHandler
-	m.Internal = internalAIHandler
-	m.QuotaHandler = quotaHandler
+	m.Handlers = &AIHandlers{
+		Handler:         aiHandler,
+		Chat:            aiChatHandler,
+		Conversations:   aiConversations,
+		Metrics:         aiMetrics,
+		KnowledgeBase:   knowledgeBaseHandler,
+		KBStorage:       kbStorage,
+		DocProcessor:    docProcessor,
+		TableExportSync: tableExportSyncService,
+		VectorManager:   vectorManager,
+		VectorHandler:   vectorHandler,
+		Internal:        internalAIHandler,
+	}
+	m.Quota = &QuotaHandlers{Handler: quotaHandler}
 
 	if cfg.AI.Enabled && cfg.AI.AutoLoadOnBoot && aiHandler != nil {
 		if err := aiHandler.AutoLoadChatbots(ctx); err != nil {
@@ -212,8 +204,8 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 }
 
 func (m *AIModule) Shutdown(ctx context.Context) error {
-	if m.Conversations != nil {
-		m.Conversations.Close()
+	if m.Handlers != nil && m.Handlers.Conversations != nil {
+		m.Handlers.Conversations.Close()
 	}
 	return nil
 }

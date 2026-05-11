@@ -13,11 +13,7 @@ import (
 )
 
 type BranchingModule struct {
-	Manager   *branching.Manager
-	Router    *branching.Router
-	Handler   *BranchHandler
-	GitHub    *GitHubWebhookHandler
-	Scheduler *branching.CleanupScheduler
+	Handlers *BranchingHandlers
 }
 
 func (m *BranchingModule) Name() string { return "branching" }
@@ -38,10 +34,11 @@ func (m *BranchingModule) Init(ctx context.Context, registry *ServiceRegistry) e
 	}
 	branchRouter := branching.NewRouter(branchStorage, cfg.Branching, db.Pool(), dbURL)
 
-	m.Manager = branchManager
-	m.Router = branchRouter
-	m.Handler = NewBranchHandler(branchManager, branchRouter, cfg.Branching)
-	m.GitHub = NewGitHubWebhookHandler(branchManager, branchRouter, cfg.Branching)
+	m.Handlers = &BranchingHandlers{}
+	m.Handlers.Manager = branchManager
+	m.Handlers.Router = branchRouter
+	m.Handlers.Handler = NewBranchHandler(branchManager, branchRouter, cfg.Branching)
+	m.Handlers.GitHub = NewGitHubWebhookHandler(branchManager, branchRouter, cfg.Branching)
 
 	tenantManager := GetService[*tenantdb.Manager](registry)
 	if tenantManager != nil {
@@ -54,7 +51,7 @@ func (m *BranchingModule) Init(ctx context.Context, registry *ServiceRegistry) e
 		if cleanupInterval < time.Hour {
 			cleanupInterval = time.Hour
 		}
-		m.Scheduler = branching.NewCleanupScheduler(branchManager, branchRouter, cleanupInterval)
+		m.Handlers.Scheduler = branching.NewCleanupScheduler(branchManager, branchRouter, cleanupInterval)
 		log.Info().
 			Dur("interval", cleanupInterval).
 			Dur("auto_delete_after", cfg.Branching.AutoDeleteAfter).
@@ -99,16 +96,19 @@ func (r *branchFDWRepairer) RepairFDWForBranch(ctx context.Context, branchDBURL 
 }
 
 func (m *BranchingModule) Shutdown(ctx context.Context) error {
-	if m.Scheduler != nil {
-		m.Scheduler.Stop()
+	if m.Handlers == nil {
+		return nil
 	}
-	if m.Router != nil {
+	if m.Handlers.Scheduler != nil {
+		m.Handlers.Scheduler.Stop()
+	}
+	if m.Handlers.Router != nil {
 		log.Info().Msg("Closing branch connection pools")
-		m.Router.CloseAllPools()
+		m.Handlers.Router.CloseAllPools()
 	}
-	if m.Manager != nil {
+	if m.Handlers.Manager != nil {
 		log.Info().Msg("Closing branch manager")
-		m.Manager.Close()
+		m.Handlers.Manager.Close()
 	}
 	return nil
 }

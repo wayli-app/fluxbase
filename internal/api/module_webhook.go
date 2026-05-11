@@ -9,8 +9,7 @@ import (
 )
 
 type WebhookModule struct {
-	Handler *WebhookHandler
-	Trigger *webhook.TriggerService
+	Handlers *WebhookHandlers
 }
 
 func (m *WebhookModule) Name() string { return "webhook" }
@@ -26,15 +25,15 @@ func (m *WebhookModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	}
 	webhookTriggerService := webhook.NewTriggerService(db, webhookService, 4)
 
-	m.Trigger = webhookTriggerService
-	m.Handler = NewWebhookHandler(webhookService)
+	m.Handlers.Trigger = webhookTriggerService
+	m.Handlers.Handler = NewWebhookHandler(webhookService)
 	registry.Register(webhookTriggerService)
 	return nil
 }
 
 func (m *WebhookModule) Shutdown(ctx context.Context) error {
-	if m.Trigger != nil {
-		m.Trigger.Stop()
+	if m.Handlers.Trigger != nil {
+		m.Handlers.Trigger.Stop()
 	}
 	return nil
 }

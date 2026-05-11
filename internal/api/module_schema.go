@@ -12,11 +12,7 @@ import (
 )
 
 type SchemaModule struct {
-	DDL         *DDLHandler
-	Cache       *database.SchemaCache
-	Migrations  *migrations.Handler
-	Export      *SchemaExportHandler
-	Internal    *InternalSchemaHandler
+	Handlers    *SchemaHandlers
 	RESTHandler *RESTHandler
 }
 
@@ -26,8 +22,9 @@ func (m *SchemaModule) Init(ctx context.Context, registry *ServiceRegistry) erro
 	cfg := registry.Config
 	db := registry.DB
 
+	m.Handlers = &SchemaHandlers{}
 	ddlHandler := NewDDLHandler(db, nil)
-	m.DDL = ddlHandler
+	m.Handlers.DDL = ddlHandler
 
 	schemaCache := database.NewSchemaCache(db.Inspector(), 5*time.Minute)
 	if registry.PubSub != nil {
@@ -39,7 +36,7 @@ func (m *SchemaModule) Init(ctx context.Context, registry *ServiceRegistry) erro
 	} else {
 		log.Info().Int("tables", schemaCache.TableCount()).Int("views", schemaCache.ViewCount()).Msg("Schema cache populated")
 	}
-	m.Cache = schemaCache
+	m.Handlers.Cache = schemaCache
 	ddlHandler.SetSchemaCache(schemaCache)
 
 	migrationsHandler := migrations.NewHandler(db, schemaCache)
@@ -47,13 +44,13 @@ func (m *SchemaModule) Init(ctx context.Context, registry *ServiceRegistry) erro
 	if tenantManager != nil && tenantManager.GetRouter() != nil {
 		migrationsHandler.SetTenantPoolProvider(tenantManager.GetRouter())
 	}
-	m.Migrations = migrationsHandler
+	m.Handlers.Migrations = migrationsHandler
 
-	m.Export = NewSchemaExportHandler(schemaCache, db.Inspector())
+	m.Handlers.Export = NewSchemaExportHandler(schemaCache, db.Inspector())
 
 	internalSchemaHandler := NewInternalSchemaHandler()
 	internalSchemaHandler.Initialize(cfg, db)
-	m.Internal = internalSchemaHandler
+	m.Handlers.InternalSchema = internalSchemaHandler
 	log.Info().Msg("Internal schema handler initialized")
 
 	m.RESTHandler = NewRESTHandler(db, NewQueryParser(cfg), schemaCache, cfg)
@@ -64,8 +61,8 @@ func (m *SchemaModule) Init(ctx context.Context, registry *ServiceRegistry) erro
 }
 
 func (m *SchemaModule) Shutdown(ctx context.Context) error {
-	if m.Cache != nil {
-		m.Cache.Close()
+	if m.Handlers != nil && m.Handlers.Cache != nil {
+		m.Handlers.Cache.Close()
 	}
 	return nil
 }
