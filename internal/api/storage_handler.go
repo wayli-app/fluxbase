@@ -33,14 +33,13 @@ type StorageHandler struct {
 	transformConfig *config.TransformConfig
 	transformCache  *storage.TransformCache
 
-	// Rate limiting for transforms
 	transformLimiters   map[string]*rate.Limiter
 	transformLimitersMu sync.Mutex
 	transformRateLimit  rate.Limit
 	transformBurst      int
 
-	// Concurrency limiting for transforms
-	transformSem chan struct{}
+	transformSem     chan struct{}
+	signedURLLimiter *ipRateLimiter
 }
 
 // NewStorageHandler creates a new storage handler with automatic cache initialization
@@ -125,6 +124,11 @@ func NewStorageHandlerWithCache(storageMgr *storage.Manager, db *database.Connec
 		transformRateLimit: rateLimit,
 		transformBurst:     burst,
 		transformSem:       transformSem,
+		signedURLLimiter: &ipRateLimiter{
+			requests: make(map[string]*rateLimitEntry),
+			limit:    100,
+			window:   time.Minute,
+		},
 	}
 }
 
