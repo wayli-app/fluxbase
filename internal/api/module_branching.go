@@ -19,6 +19,7 @@ type BranchingModule struct {
 func (m *BranchingModule) Name() string { return "branching" }
 
 func (m *BranchingModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &BranchingHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 

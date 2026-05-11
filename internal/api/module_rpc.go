@@ -18,6 +18,7 @@ type RPCModule struct {
 func (m *RPCModule) Name() string { return "rpc" }
 
 func (m *RPCModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &RPCHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 

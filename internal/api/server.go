@@ -223,16 +223,18 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	s.Scaling = bgMod.Handlers
 
-	if err := s.Webhook.Trigger.Start(context.Background()); err != nil {
-		log.Error().Err(err).Msg("Failed to start webhook trigger service")
+	if s.Webhook != nil && s.Webhook.Trigger != nil {
+		if err := s.Webhook.Trigger.Start(context.Background()); err != nil {
+			log.Error().Err(err).Msg("Failed to start webhook trigger service")
+		}
 	}
-	if s.Logging.Retention != nil {
+	if s.Logging != nil && s.Logging.Retention != nil {
 		s.Logging.Retention.Start()
 		log.Info().
 			Dur("interval", s.config.Logging.RetentionCheckInterval).
 			Msg("Log retention cleanup service started")
 	}
-	if s.Branching.Scheduler != nil {
+	if s.Branching != nil && s.Branching.Scheduler != nil {
 		s.Branching.Scheduler.Start()
 	}
 

@@ -19,6 +19,7 @@ type JobsModule struct {
 func (m *JobsModule) Name() string { return "jobs" }
 
 func (m *JobsModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &JobsHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 
