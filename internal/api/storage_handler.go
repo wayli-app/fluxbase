@@ -38,8 +38,8 @@ type StorageHandler struct {
 	transformRateLimit  rate.Limit
 	transformBurst      int
 
-	transformSem       chan struct{}
-	signedURLLimiter   *ipRateLimiter
+	transformSem     chan struct{}
+	signedURLLimiter *ipRateLimiter
 }
 
 // NewStorageHandler creates a new storage handler with automatic cache initialization

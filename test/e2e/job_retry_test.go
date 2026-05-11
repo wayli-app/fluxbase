@@ -40,19 +40,30 @@ func createFailingJobFunction(t *testing.T, tc *test.TestContext, namespace, job
 	require.NoError(t, err)
 }
 
+func execSQL(t *testing.T, tc *test.TestContext, sql string, args ...interface{}) {
+	t.Helper()
+	_, err := tc.DB.Exec(context.Background(), sql, args...)
+	require.NoError(t, err)
+}
+
+func querySQL(t *testing.T, tc *test.TestContext, sql string, args ...interface{}) []map[string]interface{} {
+	t.Helper()
+	return tc.QuerySQL(sql, args...)
+}
+
 func markJobRunning(t *testing.T, tc *test.TestContext, jobID string) {
 	t.Helper()
-	tc.ExecuteSQL(`UPDATE jobs.queue SET status = 'running', started_at = NOW(), worker_id = gen_random_uuid() WHERE id = $1 AND status = 'pending'`, jobID)
+	execSQL(t, tc, `UPDATE jobs.queue SET status = 'running', started_at = NOW(), worker_id = gen_random_uuid() WHERE id = $1 AND status = 'pending'`, jobID)
 }
 
 func markJobFailed(t *testing.T, tc *test.TestContext, jobID string) {
 	t.Helper()
-	tc.ExecuteSQL(`UPDATE jobs.queue SET status = 'failed', error_message = 'deliberate failure', completed_at = NOW() WHERE id = $1 AND status = 'running'`, jobID)
+	execSQL(t, tc, `UPDATE jobs.queue SET status = 'failed', error_message = 'deliberate failure', completed_at = NOW() WHERE id = $1 AND status = 'running'`, jobID)
 }
 
 func requeueForRetry(t *testing.T, tc *test.TestContext, jobID string) bool {
 	t.Helper()
-	results := tc.QuerySQL(`
+	results := querySQL(t, tc, `
 		UPDATE jobs.queue
 		SET status = 'pending', retry_count = retry_count + 1, worker_id = NULL,
 		    started_at = NULL, last_progress_at = NULL, completed_at = NULL,
@@ -77,6 +88,22 @@ func toInt64(v interface{}) int64 {
 	}
 }
 
+func submitRetryJob(t *testing.T, tc *test.TestContext, token, namespace, jobName string) map[string]interface{} {
+	t.Helper()
+	resp := tc.NewRequest("POST", "/api/v1/jobs/submit").
+		WithAuth(token).
+		WithJSON(map[string]interface{}{
+			"job_name":  jobName,
+			"namespace": namespace,
+			"payload":   map[string]interface{}{"test": true},
+		}).
+		Send()
+	require.Equal(t, fiber.StatusCreated, resp.Status(), "Failed to submit job: %s", string(resp.Body()))
+	var result map[string]interface{}
+	resp.JSON(&result)
+	return result
+}
+
 func TestJobRetry_ExponentialBackoff(t *testing.T) {
 	tc := test.NewTestContext(t)
 	defer tc.Close()
@@ -92,98 +119,79 @@ func TestJobRetry_ExponentialBackoff(t *testing.T) {
 	userEmail := test.RandomEmail()
 	_, userToken := tc.CreateTestUser(userEmail, "password123")
 
-	job := submitTestJob(t, tc, userToken, namespace, jobName)
+	job := submitRetryJob(t, tc, userToken, namespace, jobName)
 	jobID := job["id"].(string)
 	require.NotEmpty(t, jobID)
 
 	defer func() {
-		tc.ExecuteSQL("DELETE FROM jobs.queue WHERE id = $1", jobID)
-		tc.ExecuteSQL("DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2", namespace, jobName)
+		execSQL(t, tc, "DELETE FROM jobs.queue WHERE id = $1", jobID)
+		execSQL(t, tc, "DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2", namespace, jobName)
 	}()
 
-	t.Run("initial state has zero retry_count and no scheduled_at", func(t *testing.T) {
-		results := tc.QuerySQL("SELECT retry_count, status, scheduled_at FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(0), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "pending", results[0]["status"])
-		assert.Nil(t, results[0]["scheduled_at"])
-	})
+	results := querySQL(t, tc, "SELECT retry_count, status, scheduled_at FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(0), toInt64(results[0]["retry_count"]))
+	assert.Equal(t, "pending", results[0]["status"])
+	assert.Nil(t, results[0]["scheduled_at"])
 
-	t.Run("first retry sets retry_count=1 and ~5s backoff", func(t *testing.T) {
-		markJobRunning(t, tc, jobID)
-		requeued := requeueForRetry(t, tc, jobID)
-		require.True(t, requeued, "Job should be requeued (retry 1 of 3)")
+	markJobRunning(t, tc, jobID)
+	requeued := requeueForRetry(t, tc, jobID)
+	require.True(t, requeued, "Job should be requeued (retry 1 of 3)")
 
-		results := tc.QuerySQL("SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(1), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "pending", results[0]["status"])
+	results = querySQL(t, tc, "SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(1), toInt64(results[0]["retry_count"]))
+	assert.Equal(t, "pending", results[0]["status"])
+	scheduledAt, ok := results[0]["scheduled_at"].(time.Time)
+	require.True(t, ok, "scheduled_at should be a time.Time")
+	nowTs, ok := results[0]["now_ts"].(time.Time)
+	require.True(t, ok, "now_ts should be a time.Time")
+	delay := scheduledAt.Sub(nowTs).Seconds()
+	assert.GreaterOrEqual(t, delay, 4.0, "First backoff should be ~5s")
+	assert.LessOrEqual(t, delay, 7.0, "First backoff should be ~5s")
 
-		scheduledAt, ok := results[0]["scheduled_at"].(time.Time)
-		require.True(t, ok, "scheduled_at should be a time.Time")
-		nowTs, ok := results[0]["now_ts"].(time.Time)
-		require.True(t, ok, "now_ts should be a time.Time")
+	markJobRunning(t, tc, jobID)
+	requeued = requeueForRetry(t, tc, jobID)
+	require.True(t, requeued, "Job should be requeued (retry 2 of 3)")
 
-		delay := scheduledAt.Sub(nowTs).Seconds()
-		assert.GreaterOrEqual(t, delay, 4.0, "First backoff should be ~5s (5 * 2^0)")
-		assert.LessOrEqual(t, delay, 7.0, "First backoff should be ~5s")
-	})
+	results = querySQL(t, tc, "SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(2), toInt64(results[0]["retry_count"]))
+	scheduledAt, ok = results[0]["scheduled_at"].(time.Time)
+	require.True(t, ok)
+	nowTs, ok = results[0]["now_ts"].(time.Time)
+	require.True(t, ok)
+	delay = scheduledAt.Sub(nowTs).Seconds()
+	assert.GreaterOrEqual(t, delay, 9.0, "Second backoff should be ~10s")
+	assert.LessOrEqual(t, delay, 12.0, "Second backoff should be ~10s")
 
-	t.Run("second retry sets retry_count=2 and ~10s backoff", func(t *testing.T) {
-		markJobRunning(t, tc, jobID)
-		requeued := requeueForRetry(t, tc, jobID)
-		require.True(t, requeued, "Job should be requeued (retry 2 of 3)")
+	markJobRunning(t, tc, jobID)
+	requeued = requeueForRetry(t, tc, jobID)
+	require.True(t, requeued, "Job should be requeued (retry 3 of 3)")
 
-		results := tc.QuerySQL("SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(2), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "pending", results[0]["status"])
+	results = querySQL(t, tc, "SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(3), toInt64(results[0]["retry_count"]))
+	scheduledAt, ok = results[0]["scheduled_at"].(time.Time)
+	require.True(t, ok)
+	nowTs, ok = results[0]["now_ts"].(time.Time)
+	require.True(t, ok)
+	delay = scheduledAt.Sub(nowTs).Seconds()
+	assert.GreaterOrEqual(t, delay, 19.0, "Third backoff should be ~20s")
+	assert.LessOrEqual(t, delay, 22.0, "Third backoff should be ~20s")
 
-		scheduledAt, ok := results[0]["scheduled_at"].(time.Time)
-		require.True(t, ok)
-		nowTs, ok := results[0]["now_ts"].(time.Time)
-		require.True(t, ok)
+	markJobRunning(t, tc, jobID)
+	requeued = requeueForRetry(t, tc, jobID)
+	assert.False(t, requeued, "Job should NOT be requeued when retry_count (3) reaches max_retries (3)")
 
-		delay := scheduledAt.Sub(nowTs).Seconds()
-		assert.GreaterOrEqual(t, delay, 9.0, "Second backoff should be ~10s (5 * 2^1)")
-		assert.LessOrEqual(t, delay, 12.0, "Second backoff should be ~10s")
-	})
+	execSQL(t, tc, `UPDATE jobs.queue SET status = 'failed', error_message = 'deliberate failure', completed_at = NOW() WHERE id = $1 AND status = 'running'`, jobID)
 
-	t.Run("third retry sets retry_count=3 and ~20s backoff", func(t *testing.T) {
-		markJobRunning(t, tc, jobID)
-		requeued := requeueForRetry(t, tc, jobID)
-		require.True(t, requeued, "Job should be requeued (retry 3 of 3)")
-
-		results := tc.QuerySQL("SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(3), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "pending", results[0]["status"])
-
-		scheduledAt, ok := results[0]["scheduled_at"].(time.Time)
-		require.True(t, ok)
-		nowTs, ok := results[0]["now_ts"].(time.Time)
-		require.True(t, ok)
-
-		delay := scheduledAt.Sub(nowTs).Seconds()
-		assert.GreaterOrEqual(t, delay, 19.0, "Third backoff should be ~20s (5 * 2^2)")
-		assert.LessOrEqual(t, delay, 22.0, "Third backoff should be ~20s")
-	})
-
-	t.Run("retry exhaustion leaves job permanently failed", func(t *testing.T) {
-		markJobRunning(t, tc, jobID)
-
-		requeued := requeueForRetry(t, tc, jobID)
-		assert.False(t, requeued, "Job should NOT be requeued when retry_count (3) reaches max_retries (3)")
-
-		tc.ExecuteSQL(`UPDATE jobs.queue SET status = 'failed', error_message = 'deliberate failure', completed_at = NOW() WHERE id = $1 AND status = 'running'`, jobID)
-
-		results := tc.QuerySQL("SELECT retry_count, status, error_message, completed_at FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(3), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "failed", results[0]["status"])
-		assert.NotNil(t, results[0]["error_message"])
-		assert.NotNil(t, results[0]["completed_at"])
-	})
+	results = querySQL(t, tc, "SELECT retry_count, status, error_message, completed_at FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(3), toInt64(results[0]["retry_count"]))
+	assert.Equal(t, "failed", results[0]["status"])
+	assert.NotNil(t, results[0]["error_message"])
+	assert.NotNil(t, results[0]["completed_at"])
 }
 
 func TestJobRetry_AdminRetryEndpoint(t *testing.T) {
@@ -200,78 +208,70 @@ func TestJobRetry_AdminRetryEndpoint(t *testing.T) {
 
 	_, adminToken := tc.CreateDashboardAdminUser(test.E2ETestEmailWithSuffix("admin-retry"), "adminpassword123")
 
-	job := submitTestJob(t, tc, adminToken, namespace, jobName)
+	job := submitRetryJob(t, tc, adminToken, namespace, jobName)
 	jobID := job["id"].(string)
 	require.NotEmpty(t, jobID)
 
 	defer func() {
-		tc.ExecuteSQL("DELETE FROM jobs.queue WHERE id = $1", jobID)
-		tc.ExecuteSQL("DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2", namespace, jobName)
+		execSQL(t, tc, "DELETE FROM jobs.queue WHERE id = $1", jobID)
+		execSQL(t, tc, "DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2", namespace, jobName)
 	}()
 
-	t.Run("admin retry endpoint requeues failed job with backoff", func(t *testing.T) {
-		markJobRunning(t, tc, jobID)
-		markJobFailed(t, tc, jobID)
+	markJobRunning(t, tc, jobID)
+	markJobFailed(t, tc, jobID)
 
-		results := tc.QuerySQL("SELECT status, retry_count FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, "failed", results[0]["status"])
-		assert.Equal(t, int64(0), toInt64(results[0]["retry_count"]))
+	results := querySQL(t, tc, "SELECT status, retry_count FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, "failed", results[0]["status"])
+	assert.Equal(t, int64(0), toInt64(results[0]["retry_count"]))
 
-		resp := tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
-			WithAuth(adminToken).
-			Send()
-		assert.Equal(t, fiber.StatusOK, resp.Status())
+	resp := tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
+		WithAuth(adminToken).
+		Send()
+	assert.Equal(t, fiber.StatusOK, resp.Status())
 
-		results = tc.QuerySQL("SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(1), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "pending", results[0]["status"])
+	results = querySQL(t, tc, "SELECT retry_count, status, scheduled_at, NOW() as now_ts FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(1), toInt64(results[0]["retry_count"]))
+	assert.Equal(t, "pending", results[0]["status"])
+	scheduledAt, ok := results[0]["scheduled_at"].(time.Time)
+	require.True(t, ok)
+	nowTs, ok := results[0]["now_ts"].(time.Time)
+	require.True(t, ok)
+	delay := scheduledAt.Sub(nowTs).Seconds()
+	assert.GreaterOrEqual(t, delay, 4.0)
+	assert.LessOrEqual(t, delay, 7.0)
 
-		scheduledAt, ok := results[0]["scheduled_at"].(time.Time)
-		require.True(t, ok)
-		nowTs, ok := results[0]["now_ts"].(time.Time)
-		require.True(t, ok)
+	resp = tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
+		WithAuth(adminToken).
+		Send()
+	assert.Equal(t, fiber.StatusBadRequest, resp.Status())
 
-		delay := scheduledAt.Sub(nowTs).Seconds()
-		assert.GreaterOrEqual(t, delay, 4.0)
-		assert.LessOrEqual(t, delay, 7.0)
-	})
+	markJobRunning(t, tc, jobID)
+	markJobFailed(t, tc, jobID)
 
-	t.Run("retry endpoint rejects non-failed jobs", func(t *testing.T) {
-		resp := tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
-			WithAuth(adminToken).
-			Send()
-		assert.Equal(t, fiber.StatusBadRequest, resp.Status())
-	})
+	resp = tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
+		WithAuth(adminToken).
+		Send()
+	assert.Equal(t, fiber.StatusOK, resp.Status())
 
-	t.Run("retry exhaustion via API prevents further retries", func(t *testing.T) {
-		markJobRunning(t, tc, jobID)
-		markJobFailed(t, tc, jobID)
+	results = querySQL(t, tc, "SELECT retry_count, status FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(2), toInt64(results[0]["retry_count"]))
+	assert.Equal(t, "pending", results[0]["status"])
 
-		resp := tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
-			WithAuth(adminToken).
-			Send()
-		assert.Equal(t, fiber.StatusOK, resp.Status())
+	markJobRunning(t, tc, jobID)
+	markJobFailed(t, tc, jobID)
 
-		results := tc.QuerySQL("SELECT retry_count, status FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(2), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "pending", results[0]["status"])
+	results = querySQL(t, tc, "SELECT retry_count, status FROM jobs.queue WHERE id = $1", jobID)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(2), toInt64(results[0]["retry_count"]))
+	assert.Equal(t, "failed", results[0]["status"])
 
-		markJobRunning(t, tc, jobID)
-		markJobFailed(t, tc, jobID)
-
-		results = tc.QuerySQL("SELECT retry_count, status FROM jobs.queue WHERE id = $1", jobID)
-		require.Len(t, results, 1)
-		assert.Equal(t, int64(2), toInt64(results[0]["retry_count"]))
-		assert.Equal(t, "failed", results[0]["status"])
-
-		resp = tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
-			WithAuth(adminToken).
-			Send()
-		assert.Equal(t, fiber.StatusInternalServerError, resp.Status())
-	})
+	resp = tc.NewRequest("POST", fmt.Sprintf("/api/v1/admin/jobs/queue/%s/retry", jobID)).
+		WithAuth(adminToken).
+		Send()
+	assert.Equal(t, fiber.StatusInternalServerError, resp.Status())
 }
 
 func TestJobRetry_BackoffDoublesEachAttempt(t *testing.T) {
@@ -289,13 +289,13 @@ func TestJobRetry_BackoffDoublesEachAttempt(t *testing.T) {
 	userEmail := test.RandomEmail()
 	_, userToken := tc.CreateTestUser(userEmail, "password123")
 
-	job := submitTestJob(t, tc, userToken, namespace, jobName)
+	job := submitRetryJob(t, tc, userToken, namespace, jobName)
 	jobID := job["id"].(string)
 	require.NotEmpty(t, jobID)
 
 	defer func() {
-		tc.ExecuteSQL("DELETE FROM jobs.queue WHERE id = $1", jobID)
-		tc.ExecuteSQL("DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2", namespace, jobName)
+		execSQL(t, tc, "DELETE FROM jobs.queue WHERE id = $1", jobID)
+		execSQL(t, tc, "DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2", namespace, jobName)
 	}()
 
 	expectedBackoffs := []float64{5.0, 10.0, 20.0, 40.0, 80.0}
@@ -303,7 +303,7 @@ func TestJobRetry_BackoffDoublesEachAttempt(t *testing.T) {
 	for i, expectedBackoff := range expectedBackoffs {
 		markJobRunning(t, tc, jobID)
 
-		results := tc.QuerySQL(`
+		results := querySQL(t, tc, `
 			UPDATE jobs.queue
 			SET status = 'pending', retry_count = retry_count + 1, worker_id = NULL,
 			    started_at = NULL, last_progress_at = NULL, completed_at = NULL,
@@ -330,7 +330,7 @@ func TestJobRetry_BackoffDoublesEachAttempt(t *testing.T) {
 	}
 
 	markJobRunning(t, tc, jobID)
-	results := tc.QuerySQL(`
+	results := querySQL(t, tc, `
 		UPDATE jobs.queue
 		SET status = 'pending', retry_count = retry_count + 1, worker_id = NULL,
 		    started_at = NULL, last_progress_at = NULL, completed_at = NULL,

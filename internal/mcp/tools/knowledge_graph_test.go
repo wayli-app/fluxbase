@@ -143,8 +143,6 @@ func TestQueryKnowledgeGraphTool_Execute_MissingKnowledgeBaseID(t *testing.T) {
 	}
 }
 
-
-
 // =============================================================================
 // FindRelatedEntitiesTool Tests
 // =============================================================================
@@ -317,8 +315,6 @@ func TestFindRelatedEntitiesTool_Execute_MissingRequiredParams(t *testing.T) {
 	})
 }
 
-
-
 // =============================================================================
 // BrowseKnowledgeGraphTool Tests
 // =============================================================================
@@ -483,8 +479,6 @@ func TestBrowseKnowledgeGraphTool_Execute_MissingRequiredParams(t *testing.T) {
 	})
 }
 
-
-
 // =============================================================================
 // ToolHandler Interface Compliance Tests
 // =============================================================================
@@ -552,8 +546,6 @@ func TestBrowseKnowledgeGraphTool_Execute_NilArgs(t *testing.T) {
 // =============================================================================
 // JSON Response Structure Tests (using mocked KnowledgeGraph)
 // =============================================================================
-
-
 
 // =============================================================================
 // InputSchema Property Count Tests
@@ -712,5 +704,3 @@ func BenchmarkBrowseKnowledgeGraphTool_Execute_NilGraph(b *testing.B) {
 // =============================================================================
 // Edge Cases
 // =============================================================================
-
-
