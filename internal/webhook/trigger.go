@@ -306,7 +306,7 @@ func (s *TriggerService) Stop() {
 // This is needed because httptest.NewServer() uses localhost which is blocked by default.
 func (s *TriggerService) EnablePrivateIPs() {
 	if s.webhookSvc != nil {
-		s.webhookSvc.AllowPrivateIPs = true
+		s.webhookSvc.SetAllowPrivateIPs(true)
 	}
 }
 

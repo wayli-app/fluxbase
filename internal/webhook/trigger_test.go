@@ -489,14 +489,14 @@ func TestWebhookPayloadEventTypes(t *testing.T) {
 
 func TestTriggerService_EnablePrivateIPs(t *testing.T) {
 	t.Run("EnablePrivateIPs sets AllowPrivateIPs on webhook service", func(t *testing.T) {
-		webhookSvc := &WebhookService{AllowPrivateIPs: false}
+		webhookSvc := &WebhookService{}
 		svc := NewTriggerService(nil, webhookSvc, 1)
 
-		assert.False(t, svc.webhookSvc.AllowPrivateIPs)
+		assert.False(t, svc.webhookSvc.AllowPrivateIPs())
 
 		svc.EnablePrivateIPs()
 
-		assert.True(t, svc.webhookSvc.AllowPrivateIPs)
+		assert.True(t, svc.webhookSvc.AllowPrivateIPs())
 	})
 
 	t.Run("EnablePrivateIPs with nil webhook service", func(t *testing.T) {
