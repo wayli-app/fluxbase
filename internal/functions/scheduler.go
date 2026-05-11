@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
-
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"

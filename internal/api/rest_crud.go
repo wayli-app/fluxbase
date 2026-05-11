@@ -204,7 +204,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		for col, val := range data {
 			// Validate column exists
 			if !h.columnExists(table, col) {
-			return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
+				return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
 			}
 
 			columns = append(columns, quoteIdentifier(col))
@@ -250,7 +250,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 				for _, col := range conflictCols {
 					col = strings.TrimSpace(col)
 					if !h.columnExists(table, col) {
-					return SendBadRequest(c, fmt.Sprintf("Unknown column in on_conflict: %s", col), ErrCodeInvalidInput)
+						return SendBadRequest(c, fmt.Sprintf("Unknown column in on_conflict: %s", col), ErrCodeInvalidInput)
 					}
 					quotedConflictCols = append(quotedConflictCols, quoteIdentifier(col))
 					conflictTargetColumns = append(conflictTargetColumns, col)
@@ -363,7 +363,7 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 
 			// Validate column exists
 			if !h.columnExists(table, col) {
-			return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
+				return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
 			}
 
 			// Check if value is GeoJSON and needs PostGIS conversion

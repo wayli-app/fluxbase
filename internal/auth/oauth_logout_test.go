@@ -368,7 +368,7 @@ func TestNewOAuthLogoutService(t *testing.T) {
 	t.Run("creates service with encryption key", func(t *testing.T) {
 		svc := NewOAuthLogoutService(nil, []byte("my-secret-key"))
 		assert.NotNil(t, svc)
-		assert.Equal(t, "my-secret-key", svc.encryptionKey)
+		assert.Equal(t, []byte("my-secret-key"), svc.encryptionKey)
 	})
 
 	t.Run("http client has timeout", func(t *testing.T) {

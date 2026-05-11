@@ -69,7 +69,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table databa
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
 				geoJSON, err := json.Marshal(val)
 				if err != nil {
-				return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
+					return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
 				}
 				values = append(values, string(geoJSON))
 				placeholders[i] = fmt.Sprintf("ST_GeomFromGeoJSON($%d)", argCounter)
@@ -102,7 +102,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table databa
 			for _, col := range conflictCols {
 				col = strings.TrimSpace(col)
 				if !h.columnExists(table, col) {
-				return SendBadRequest(c, fmt.Sprintf("Unknown column in on_conflict: %s", col), ErrCodeInvalidInput)
+					return SendBadRequest(c, fmt.Sprintf("Unknown column in on_conflict: %s", col), ErrCodeInvalidInput)
 				}
 				quotedConflictCols = append(quotedConflictCols, quoteIdentifier(col))
 				conflictTargetColumns = append(conflictTargetColumns, col)
@@ -266,7 +266,7 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
 				geoJSON, err := json.Marshal(val)
 				if err != nil {
-				return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
+					return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
 				}
 				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", quotedCol, argCounter))
 				values = append(values, string(geoJSON))
