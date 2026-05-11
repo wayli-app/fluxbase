@@ -158,9 +158,7 @@ func (h *OAuthHandler) Authorize(c fiber.Ctx) error {
 	oauthConfig, err := h.getProviderConfig(ctx, providerName, tenantID)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Str("tenant_id", tenantID).Msg("Failed to get OAuth provider config")
-		return c.Status(400).JSON(fiber.Map{
-			"error": fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName),
-		})
+		return SendBadRequest(c, fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName), "PROVIDER_NOT_CONFIGURED")
 	}
 
 	// Override redirect URL if custom redirect_uri is provided
@@ -176,18 +174,14 @@ func (h *OAuthHandler) Authorize(c fiber.Ctx) error {
 	state, err := auth.GenerateState()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to generate OAuth state")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to initiate OAuth flow",
-		})
+		return SendInternalError(c, "Failed to initiate OAuth flow")
 	}
 
 	// Store state with optional redirect URI for callback validation
 	metadata := auth.StateMetadata{RedirectURI: redirectURI}
 	if err := h.stateStore.Set(ctx, state, metadata); err != nil {
 		log.Error().Err(err).Msg("Failed to store OAuth state")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to initiate OAuth flow",
-		})
+		return SendInternalError(c, "Failed to initiate OAuth flow")
 	}
 
 	// Build auth URL options
@@ -232,19 +226,14 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 			Str("description", errorDesc).
 			Msg("OAuth provider returned error")
 
-		return c.Status(400).JSON(fiber.Map{
-			"error":       "OAuth authentication failed",
-			"description": errorDesc,
-		})
+		return SendBadRequest(c, "OAuth authentication failed: "+errorDesc, "OAUTH_AUTH_FAILED")
 	}
 
 	// Validate state and retrieve metadata
 	stateMetadata, valid := h.stateStore.GetAndValidate(ctx, state)
 	if !valid {
 		log.Warn().Str("provider", providerName).Str("state", state).Msg("Invalid OAuth state")
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Invalid OAuth state parameter",
-		})
+		return SendBadRequest(c, "Invalid OAuth state parameter", "INVALID_STATE")
 	}
 
 	if err := h.requireDB(c); err != nil {
@@ -257,9 +246,7 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 	oauthConfig, err := h.getProviderConfig(ctx, providerName, tenantID)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider config")
-		return c.Status(400).JSON(fiber.Map{
-			"error": "OAuth provider not configured",
-		})
+		return SendBadRequest(c, "OAuth provider not configured", "PROVIDER_NOT_CONFIGURED")
 	}
 
 	// Determine redirect_uri to use (query parameter takes precedence over state metadata for SDK compatibility)
@@ -287,18 +274,14 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to exchange OAuth code")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to complete OAuth authentication",
-		})
+		return SendInternalError(c, "Failed to complete OAuth authentication")
 	}
 
 	// Get user info from OAuth provider
 	userInfo, err := h.getUserInfo(ctx, providerName, oauthConfig, token)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get user info from OAuth provider")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to retrieve user information",
-		})
+		return SendInternalError(c, "Failed to retrieve user information")
 	}
 
 	// Extract email and provider user ID
@@ -310,9 +293,7 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 			Str("provider", providerName).
 			Interface("userInfo", userInfo).
 			Msg("Missing required user information from OAuth provider")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "OAuth provider did not return required user information",
-		})
+		return SendInternalError(c, "OAuth provider did not return required user information")
 	}
 
 	// RBAC: Fetch provider RBAC config and validate claims if configured (OPTIONAL for app users)
@@ -366,9 +347,7 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 					Str("provider", providerName).
 					Interface("claims", idTokenClaims).
 					Msg("App OAuth access denied due to claims validation")
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": err.Error(),
-				})
+				return SendForbidden(c, err.Error(), "OAUTH_ACCESS_DENIED")
 			}
 		}
 	}
@@ -377,17 +356,13 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 	user, isNewUser, err := h.createOrLinkOAuthUser(ctx, providerName, providerUserID, email, userInfo, token)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Str("email", email).Msg("Failed to create/link OAuth user")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to create user account",
-		})
+		return SendInternalError(c, "Failed to create user account")
 	}
 
 	tokenResp, err := h.authSvc.GenerateTokensForUser(ctx, user.ID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", user.ID).Msg("Failed to generate tokens and create session")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to generate authentication token",
-		})
+		return SendInternalError(c, "Failed to generate authentication token")
 	}
 
 	log.Info().
@@ -431,9 +406,7 @@ func (h *OAuthHandler) ListEnabledProviders(c fiber.Ctx) error {
 	rows, err := h.db.Query(ctx, query, tenantUUID)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list enabled OAuth providers")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to retrieve OAuth providers",
-		})
+		return SendInternalError(c, "Failed to retrieve OAuth providers")
 	}
 	defer rows.Close()
 
@@ -750,12 +723,9 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	// Get user ID from JWT
 	userIDStr := middleware.GetUserID(c)
 	if userIDStr == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required",
-		})
+		return SendUnauthorized(c, "Authentication required", "AUTH_REQUIRED")
 	}
 
-	// Parse optional redirect URL from request body
 	var reqBody struct {
 		RedirectURL string `json:"redirect_url"`
 	}
@@ -783,9 +753,7 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	`, providerName).Scan(&clientID, &clientSecret, &revocationEndpoint, &endSessionEndpoint, &isEncrypted)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider for logout")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("OAuth provider '%s' not found or disabled", providerName),
-		})
+		return SendBadRequest(c, fmt.Sprintf("OAuth provider '%s' not found or disabled", providerName), "PROVIDER_NOT_FOUND")
 	}
 
 	// Use default endpoints if not configured
@@ -925,9 +893,7 @@ func (h *OAuthHandler) LogoutCallback(c fiber.Ctx) error {
 
 	if state == "" {
 		log.Warn().Str("provider", providerName).Msg("OAuth logout callback missing state parameter")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Missing state parameter",
-		})
+		return SendBadRequest(c, "Missing state parameter", "MISSING_STATE")
 	}
 
 	if err := h.requireLogoutService(c); err != nil {
@@ -937,9 +903,7 @@ func (h *OAuthHandler) LogoutCallback(c fiber.Ctx) error {
 	logoutState, err := h.logoutService.ValidateLogoutState(ctx, state)
 	if err != nil {
 		log.Warn().Err(err).Str("provider", providerName).Str("state", state).Msg("Invalid or expired logout state")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid or expired logout state",
-		})
+		return SendBadRequest(c, "Invalid or expired logout state", "INVALID_LOGOUT_STATE")
 	}
 
 	log.Info().
@@ -987,9 +951,7 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 
 	userIDStr := middleware.GetUserID(c)
 	if userIDStr == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required",
-		})
+		return SendUnauthorized(c, "Authentication required", "AUTH_REQUIRED")
 	}
 
 	if err := h.requireDB(c); err != nil {
@@ -1003,26 +965,22 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 	oauthConfig, err := h.getProviderConfigForToken(ctx, providerName)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider config for token retrieval")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName),
-		})
+		return SendBadRequest(c, fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName), "PROVIDER_NOT_CONFIGURED")
 	}
 
 	storedToken, err := h.logoutService.GetUserOAuthToken(ctx, userIDStr, providerName)
 	if err != nil {
 		if errors.Is(err, auth.ErrOAuthTokenNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error":         "No OAuth token found for this provider",
-				"error_code":    "oauth_token_not_found",
-				"error_hint":    "You need to sign in with this provider first",
-				"provider":      providerName,
-				"authorize_url": fmt.Sprintf("%s/api/v1/auth/oauth/%s/authorize", h.baseURL, providerName),
-			})
+			return SendErrorWithDetails(c, fiber.StatusNotFound,
+				"No OAuth token found for this provider", "OAUTH_TOKEN_NOT_FOUND",
+				"You need to sign in with this provider first", "",
+				fiber.Map{
+					"provider":      providerName,
+					"authorize_url": fmt.Sprintf("%s/api/v1/auth/oauth/%s/authorize", h.baseURL, providerName),
+				})
 		}
 		log.Error().Err(err).Str("provider", providerName).Str("user_id", userIDStr).Msg("Failed to get stored OAuth token")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to retrieve OAuth token",
-		})
+		return SendInternalError(c, "Failed to retrieve OAuth token")
 	}
 
 	accessToken := storedToken.AccessToken

@@ -33,7 +33,7 @@ func NewRESTHandler(db *database.Connection, parser *QueryParser, schemaCache *d
 
 func (h *RESTHandler) requireSchemaCache(c fiber.Ctx) error {
 	if h.schemaCache == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendInternalError(c, "Service not initialized")
 	}
 	return nil
 }
@@ -83,22 +83,16 @@ func (h *RESTHandler) HandleDynamicTable(c fiber.Ctx) error {
 	tableInfo, exists, err := h.schemaCache.GetTable(ctx, schema, tableName)
 	if err != nil {
 		log.Error().Err(err).Str("schema", schema).Str("table", tableName).Msg("Failed to lookup table")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to lookup table metadata",
-		})
+		return SendInternalError(c, "Failed to lookup table metadata")
 	}
 	if !exists {
-		return c.Status(404).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table '%s.%s' not found", schema, tableName),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table '%s.%s' not found", schema, tableName))
 	}
 
 	// Check if table is writable for write operations
 	isWritable, err := h.schemaCache.IsTableWritable(ctx, schema, tableName)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to check table permissions",
-		})
+		return SendInternalError(c, "Failed to check table permissions")
 	}
 
 	// Dispatch based on HTTP method
@@ -112,29 +106,21 @@ func (h *RESTHandler) HandleDynamicTable(c fiber.Ctx) error {
 			return h.makePostQueryHandler(*tableInfo)(c)
 		}
 		if !isWritable {
-			return c.Status(405).JSON(fiber.Map{
-				"error": fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName),
-			})
+			return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName), "METHOD_NOT_ALLOWED")
 		}
 		return h.makePostHandler(*tableInfo)(c)
 	case "PATCH":
 		if !isWritable {
-			return c.Status(405).JSON(fiber.Map{
-				"error": fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName),
-			})
+			return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName), "METHOD_NOT_ALLOWED")
 		}
 		return h.makeBatchPatchHandler(*tableInfo)(c)
 	case "DELETE":
 		if !isWritable {
-			return c.Status(405).JSON(fiber.Map{
-				"error": fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName),
-			})
+			return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName), "METHOD_NOT_ALLOWED")
 		}
 		return h.makeBatchDeleteHandler(*tableInfo)(c)
 	default:
-		return c.Status(405).JSON(fiber.Map{
-			"error": fmt.Sprintf("Method %s not allowed", c.Method()),
-		})
+		return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Method %s not allowed", c.Method()), "METHOD_NOT_ALLOWED")
 	}
 }
 
@@ -151,21 +137,15 @@ func (h *RESTHandler) HandleDynamicTableById(c fiber.Ctx) error {
 	tableInfo, exists, err := h.schemaCache.GetTable(ctx, schema, tableName)
 	if err != nil {
 		log.Error().Err(err).Str("schema", schema).Str("table", tableName).Msg("Failed to lookup table")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to lookup table metadata",
-		})
+		return SendInternalError(c, "Failed to lookup table metadata")
 	}
 	if !exists {
-		return c.Status(404).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table '%s.%s' not found", schema, tableName),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table '%s.%s' not found", schema, tableName))
 	}
 
 	isWritable, err := h.schemaCache.IsTableWritable(ctx, schema, tableName)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to check table permissions",
-		})
+		return SendInternalError(c, "Failed to check table permissions")
 	}
 
 	// Dispatch based on HTTP method
@@ -174,29 +154,21 @@ func (h *RESTHandler) HandleDynamicTableById(c fiber.Ctx) error {
 		return h.makeGetByIdHandler(*tableInfo)(c)
 	case "PUT":
 		if !isWritable {
-			return c.Status(405).JSON(fiber.Map{
-				"error": fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName),
-			})
+			return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName), "METHOD_NOT_ALLOWED")
 		}
 		return h.makePutHandler(*tableInfo)(c)
 	case "PATCH":
 		if !isWritable {
-			return c.Status(405).JSON(fiber.Map{
-				"error": fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName),
-			})
+			return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName), "METHOD_NOT_ALLOWED")
 		}
 		return h.makePatchHandler(*tableInfo)(c)
 	case "DELETE":
 		if !isWritable {
-			return c.Status(405).JSON(fiber.Map{
-				"error": fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName),
-			})
+			return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Table '%s.%s' is read-only (view or materialized view)", schema, tableName), "METHOD_NOT_ALLOWED")
 		}
 		return h.makeDeleteHandler(*tableInfo)(c)
 	default:
-		return c.Status(405).JSON(fiber.Map{
-			"error": fmt.Sprintf("Method %s not allowed", c.Method()),
-		})
+		return SendErrorWithCode(c, fiber.StatusMethodNotAllowed, fmt.Sprintf("Method %s not allowed", c.Method()), "METHOD_NOT_ALLOWED")
 	}
 }
 
@@ -212,14 +184,10 @@ func (h *RESTHandler) HandleDynamicQuery(c fiber.Ctx) error {
 	tableInfo, exists, err := h.schemaCache.GetTable(ctx, schema, tableName)
 	if err != nil {
 		log.Error().Err(err).Str("schema", schema).Str("table", tableName).Msg("Failed to lookup table")
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to lookup table metadata",
-		})
+		return SendInternalError(c, "Failed to lookup table metadata")
 	}
 	if !exists {
-		return c.Status(404).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table '%s.%s' not found", schema, tableName),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table '%s.%s' not found", schema, tableName))
 	}
 
 	return h.makePostQueryHandler(*tableInfo)(c)
@@ -298,9 +266,7 @@ func (h *RESTHandler) HandleGetTables(c fiber.Ctx) error {
 
 	tables, err := h.schemaCache.GetAllTables(ctx)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to get tables",
-		})
+		return SendInternalError(c, "Failed to get tables")
 	}
 
 	// Get all views from cache

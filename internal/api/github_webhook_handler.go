@@ -106,19 +106,13 @@ type GitHubInstallation struct {
 // HandleWebhook handles incoming GitHub webhook requests
 func (h *GitHubWebhookHandler) HandleWebhook(c fiber.Ctx) error {
 	if !h.config.Enabled {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error":   "branching_disabled",
-			"message": "Database branching is not enabled",
-		})
+		return SendErrorWithCode(c, fiber.StatusServiceUnavailable, "Database branching is not enabled", "BRANCHING_DISABLED")
 	}
 
 	// Get event type from header
 	eventType := c.Get("X-GitHub-Event")
 	if eventType == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "missing_event",
-			"message": "Missing X-GitHub-Event header",
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, "Missing X-GitHub-Event header", "MISSING_EVENT")
 	}
 
 	// Get delivery ID for logging
@@ -132,18 +126,12 @@ func (h *GitHubWebhookHandler) HandleWebhook(c fiber.Ctx) error {
 	// Parse the payload to get repository info for signature verification
 	var payload GitHubWebhookPayload
 	if err := json.Unmarshal(c.Body(), &payload); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "invalid_payload",
-			"message": "Failed to parse webhook payload: " + err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, "Failed to parse webhook payload: "+err.Error(), "INVALID_PAYLOAD")
 	}
 
 	// Get repository full name
 	if payload.Repository == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "missing_repository",
-			"message": "Missing repository in webhook payload",
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, "Missing repository in webhook payload", "MISSING_REPOSITORY")
 	}
 
 	repoFullName := payload.Repository.FullName
@@ -155,10 +143,7 @@ func (h *GitHubWebhookHandler) HandleWebhook(c fiber.Ctx) error {
 			Str("repository", repoFullName).
 			Str("delivery_id", deliveryID).
 			Msg("Webhook signature verification failed")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":   "invalid_signature",
-			"message": "Webhook signature verification failed",
-		})
+		return SendErrorWithCode(c, fiber.StatusUnauthorized, "Webhook signature verification failed", "INVALID_SIGNATURE")
 	}
 
 	// Handle different event types
@@ -249,10 +234,7 @@ func computeHMACSHA256(data []byte, key string) string {
 // handlePullRequestEvent handles pull request events
 func (h *GitHubWebhookHandler) handlePullRequestEvent(c fiber.Ctx, payload *GitHubWebhookPayload) error {
 	if payload.PullRequest == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "missing_pull_request",
-			"message": "Missing pull_request in payload",
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, "Missing pull_request in payload", "MISSING_PULL_REQUEST")
 	}
 
 	pr := payload.PullRequest
@@ -268,10 +250,7 @@ func (h *GitHubWebhookHandler) handlePullRequestEvent(c fiber.Ctx, payload *GitH
 	ghConfig, err := h.manager.GetStorage().GetGitHubConfig(c.RequestCtx(), repo)
 	if err != nil && !errors.Is(err, branching.ErrGitHubConfigNotFound) {
 		log.Error().Err(err).Str("repository", repo).Msg("Failed to get GitHub config")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":   "config_error",
-			"message": "Failed to get GitHub configuration",
-		})
+		return SendErrorWithCode(c, fiber.StatusInternalServerError, "Failed to get GitHub configuration", "CONFIG_ERROR")
 	}
 
 	// Use default settings if no config
@@ -335,16 +314,10 @@ func (h *GitHubWebhookHandler) createBranchForPR(c fiber.Ctx, repo string, pr *G
 		}
 
 		if errors.Is(err, branching.ErrMaxBranchesReached) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error":   "max_branches_reached",
-				"message": "Maximum number of branches has been reached",
-			})
+			return SendErrorWithCode(c, fiber.StatusForbidden, "Maximum number of branches has been reached", "MAX_BRANCHES_REACHED")
 		}
 
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":   "create_failed",
-			"message": "Failed to create branch: " + err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusInternalServerError, "Failed to create branch: "+err.Error(), "CREATE_FAILED")
 	}
 
 	log.Info().
@@ -385,10 +358,7 @@ func (h *GitHubWebhookHandler) deleteBranchForPR(c fiber.Ctx, repo string, pr *G
 			Str("repository", repo).
 			Int("pr_number", pr.Number).
 			Msg("Failed to find branch for PR")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":   "find_failed",
-			"message": "Failed to find branch: " + err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusInternalServerError, "Failed to find branch: "+err.Error(), "FIND_FAILED")
 	}
 
 	// Close the connection pool first
@@ -401,10 +371,7 @@ func (h *GitHubWebhookHandler) deleteBranchForPR(c fiber.Ctx, repo string, pr *G
 			Int("pr_number", pr.Number).
 			Str("branch_id", branch.ID.String()).
 			Msg("Failed to delete branch for PR")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":   "delete_failed",
-			"message": "Failed to delete branch: " + err.Error(),
-		})
+		return SendErrorWithCode(c, fiber.StatusInternalServerError, "Failed to delete branch: "+err.Error(), "DELETE_FAILED")
 	}
 
 	log.Info().
@@ -442,10 +409,7 @@ func (h *GitHubWebhookHandler) handlePingEvent(c fiber.Ctx, payload *GitHubWebho
 // handleIssueEvent handles issue events (opened, labeled, closed, etc.)
 func (h *GitHubWebhookHandler) handleIssueEvent(c fiber.Ctx, payload *GitHubWebhookPayload) error {
 	if payload.Issue == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "missing_issue",
-			"message": "Missing issue in payload",
-		})
+		return SendErrorWithCode(c, fiber.StatusBadRequest, "Missing issue in payload", "MISSING_ISSUE")
 	}
 
 	issue := payload.Issue

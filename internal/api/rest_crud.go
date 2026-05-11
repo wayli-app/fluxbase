@@ -63,9 +63,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 		rawQuery := string(c.Request().URI().QueryString())
 		urlValues, err := url.ParseQuery(rawQuery)
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"error": fmt.Sprintf("Invalid query string: %v", err),
-			})
+			return SendBadRequest(c, fmt.Sprintf("Invalid query string: %v", err), ErrCodeInvalidInput)
 		}
 
 		// Parse query parameters
@@ -73,9 +71,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 		opts := ParseOptions{BypassMaxTotalResults: isAdminUser(c)}
 		params, err := h.parser.ParseWithOptions(urlValues, opts)
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"error": fmt.Sprintf("Invalid query parameters: %v", err),
-			})
+			return SendBadRequest(c, fmt.Sprintf("Invalid query parameters: %v", err), ErrCodeInvalidInput)
 		}
 
 		// Build SELECT query using fresh metadata
@@ -102,9 +98,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 		})
 		if err != nil {
 			log.Error().Err(err).Str("table", fmt.Sprintf("%s.%s", table.Schema, table.Name)).Msg("Failed to fetch records")
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to fetch records",
-			})
+			return SendInternalError(c, "Failed to fetch records")
 		}
 
 		// Handle count if requested
@@ -156,15 +150,11 @@ func (h *RESTHandler) makeGetByIdHandler(table database.TableInfo) fiber.Handler
 			return err
 		})
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to fetch record",
-			})
+			return SendInternalError(c, "Failed to fetch record")
 		}
 
 		if len(results) == 0 {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "Record not found",
-			})
+			return SendNotFound(c, "Record not found")
 		}
 
 		return c.JSON(results[0])
@@ -177,9 +167,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		ctx := c.RequestCtx()
 
 		if isTenantWriteBlocked(c, table) {
-			return c.Status(403).JSON(fiber.Map{
-				"error": "Cannot write to tables without tenant_id column when tenant context is active",
-			})
+			return SendForbidden(c, "Cannot write to tables without tenant_id column when tenant context is active", ErrCodeAccessDenied)
 		}
 
 		// Check for upsert preferences
@@ -216,9 +204,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		for col, val := range data {
 			// Validate column exists
 			if !h.columnExists(table, col) {
-				return c.Status(400).JSON(fiber.Map{
-					"error": fmt.Sprintf("Unknown column: %s", col),
-				})
+			return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
 			}
 
 			columns = append(columns, quoteIdentifier(col))
@@ -230,17 +216,13 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
 				geoJSON, err := json.Marshal(val)
 				if err != nil {
-					return c.Status(400).JSON(fiber.Map{
-						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
-					})
+					return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
 				}
 				values = append(values, string(geoJSON))
 				placeholders = append(placeholders, fmt.Sprintf("ST_GeomFromGeoJSON($%d)", i))
 			} else if isPartialGeoJSON(val) {
 				// Value looks like GeoJSON but is incomplete - return validation error
-				return c.Status(400).JSON(fiber.Map{
-					"error": fmt.Sprintf("Invalid GeoJSON for column %s: missing required 'coordinates' field", col),
-				})
+				return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: missing required 'coordinates' field", col), ErrCodeInvalidInput)
 			} else {
 				values = append(values, val)
 				placeholders = append(placeholders, fmt.Sprintf("$%d", i))
@@ -268,9 +250,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 				for _, col := range conflictCols {
 					col = strings.TrimSpace(col)
 					if !h.columnExists(table, col) {
-						return c.Status(400).JSON(fiber.Map{
-							"error": fmt.Sprintf("Unknown column in on_conflict: %s", col),
-						})
+					return SendBadRequest(c, fmt.Sprintf("Unknown column in on_conflict: %s", col), ErrCodeInvalidInput)
 					}
 					quotedConflictCols = append(quotedConflictCols, quoteIdentifier(col))
 					conflictTargetColumns = append(conflictTargetColumns, col)
@@ -282,9 +262,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 			}
 
 			if conflictTarget == "" {
-				return c.Status(400).JSON(fiber.Map{
-					"error": "Cannot perform upsert: table has no primary key or unique constraint",
-				})
+				return SendBadRequest(c, "Cannot perform upsert: table has no primary key or unique constraint", ErrCodeInvalidInput)
 			}
 
 			// Handle ignore duplicates (DO NOTHING)
@@ -357,9 +335,7 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 		id := c.Params("id")
 
 		if isTenantWriteBlocked(c, table) {
-			return c.Status(403).JSON(fiber.Map{
-				"error": "Cannot write to tables without tenant_id column when tenant context is active",
-			})
+			return SendForbidden(c, "Cannot write to tables without tenant_id column when tenant context is active", ErrCodeAccessDenied)
 		}
 
 		// Parse request body
@@ -387,9 +363,7 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 
 			// Validate column exists
 			if !h.columnExists(table, col) {
-				return c.Status(400).JSON(fiber.Map{
-					"error": fmt.Sprintf("Unknown column: %s", col),
-				})
+			return SendBadRequest(c, fmt.Sprintf("Unknown column: %s", col), ErrCodeInvalidInput)
 			}
 
 			// Check if value is GeoJSON and needs PostGIS conversion
@@ -398,9 +372,7 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
 				geoJSON, err := json.Marshal(val)
 				if err != nil {
-					return c.Status(400).JSON(fiber.Map{
-						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
-					})
+					return SendBadRequest(c, fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err), ErrCodeInvalidInput)
 				}
 				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", quotedCol, i))
 				values = append(values, string(geoJSON))
@@ -464,9 +436,7 @@ func (h *RESTHandler) makeDeleteHandler(table database.TableInfo) fiber.Handler 
 		id := c.Params("id")
 
 		if isTenantWriteBlocked(c, table) {
-			return c.Status(403).JSON(fiber.Map{
-				"error": "Cannot write to tables without tenant_id column when tenant context is active",
-			})
+			return SendForbidden(c, "Cannot write to tables without tenant_id column when tenant context is active", ErrCodeAccessDenied)
 		}
 
 		// Determine primary key column
