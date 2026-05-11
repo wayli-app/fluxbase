@@ -34,11 +34,11 @@ func TestSSRFProtection_AllowedDomains(t *testing.T) {
 		resp := tc.NewRequest("POST", "/api/v1/functions").
 			WithAuth(adminToken).
 			WithJSON(map[string]interface{}{
-				"name":           functionName,
-				"code":           `export default async function handler(req) { try { const controller = new AbortController(); const tid = setTimeout(() => controller.abort(), 10000); const r = await fetch('https://example.com', { signal: controller.signal }); clearTimeout(tid); return new Response(JSON.stringify({ fetched: true, status: r.status }), { headers: { "Content-Type": "application/json" } }); } catch (e) { return new Response(JSON.stringify({ fetched: false, error: e.message }), { headers: { "Content-Type": "application/json" } }); } }`,
-				"runtime":        "deno",
-				"enabled":        true,
-				"allow_net":      true,
+				"name":            functionName,
+				"code":            `export default async function handler(req) { try { const controller = new AbortController(); const tid = setTimeout(() => controller.abort(), 10000); const r = await fetch('https://example.com', { signal: controller.signal }); clearTimeout(tid); return new Response(JSON.stringify({ fetched: true, status: r.status }), { headers: { "Content-Type": "application/json" } }); } catch (e) { return new Response(JSON.stringify({ fetched: false, error: e.message }), { headers: { "Content-Type": "application/json" } }); } }`,
+				"runtime":         "deno",
+				"enabled":         true,
+				"allow_net":       true,
 				"allowed_domains": "example.com",
 			}).
 			Send()

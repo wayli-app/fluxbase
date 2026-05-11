@@ -172,7 +172,7 @@ func TestOAuthCallbackProviderError(t *testing.T) {
 	resp.JSON(&result)
 
 	require.Contains(t, result, "error", "Should have error message")
-	assert.Contains(t, result["error"], "denied", "Error should mention denied access")
+	require.Contains(t, result["error"], "denied", "Error should mention denied access")
 
 	t.Logf("OAuth callback correctly handled provider error")
 }
