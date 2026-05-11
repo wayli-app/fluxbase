@@ -15,6 +15,7 @@ type GraphQLModule struct {
 func (m *GraphQLModule) Name() string { return "graphql" }
 
 func (m *GraphQLModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &GraphQLHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 

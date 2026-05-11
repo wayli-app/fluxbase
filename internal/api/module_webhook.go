@@ -15,6 +15,7 @@ type WebhookModule struct {
 func (m *WebhookModule) Name() string { return "webhook" }
 
 func (m *WebhookModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &WebhookHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 

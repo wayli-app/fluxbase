@@ -16,6 +16,7 @@ type LoggingModule struct {
 func (m *LoggingModule) Name() string { return "logging" }
 
 func (m *LoggingModule) Init(ctx context.Context, registry *ServiceRegistry) error {
+	m.Handlers = &LoggingHandlers{}
 	cfg := registry.Config
 	db := registry.DB
 
