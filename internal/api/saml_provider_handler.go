@@ -45,14 +45,14 @@ func NewSAMLProviderHandler(db *database.Connection, samlService *auth.SAMLServi
 
 func (h *SAMLProviderHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Database")
 	}
 	return nil
 }
 
 func (h *SAMLProviderHandler) requireSAMLService(c fiber.Ctx) error {
 	if h.samlService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "SAML service")
 	}
 	return nil
 }
@@ -722,7 +722,7 @@ func (h *SAMLProviderHandler) GetSPMetadata(c fiber.Ctx) error {
 	providerName := c.Params("provider")
 
 	if h.samlService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "SAML service")
 	}
 
 	metadata, err := h.samlService.GetSPMetadata(providerName)

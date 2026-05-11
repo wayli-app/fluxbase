@@ -145,6 +145,14 @@ func SendFeatureDisabled(c fiber.Ctx, feature string) error {
 	return apperrors.SendFeatureDisabled(c, feature)
 }
 
+func SendNotInitialized(c fiber.Ctx, service string) error {
+	return apperrors.SendNotInitialized(c, service)
+}
+
+func SendServiceUnavailable(c fiber.Ctx, msg string) error {
+	return apperrors.SendServiceUnavailable(c, msg)
+}
+
 func handleDatabaseError(c fiber.Ctx, err error, operation string) error {
 	errMsg := err.Error()
 	requestID := getRequestID(c)

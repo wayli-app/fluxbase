@@ -25,7 +25,7 @@ func NewSettingsHandler(db *database.Connection) *SettingsHandler {
 
 func (h *SettingsHandler) requireService(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Database")
 	}
 	return nil
 }

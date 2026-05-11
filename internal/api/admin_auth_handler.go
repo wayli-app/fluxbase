@@ -46,21 +46,21 @@ func NewAdminAuthHandler(
 
 func (h *AdminAuthHandler) requireService(c fiber.Ctx) error {
 	if h.systemSettings == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Settings service")
 	}
 	return nil
 }
 
 func (h *AdminAuthHandler) requireDashboardAuth(c fiber.Ctx) error {
 	if h.dashboardAuth == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Dashboard auth service")
 	}
 	return nil
 }
 
 func (h *AdminAuthHandler) requireAuthService(c fiber.Ctx) error {
 	if h.authService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Auth service")
 	}
 	return nil
 }

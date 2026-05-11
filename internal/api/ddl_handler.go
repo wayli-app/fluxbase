@@ -33,7 +33,7 @@ func NewDDLHandler(db *database.Connection, schemaCache *database.SchemaCache) *
 
 func (h *DDLHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Database")
 	}
 	return nil
 }

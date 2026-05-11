@@ -400,10 +400,10 @@ func TestSystemSettingsInternalErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		body, _ := io.ReadAll(resp.Body)
-		assert.Contains(t, string(body), "not_initialized")
+		assert.Contains(t, string(body), "NOT_INITIALIZED")
 	})
 
 	t.Run("delete setting with nil service returns 500", func(t *testing.T) {
@@ -416,10 +416,10 @@ func TestSystemSettingsInternalErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		body, _ := io.ReadAll(resp.Body)
-		assert.Contains(t, string(body), "not_initialized")
+		assert.Contains(t, string(body), "NOT_INITIALIZED")
 	})
 }
 

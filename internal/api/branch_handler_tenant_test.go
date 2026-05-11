@@ -226,12 +226,11 @@ func TestGetBranch_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Manager is nil, so it returns 500 "not_initialized"
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("tenant user triggers filtered lookup by UUID", func(t *testing.T) {
@@ -251,11 +250,11 @@ func TestGetBranch_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("tenant user triggers filtered lookup by slug", func(t *testing.T) {
@@ -293,11 +292,11 @@ func TestGetBranch_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 }
 
@@ -326,11 +325,11 @@ func TestDeleteBranch_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("instance admin delete bypasses tenant filter", func(t *testing.T) {
@@ -349,11 +348,11 @@ func TestDeleteBranch_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("service key delete bypasses tenant filter", func(t *testing.T) {
@@ -372,11 +371,11 @@ func TestDeleteBranch_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("admin role delete with tenant context", func(t *testing.T) {
@@ -425,11 +424,11 @@ func TestListBranches_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("instance admin gets unfiltered results", func(t *testing.T) {
@@ -516,11 +515,11 @@ func TestResetBranch_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("instance admin reset bypasses tenant filter", func(t *testing.T) {
@@ -565,11 +564,11 @@ func TestListBranchAccess_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 }
 
@@ -594,11 +593,11 @@ func TestGrantBranchAccess_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 }
 
@@ -623,11 +622,11 @@ func TestRevokeBranchAccess_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 }
 
@@ -653,11 +652,11 @@ func TestGetBranchActivity_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 		respBody, err := parseBranchResponseBody(t, resp)
 		require.NoError(t, err)
-		assert.Equal(t, "not_initialized", respBody["error"])
+		assert.Equal(t, "NOT_INITIALIZED", respBody["code"])
 	})
 
 	t.Run("instance admin activity uses no filter", func(t *testing.T) {

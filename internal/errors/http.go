@@ -176,6 +176,14 @@ func SendFeatureDisabled(c fiber.Ctx, feature string) error {
 	return SendErrorWithCode(c, 403, fmt.Sprintf("%s is currently disabled", feature), ErrCodeFeatureDisabled)
 }
 
+func SendNotInitialized(c fiber.Ctx, service string) error {
+	return SendErrorWithCode(c, fiber.StatusServiceUnavailable, service+" not initialized", "NOT_INITIALIZED")
+}
+
+func SendServiceUnavailable(c fiber.Ctx, msg string) error {
+	return SendErrorWithCode(c, fiber.StatusServiceUnavailable, msg, "SERVICE_UNAVAILABLE")
+}
+
 func SendSuccess(c fiber.Ctx, message string) error {
 	return c.JSON(fiber.Map{
 		"success": true,

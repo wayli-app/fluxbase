@@ -580,9 +580,7 @@ func (s *Server) buildMigrationsRouteDeps() *routes.MigrationsDeps {
 
 // knowledgeBaseDisabledHandler returns a handler that responds with "AI not enabled" error
 func knowledgeBaseDisabledHandler(c fiber.Ctx) error {
-	return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-		"error": "AI features are not enabled. Enable AI in configuration to use knowledge bases.",
-	})
+	return SendFeatureDisabled(c, "AI features")
 }
 
 func (s *Server) buildKnowledgeBaseRouteDeps() *routes.KnowledgeBaseDeps {

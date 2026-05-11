@@ -31,7 +31,7 @@ func NewEmailTemplateHandler(db *database.Connection, emailService email.Service
 
 func (h *EmailTemplateHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Database")
 	}
 	return nil
 }

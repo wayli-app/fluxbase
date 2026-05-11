@@ -680,10 +680,10 @@ func TestDashboardAuthHandler_InitiateSAMLLogin_SAMLNotConfigured(t *testing.T) 
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
-	assert.Contains(t, string(body), "not_initialized")
+	assert.Contains(t, string(body), "NOT_INITIALIZED")
 }
 
 func TestDashboardAuthHandler_SAMLACSCallback_SAMLNotConfigured(t *testing.T) {

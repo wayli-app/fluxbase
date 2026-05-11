@@ -39,14 +39,14 @@ func NewInvitationHandler(
 
 func (h *InvitationHandler) requireInvitationService(c fiber.Ctx) error {
 	if h.invitationService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Invitation service")
 	}
 	return nil
 }
 
 func (h *InvitationHandler) requireDashboardAuth(c fiber.Ctx) error {
 	if h.dashboardAuth == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Dashboard auth service")
 	}
 	return nil
 }

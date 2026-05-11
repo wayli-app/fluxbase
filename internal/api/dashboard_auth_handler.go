@@ -73,21 +73,21 @@ func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager 
 
 func (h *DashboardAuthHandler) requireAuthService(c fiber.Ctx) error {
 	if h.authService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Auth service")
 	}
 	return nil
 }
 
 func (h *DashboardAuthHandler) requireJWTManager(c fiber.Ctx) error {
 	if h.jwtManager == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "JWT manager")
 	}
 	return nil
 }
 
 func (h *DashboardAuthHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Database")
 	}
 	return nil
 }
@@ -1318,7 +1318,7 @@ func (h *DashboardAuthHandler) InitiateSAMLLogin(c fiber.Ctx) error {
 	ctx := c.RequestCtx()
 
 	if h.samlService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "SAML service")
 	}
 
 	if err := h.requireDB(c); err != nil {
@@ -1372,7 +1372,7 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c fiber.Ctx) error {
 	ctx := c.RequestCtx()
 
 	if h.samlService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "SAML service")
 	}
 
 	samlResponse := c.FormValue("SAMLResponse")

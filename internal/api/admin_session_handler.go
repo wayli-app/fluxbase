@@ -25,7 +25,7 @@ func NewAdminSessionHandler(sessionRepo *auth.SessionRepository) *AdminSessionHa
 
 func (h *AdminSessionHandler) requireService(c fiber.Ctx) error {
 	if h.sessionRepo == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Session service")
 	}
 	return nil
 }

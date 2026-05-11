@@ -82,7 +82,7 @@ func NewOpenAPIHandler(db *database.Connection) *OpenAPIHandler {
 
 func (h *OpenAPIHandler) requireDB(c fiber.Ctx) error {
 	if h.db == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Database")
 	}
 	return nil
 }

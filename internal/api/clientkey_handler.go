@@ -38,7 +38,7 @@ type UpdateClientKeyRequest struct {
 
 func (h *ClientKeyHandler) requireService(c fiber.Ctx) error {
 	if h.clientKeyService == nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "not_initialized")
+		return SendNotInitialized(c, "Client key service")
 	}
 	return nil
 }

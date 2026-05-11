@@ -118,9 +118,7 @@ type SystemHealth struct {
 
 func (h *MonitoringHandler) GetMetrics(c fiber.Ctx) error {
 	if h.db == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Database connection not initialized",
-		})
+		return SendNotInitialized(c, "Database connection")
 	}
 
 	var m runtime.MemStats
@@ -261,9 +259,7 @@ func (h *MonitoringHandler) getStorageStats(c fiber.Ctx) (*StorageStats, error) 
 // Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetHealth(c fiber.Ctx) error {
 	if h.db == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Database connection not initialized",
-		})
+		return SendNotInitialized(c, "Database connection")
 	}
 
 	health := SystemHealth{
@@ -432,9 +428,7 @@ func (h *MonitoringHandler) GetLogs(c fiber.Ctx) error {
 	result, err := h.loggingService.Storage().Query(middleware.CtxWithTenant(c), opts)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to query logs")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return SendInternalError(c, "Failed to query logs")
 	}
 
 	// Convert to response format
