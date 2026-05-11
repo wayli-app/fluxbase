@@ -452,6 +452,13 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 		rateLimitPerDay = config.RateLimitPerDay
 	}
 
+	var allowedDomains *string
+	if req.AllowedDomains != nil {
+		allowedDomains = req.AllowedDomains
+	} else {
+		allowedDomains = config.AllowedDomains
+	}
+
 	// Bundle function code if it has imports
 	bundledCode := req.Code
 	originalCode := &req.Code
@@ -552,7 +559,7 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 		AllowEnv:             util.ValueOr(req.AllowEnv, true),
 		AllowRead:            util.ValueOr(req.AllowRead, false),
 		AllowWrite:           util.ValueOr(req.AllowWrite, false),
-		AllowedDomains:       req.AllowedDomains,
+		AllowedDomains:       allowedDomains,
 		AllowUnauthenticated: allowUnauthenticated,
 		IsPublic:             isPublic,
 		CorsOrigins:          corsOrigins,

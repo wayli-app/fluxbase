@@ -1124,8 +1124,9 @@ func GetTestConfig() *config.Config {
 			Enabled:         true,
 			AllowedIPRanges: []string{"0.0.0.0/0"}, // Allow all IPs in tests
 		},
-		EncryptionKey: "test-encryption-key-32-bytes!!!!", // Exactly 32 bytes for AES-256
-		Debug:         getTestDebugMode(),
+		EncryptionKey:      "test-encryption-key-32-bytes!!!!", // Exactly 32 bytes for AES-256
+		EncryptionKeyBytes: []byte("test-encryption-key-32-bytes!!!!"),
+		Debug:              getTestDebugMode(),
 	}
 }
 
