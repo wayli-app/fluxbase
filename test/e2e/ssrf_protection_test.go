@@ -83,7 +83,7 @@ func TestSSRFProtection_PublicURLControl(t *testing.T) {
 	})
 }
 
-func TestSSRFProtection_RestrictedAllowedDomains(t *testing.T) {
+func TestSSRFProtection_DisabledNetwork(t *testing.T) {
 	rateLimiter, pubSub := test.NewInMemoryDependencies()
 	tc := test.NewTestContextWithOptions(t, test.TestContextOptions{
 		RateLimiter: rateLimiter,
@@ -93,11 +93,11 @@ func TestSSRFProtection_RestrictedAllowedDomains(t *testing.T) {
 	tc.EnsureAuthSchema()
 
 	timestamp := time.Now().UnixNano()
-	email := fmt.Sprintf("admin-ssrf-restricted-%d@test.com", timestamp)
+	email := fmt.Sprintf("admin-ssrf-nonet-%d@test.com", timestamp)
 	_, adminToken := tc.CreateDashboardAdminUser(email, "adminpass123456")
 
-	t.Run("function_with_explicit_allowed_domains_can_fetch_allowed", func(t *testing.T) {
-		functionName := fmt.Sprintf("test_ssrf_allowed_%d", timestamp)
+	t.Run("function without allow_net cannot fetch", func(t *testing.T) {
+		functionName := fmt.Sprintf("test_ssrf_nonet_%d", timestamp)
 		resp := tc.NewRequest("POST", "/api/v1/functions").
 			WithAuth(adminToken).
 			WithJSON(map[string]interface{}{
@@ -106,8 +106,7 @@ func TestSSRFProtection_RestrictedAllowedDomains(t *testing.T) {
 				"runtime": "deno",
 				"enabled": true,
 				"permissions": map[string]interface{}{
-					"allow_net":       true,
-					"allowed_domains": []string{"example.com"},
+					"allow_net": false,
 				},
 			}).
 			Send()
@@ -115,31 +114,9 @@ func TestSSRFProtection_RestrictedAllowedDomains(t *testing.T) {
 
 		result := invokeFunction(t, tc, adminToken, functionName)
 		fetched, _ := result["fetched"].(bool)
-		assert.True(t, fetched, "Function should be able to fetch explicitly allowed domain example.com")
-	})
-
-	t.Run("function_with_explicit_allowed_domains_cannot_fetch_blocked", func(t *testing.T) {
-		functionName := fmt.Sprintf("test_ssrf_blocked_%d", timestamp)
-		resp := tc.NewRequest("POST", "/api/v1/functions").
-			WithAuth(adminToken).
-			WithJSON(map[string]interface{}{
-				"name":    functionName,
-				"code":    `export default async function handler(req) { try { const r = await fetch('http://169.254.169.254/latest/meta-data/'); return new Response(JSON.stringify({ fetched: true, status: r.status }), { headers: { "Content-Type": "application/json" } }); } catch (e) { return new Response(JSON.stringify({ fetched: false, error: e.message }), { headers: { "Content-Type": "application/json" } }); } }`,
-				"runtime": "deno",
-				"enabled": true,
-				"permissions": map[string]interface{}{
-					"allow_net":       true,
-					"allowed_domains": []string{"example.com"},
-				},
-			}).
-			Send()
-		require.Equal(t, fiber.StatusCreated, resp.Status(), "Failed to create function: %s", string(resp.Body()))
-
-		result := invokeFunction(t, tc, adminToken, functionName)
-		fetched, _ := result["fetched"].(bool)
-		assert.False(t, fetched, "Function with allowlist must NOT fetch 169.254.169.254 (not in allowed_domains)")
+		assert.False(t, fetched, "Function with allow_net=false must NOT be able to fetch any URL")
 		errMsg, _ := result["error"].(string)
-		assert.NotEmpty(t, errMsg, "Error should be present when fetch to non-allowed domain fails")
-		t.Logf("Blocked domain with allowlist: fetched=%v error=%s", fetched, errMsg)
+		assert.NotEmpty(t, errMsg, "Error should be present when fetch fails due to net permission")
+		t.Logf("Network disabled function: fetched=%v error=%s", fetched, errMsg)
 	})
 }
