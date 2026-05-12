@@ -706,9 +706,12 @@ func sanitizeDefaultValue(value string) string {
 				if safeDefaultFunctions[baseValue] {
 					return defaultVal
 				}
-				// If base is already a quoted string, allow the cast
-				if strings.HasPrefix(baseValue, "'") && strings.HasSuffix(baseValue, "'") {
-					return defaultVal
+				// If base is already a quoted string, escape its content to prevent injection
+				if strings.HasPrefix(baseValue, "'") && strings.HasSuffix(baseValue, "'") && len(baseValue) >= 2 {
+					inner := baseValue[1 : len(baseValue)-1]
+					escaped := strings.ReplaceAll(inner, "'", "''")
+					escaped = strings.ReplaceAll(escaped, "\x00", "")
+					return fmt.Sprintf("'%s'::%s", escaped, castType)
 				}
 			}
 		}

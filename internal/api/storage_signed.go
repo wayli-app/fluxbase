@@ -222,7 +222,7 @@ func (h *StorageHandler) DownloadSignedObject(c fiber.Ctx) error {
 					}
 					filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ext
 				}
-				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", sanitizeContentDispositionFilename(filename)))
 
 				return c.SendStream(transformedReader)
 			}
@@ -236,7 +236,7 @@ func (h *StorageHandler) DownloadSignedObject(c fiber.Ctx) error {
 
 	// Set Content-Disposition for download
 	filename := filepath.Base(tokenResult.Key)
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", sanitizeContentDispositionFilename(filename)))
 
 	// Stream the file
 	return c.SendStream(reader)

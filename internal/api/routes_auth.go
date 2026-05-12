@@ -11,6 +11,7 @@ func (s *Server) buildDashboardAuthRouteDeps() *routes.DashboardAuthDeps {
 	return &routes.DashboardAuthDeps{
 		SetupLimiter:    middleware.AdminSetupLimiterWithConfig(s.config.Security.AdminSetupRateLimit, s.config.Security.AdminSetupRateWindow, s.sharedMiddlewareStorage),
 		LoginLimiter:    middleware.AdminLoginLimiterWithConfig(s.config.Security.AdminLoginRateLimit, s.config.Security.AdminLoginRateWindow, s.sharedMiddlewareStorage),
+		RefreshLimiter:  middleware.AuthRefreshLimiterWithConfig(s.config.Security.AuthRefreshRateLimit, s.config.Security.AuthRefreshRateWindow, s.sharedMiddlewareStorage),
 		GetSetupStatus:  s.Auth.AdminHandler.GetSetupStatus,
 		InitialSetup:    s.Auth.AdminHandler.InitialSetup,
 		AdminLogin:      s.Auth.AdminHandler.AdminLogin,
@@ -108,6 +109,9 @@ func (s *Server) buildDashboardUserAuthRouteDeps() *routes.DashboardUserAuthDeps
 	return &routes.DashboardUserAuthDeps{
 		RequireDashboardAuth:     s.Auth.DashboardHandler.RequireDashboardAuth,
 		TenantMiddleware:         s.Middleware.Tenant,
+		LoginLimiter:             middleware.AuthLoginLimiterWithConfig(s.config.Security.AuthLoginRateLimit, s.config.Security.AuthLoginRateWindow, s.sharedMiddlewareStorage),
+		RefreshLimiter:           middleware.AuthRefreshLimiterWithConfig(s.config.Security.AuthRefreshRateLimit, s.config.Security.AuthRefreshRateWindow, s.sharedMiddlewareStorage),
+		PasswordResetLimiter:     middleware.AuthPasswordResetLimiterWithConfig(s.config.Security.AuthPasswordResetRateLimit, s.config.Security.AuthPasswordResetRateWindow, s.sharedMiddlewareStorage),
 		Signup:                   s.Auth.DashboardHandler.Signup,
 		Login:                    s.Auth.DashboardHandler.Login,
 		RefreshToken:             s.Auth.DashboardHandler.RefreshToken,
@@ -132,6 +136,7 @@ func (s *Server) buildDashboardUserAuthRouteDeps() *routes.DashboardUserAuthDeps
 
 func (s *Server) buildInvitationRouteDeps() *routes.InvitationDeps {
 	return &routes.InvitationDeps{
+		AcceptLimiter:      middleware.AuthPasswordResetLimiterWithConfig(s.config.Security.AuthPasswordResetRateLimit, s.config.Security.AuthPasswordResetRateWindow, s.sharedMiddlewareStorage),
 		ValidateInvitation: s.Auth.Invitation.ValidateInvitation,
 		AcceptInvitation:   s.Auth.Invitation.AcceptInvitation,
 	}

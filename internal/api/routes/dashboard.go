@@ -7,6 +7,7 @@ import (
 type DashboardAuthDeps struct {
 	SetupLimiter    fiber.Handler
 	LoginLimiter    fiber.Handler
+	RefreshLimiter  fiber.Handler
 	GetSetupStatus  fiber.Handler
 	InitialSetup    fiber.Handler
 	AdminLogin      fiber.Handler
@@ -49,12 +50,13 @@ func BuildDashboardAuthRoutes(deps *DashboardAuthDeps) *RouteGroup {
 				Middlewares: []Middleware{{Name: "LoginLimiter", Handler: deps.LoginLimiter}},
 			},
 			{
-				Method:  "POST",
-				Path:    "/refresh",
-				Handler: deps.RefreshToken,
-				Summary: "Refresh dashboard token (public)",
-				Auth:    AuthNone,
-				Public:  true,
+				Method:      "POST",
+				Path:        "/refresh",
+				Handler:     deps.RefreshToken,
+				Summary:     "Refresh dashboard token (public)",
+				Auth:        AuthNone,
+				Public:      true,
+				Middlewares: []Middleware{{Name: "RefreshLimiter", Handler: deps.RefreshLimiter}},
 			},
 			{
 				Method:  "POST",
