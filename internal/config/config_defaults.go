@@ -69,7 +69,7 @@ func setDefaults() {
 	viper.SetDefault("security.auth_login_rate_window", "1m")      // per minute
 	viper.SetDefault("security.admin_login_rate_limit", 10)        // 10 attempts
 	viper.SetDefault("security.admin_login_rate_window", "1m")     // per minute
-	viper.SetDefault("security.dashboard_login_rate_limit", 60) // 60 attempts
+	viper.SetDefault("security.dashboard_login_rate_limit", 60)    // 60 attempts
 	viper.SetDefault("security.dashboard_login_rate_window", "1m") // per minute
 
 	// service_role rate limiting defaults (H-2: enabled by default to prevent abuse)
