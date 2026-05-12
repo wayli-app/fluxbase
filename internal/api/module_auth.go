@@ -31,19 +31,19 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	cfg := registry.Config
 	db := registry.DB
 
-	emailManager := GetService[*email.Manager](registry)
+	lazyEmailService := GetService[*email.LazyService](registry)
 	var emailService email.Service
-	if emailManager != nil {
-		emailService = emailManager.WrapAsService()
+	if lazyEmailService != nil {
+		emailService = lazyEmailService
 	}
 
-	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.GetPublicBaseURL())
+	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.GetPublicBaseURL(), registry.Metrics)
 	authService.SetEncryptionKey(cfg.EncryptionKeyBytes)
 	totpRateLimiter := auth.NewTOTPRateLimiter(db, auth.DefaultTOTPRateLimiterConfig())
 	authService.SetTOTPRateLimiter(totpRateLimiter)
 	m.Service = authService
 
-	clientKeyService := auth.NewClientKeyService(db, nil)
+	clientKeyService := auth.NewClientKeyService(db, authService.GetSettingsCache())
 
 	m.UserMgmtService = auth.NewUserManagementService(
 		auth.NewUserRepository(db),
@@ -105,8 +105,6 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 
 	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, emailService, cfg.GetPublicBaseURL(), cfg.EncryptionKeyBytes, oauthHandler)
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
-
-	clientKeyService.SetSettingsCache(authService.GetSettingsCache())
 
 	if err := oauthProviderHandler.EncryptExistingSecrets(ctx); err != nil {
 		log.Error().Err(err).Msg("Failed to encrypt existing OAuth provider secrets")

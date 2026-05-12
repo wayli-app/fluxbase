@@ -32,6 +32,7 @@ func (m *RealtimeModule) Init(ctx context.Context, registry *ServiceRegistry) er
 		ClientMessageQueueSize: cfg.Realtime.ClientMessageQueueSize,
 		SlowClientThreshold:    cfg.Realtime.SlowClientThreshold,
 		SlowClientTimeout:      cfg.Realtime.SlowClientTimeout,
+		Metrics:                registry.Metrics,
 	})
 	realtimeManager.SetBaseConfig(cfg)
 

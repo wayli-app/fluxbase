@@ -14,7 +14,7 @@ func TestNewManager(t *testing.T) {
 		LocalPath: t.TempDir(),
 	}
 
-	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestManager_GetBaseService(t *testing.T) {
 		LocalPath: t.TempDir(),
 	}
 
-	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestManager_GetService_SameConfig(t *testing.T) {
 		LocalPath: t.TempDir(),
 	}
 
-	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestManager_GetService_NilConfig(t *testing.T) {
 		LocalPath: t.TempDir(),
 	}
 
-	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestManager_GetService_DifferentConfig(t *testing.T) {
 		LocalPath: t.TempDir(),
 	}
 
-	manager, err := NewManager(baseCfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(baseCfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestManager_RefreshService(t *testing.T) {
 		LocalPath: t.TempDir(),
 	}
 
-	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestManager_EnsureDefaultBuckets(t *testing.T) {
 		DefaultBuckets: []string{"test-bucket"},
 	}
 
-	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(cfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -361,7 +361,7 @@ func TestManager_S3Config(t *testing.T) {
 		LocalPath: t.TempDir(),
 	}
 
-	manager, err := NewManager(baseCfg, "http://localhost:8080", "test-secret-at-least-32-chars!")
+	manager, err := NewManager(baseCfg, "http://localhost:8080", "test-secret-at-least-32-chars!", nil)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}

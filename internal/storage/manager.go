@@ -21,8 +21,8 @@ type Manager struct {
 }
 
 // NewManager creates a storage manager
-func NewManager(baseCfg *config.StorageConfig, baseURL, jwtSecret string) (*Manager, error) {
-	baseService, err := NewService(baseCfg, baseURL, jwtSecret)
+func NewManager(baseCfg *config.StorageConfig, baseURL, jwtSecret string, metrics *observability.Metrics) (*Manager, error) {
+	baseService, err := NewService(baseCfg, baseURL, jwtSecret, metrics)
 	if err != nil {
 		return nil, err
 	}
@@ -32,6 +32,7 @@ func NewManager(baseCfg *config.StorageConfig, baseURL, jwtSecret string) (*Mana
 		baseConfig: baseCfg,
 		baseURL:    baseURL,
 		jwtSecret:  jwtSecret,
+		metrics:    metrics,
 	}, nil
 }
 
@@ -40,7 +41,7 @@ func (m *Manager) SetMetrics(metrics *observability.Metrics) {
 	m.mu.Lock()
 	m.metrics = metrics
 	for _, svc := range m.services {
-		svc.SetMetrics(metrics)
+		svc.metrics = metrics
 	}
 	m.mu.Unlock()
 }
@@ -89,15 +90,10 @@ func (m *Manager) createService(key string, cfg *config.StorageConfig) (*Service
 		return svc, nil
 	}
 
-	svc, err := NewService(cfg, m.baseURL, m.jwtSecret)
+	svc, err := NewService(cfg, m.baseURL, m.jwtSecret, m.metrics)
 	if err != nil {
 		log.Warn().Err(err).Str("key", key).Msg("Failed to create tenant storage service")
 		return nil, err
-	}
-
-	// Set metrics if available
-	if m.metrics != nil {
-		svc.SetMetrics(m.metrics)
 	}
 
 	m.services[key] = svc
@@ -161,13 +157,9 @@ func (m *Manager) RefreshService(ctx context.Context, cfg *config.StorageConfig)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	svc, err := NewService(cfg, m.baseURL, m.jwtSecret)
+	svc, err := NewService(cfg, m.baseURL, m.jwtSecret, m.metrics)
 	if err != nil {
 		return err
-	}
-
-	if m.metrics != nil {
-		svc.SetMetrics(m.metrics)
 	}
 
 	m.services[key] = svc

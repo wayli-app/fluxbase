@@ -56,11 +56,6 @@ type Manager struct {
 	slowClientsDisconnected atomic.Uint64
 }
 
-// SetMetrics sets the metrics instance for recording realtime metrics
-func (m *Manager) SetMetrics(metrics *observability.Metrics) {
-	m.metrics = metrics
-}
-
 // SetBaseConfig sets the base config for tenant-specific limit resolution
 func (m *Manager) SetBaseConfig(cfg *config.Config) {
 	m.mu.Lock()
@@ -100,6 +95,7 @@ type ManagerConfig struct {
 	ClientMessageQueueSize int           // Size of per-client message queue for async sending (0 = default)
 	SlowClientThreshold    int           // Queue length threshold for slow client detection (default: 100)
 	SlowClientTimeout      time.Duration // Duration before disconnecting slow clients (default: 30s)
+	Metrics                *observability.Metrics
 }
 
 // NewManager creates a new connection manager
@@ -136,6 +132,7 @@ func NewManagerWithConfig(ctx context.Context, config ManagerConfig) *Manager {
 		clientMessageQueueSize: config.ClientMessageQueueSize,
 		slowClientThreshold:    slowClientThreshold,
 		slowClientTimeout:      slowClientTimeout,
+		metrics:                config.Metrics,
 	}
 
 	// Start slow client checker goroutine

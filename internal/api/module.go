@@ -9,6 +9,7 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/observability"
 	"github.com/nimbleflux/fluxbase/internal/pubsub"
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 )
@@ -29,6 +30,7 @@ type ServiceRegistry struct {
 	DB          *database.Connection
 	PubSub      pubsub.PubSub
 	RateLimiter ratelimit.Store
+	Metrics     *observability.Metrics
 }
 
 func NewServiceRegistry(cfg *config.Config, db *database.Connection) *ServiceRegistry {

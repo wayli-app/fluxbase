@@ -7,15 +7,13 @@ import (
 )
 
 type EmailModule struct {
-	Manager *email.Manager
-	Service email.Service
+	LazyService *email.LazyService
 }
 
 func (m *EmailModule) Name() string { return "email" }
 
 func (m *EmailModule) Init(ctx context.Context, registry *ServiceRegistry) error {
-	m.Manager = email.NewManager(&registry.Config.Email, nil, nil, registry.Config)
-	m.Service = m.Manager.WrapAsService()
-	registry.Register(m.Manager)
+	m.LazyService = email.NewLazyService()
+	registry.Register(m.LazyService)
 	return nil
 }

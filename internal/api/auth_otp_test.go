@@ -94,7 +94,7 @@ func setupAuthTestServer(t *testing.T) (*fiber.App, *auth.Service, *database.Con
 	emailService := &auth.NoOpOTPSender{}
 
 	// Create auth service
-	authService := auth.NewService(db, authConfig, emailService, "http://localhost:3000")
+	authService := auth.NewService(db, authConfig, emailService, "http://localhost:3000", nil)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
