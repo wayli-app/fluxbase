@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
+
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/database"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
@@ -39,57 +41,41 @@ func (h *DataExportHandler) HandleDataExport(c fiber.Ctx) error {
 
 	// Validate request
 	if format != "csv" && format != "json" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid export format. Must be 'csv' or 'json'",
-		})
+		return apperrors.SendBadRequest(c, "Invalid export format. Must be 'csv' or 'json'", apperrors.ErrCodeInvalidFormat)
 	}
 
 	if tableName == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Table name is required",
-		})
+		return apperrors.SendMissingField(c, "table")
 	}
 
 	// Parse selected items as JSON array
 	var targetIds []string
 	if err := json.Unmarshal([]byte(selectedItems), &targetIds); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("Invalid items format: %v", err),
-		})
+		return apperrors.SendBadRequest(c, fmt.Sprintf("Invalid items format: %v", err), apperrors.ErrCodeInvalidFormat)
 	}
 
 	if len(targetIds) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "At least one item ID is required",
-		})
+		return apperrors.SendBadRequest(c, "At least one item ID is required", apperrors.ErrCodeMissingField)
 	}
 
 	if len(targetIds) > 1000 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Too many items (max 1000)",
-		})
+		return apperrors.SendBadRequest(c, "Too many items (max 1000)", apperrors.ErrCodeInvalidInput)
 	}
 
 	// Parse schema and table name
 	schema, table, err := parseTableIdentifier(tableName)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": fmt.Sprintf("Invalid table name: %v", err),
-		})
+		return apperrors.SendBadRequest(c, fmt.Sprintf("Invalid table name: %v", err), apperrors.ErrCodeInvalidFormat)
 	}
 
 	// Get table metadata
 	tableInfo, exists, err := h.schemaCache.GetTable(c.RequestCtx(), schema, table)
 	if err != nil {
 		log.Error().Err(err).Str("table", tableName).Msg("Failed to lookup table")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return apperrors.SendInternalError(c, "Internal error")
 	}
 	if !exists {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table not found: %s", tableName),
-		})
+		return apperrors.SendNotFound(c, fmt.Sprintf("Table not found: %s", tableName))
 	}
 
 	// Get primary key column
@@ -122,15 +108,11 @@ func (h *DataExportHandler) HandleDataExport(c fiber.Ctx) error {
 	})
 	if err != nil {
 		log.Error().Err(err).Str("table", tableName).Msg("Failed to export records")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return apperrors.SendInternalError(c, "Internal error")
 	}
 
 	if len(results) == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "No records found",
-		})
+		return apperrors.SendNotFound(c, "No records found")
 	}
 
 	// Format based on requested format
@@ -140,18 +122,14 @@ func (h *DataExportHandler) HandleDataExport(c fiber.Ctx) error {
 	case "json":
 		return c.JSON(results)
 	default:
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid export format",
-		})
+		return apperrors.SendBadRequest(c, "Invalid export format", apperrors.ErrCodeInvalidFormat)
 	}
 }
 
 // exportAsCSV converts results to CSV format
 func (h *DataExportHandler) exportAsCSV(c fiber.Ctx, tableInfo *database.TableInfo, results []map[string]interface{}) error {
 	if len(results) == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "No records to export",
-		})
+		return apperrors.SendNotFound(c, "No records to export")
 	}
 
 	// Get column names from table metadata
@@ -167,9 +145,7 @@ func (h *DataExportHandler) exportAsCSV(c fiber.Ctx, tableInfo *database.TableIn
 	// Write header
 	if err := writer.Write(columns); err != nil {
 		log.Error().Err(err).Msg("Failed to write CSV header")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return apperrors.SendInternalError(c, "Internal error")
 	}
 
 	// Write rows
@@ -181,18 +157,14 @@ func (h *DataExportHandler) exportAsCSV(c fiber.Ctx, tableInfo *database.TableIn
 		}
 		if err := writer.Write(record); err != nil {
 			log.Error().Err(err).Msg("Failed to write CSV row")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Internal error",
-			})
+			return apperrors.SendInternalError(c, "Internal error")
 		}
 	}
 
 	writer.Flush()
 	if err := writer.Error(); err != nil {
 		log.Error().Err(err).Msg("Failed to generate CSV")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error",
-		})
+		return apperrors.SendInternalError(c, "Internal error")
 	}
 
 	// Set headers for CSV download

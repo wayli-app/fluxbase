@@ -24,10 +24,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	s.app.Use(func(c fiber.Ctx) error {
-		return c.Status(404).JSON(fiber.Map{
-			"error": "Not Found",
-			"path":  c.Path(),
-		})
+		return SendErrorWithDetails(c, 404, "Not Found", ErrCodeNotFound, "", "", fiber.Map{"path": c.Path()})
 	})
 }
 
