@@ -336,6 +336,8 @@ type SecurityConfig struct {
 	AdminSetupRateWindow        time.Duration `mapstructure:"admin_setup_rate_window"`         // Time window for admin setup rate limit
 	AdminLoginRateLimit         int           `mapstructure:"admin_login_rate_limit"`          // Max attempts for admin login
 	AdminLoginRateWindow        time.Duration `mapstructure:"admin_login_rate_window"`         // Time window for admin login rate limit
+	DashboardLoginRateLimit     int           `mapstructure:"dashboard_login_rate_limit"`      // Max attempts for dashboard user login
+	DashboardLoginRateWindow    time.Duration `mapstructure:"dashboard_login_rate_window"`     // Time window for dashboard user login rate limit
 	AuthLoginRateLimit          int           `mapstructure:"auth_login_rate_limit"`           // Max attempts for auth login
 	AuthLoginRateWindow         time.Duration `mapstructure:"auth_login_rate_window"`          // Time window for auth login rate limit
 	AuthSignupRateLimit         int           `mapstructure:"auth_signup_rate_limit"`          // Max attempts for auth signup

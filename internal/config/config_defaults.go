@@ -61,14 +61,16 @@ func setDefaults() {
 	viper.SetDefault("auth.totp_issuer", "Fluxbase") // Default issuer name for 2FA TOTP (shown in authenticator apps)
 
 	// Security defaults
-	viper.SetDefault("security.enable_global_rate_limit", true) // Enabled by default for security (can be disabled if needed)
-	viper.SetDefault("security.setup_token", "")                // Empty by default - required when admin.enabled=true
-	viper.SetDefault("security.admin_setup_rate_limit", 5)      // 5 attempts
-	viper.SetDefault("security.admin_setup_rate_window", "15m") // per 15 minutes
-	viper.SetDefault("security.auth_login_rate_limit", 10)      // 10 attempts
-	viper.SetDefault("security.auth_login_rate_window", "1m")   // per minute
-	viper.SetDefault("security.admin_login_rate_limit", 10)     // 10 attempts
-	viper.SetDefault("security.admin_login_rate_window", "1m")  // per minute
+	viper.SetDefault("security.enable_global_rate_limit", true)    // Enabled by default for security (can be disabled if needed)
+	viper.SetDefault("security.setup_token", "")                   // Empty by default - required when admin.enabled=true
+	viper.SetDefault("security.admin_setup_rate_limit", 5)         // 5 attempts
+	viper.SetDefault("security.admin_setup_rate_window", "15m")    // per 15 minutes
+	viper.SetDefault("security.auth_login_rate_limit", 10)         // 10 attempts
+	viper.SetDefault("security.auth_login_rate_window", "1m")      // per minute
+	viper.SetDefault("security.admin_login_rate_limit", 10)        // 10 attempts
+	viper.SetDefault("security.admin_login_rate_window", "1m")     // per minute
+	viper.SetDefault("security.dashboard_login_rate_limit", 30)    // 30 attempts
+	viper.SetDefault("security.dashboard_login_rate_window", "1m") // per minute
 
 	// service_role rate limiting defaults (H-2: enabled by default to prevent abuse)
 	viper.SetDefault("security.service_role_rate_limit", 10000) // 10000 requests per minute for service_role tokens (H-2)

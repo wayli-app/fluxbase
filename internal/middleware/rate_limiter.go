@@ -504,6 +504,24 @@ func AdminLoginLimiterWithConfig(max int, expiration time.Duration, storage ...f
 	return NewRateLimiter(cfg)
 }
 
+// DashboardLoginLimiterWithConfig creates a dashboard user login rate limiter with custom limits
+// Uses a separate key namespace from admin and auth login limiters
+func DashboardLoginLimiterWithConfig(max int, expiration time.Duration, storage ...fiber.Storage) fiber.Handler {
+	cfg := RateLimiterConfig{
+		Name:       "dashboard_login",
+		Max:        max,
+		Expiration: expiration,
+		KeyFunc: func(c fiber.Ctx) string {
+			return "dashboard_login:" + c.IP()
+		},
+		Message: fmt.Sprintf("Too many login attempts. Please try again in %d minutes.", int(expiration.Minutes())),
+	}
+	if len(storage) > 0 && storage[0] != nil {
+		cfg.Storage = storage[0]
+	}
+	return NewRateLimiter(cfg)
+}
+
 // GitHubWebhookLimiter limits GitHub webhook requests per IP and repository
 // Prevents abuse of the webhook endpoint for branch creation/deletion
 func GitHubWebhookLimiter(storage ...fiber.Storage) fiber.Handler {

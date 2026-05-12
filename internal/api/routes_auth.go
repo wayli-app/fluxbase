@@ -109,7 +109,7 @@ func (s *Server) buildDashboardUserAuthRouteDeps() *routes.DashboardUserAuthDeps
 	return &routes.DashboardUserAuthDeps{
 		RequireDashboardAuth:     s.Auth.DashboardHandler.RequireDashboardAuth,
 		TenantMiddleware:         s.Middleware.Tenant,
-		LoginLimiter:             middleware.AuthLoginLimiterWithConfig(s.config.Security.AuthLoginRateLimit, s.config.Security.AuthLoginRateWindow, s.sharedMiddlewareStorage),
+		LoginLimiter:             middleware.DashboardLoginLimiterWithConfig(s.config.Security.DashboardLoginRateLimit, s.config.Security.DashboardLoginRateWindow, s.sharedMiddlewareStorage),
 		RefreshLimiter:           middleware.AuthRefreshLimiterWithConfig(s.config.Security.AuthRefreshRateLimit, s.config.Security.AuthRefreshRateWindow, s.sharedMiddlewareStorage),
 		PasswordResetLimiter:     middleware.AuthPasswordResetLimiterWithConfig(s.config.Security.AuthPasswordResetRateLimit, s.config.Security.AuthPasswordResetRateWindow, s.sharedMiddlewareStorage),
 		Signup:                   s.Auth.DashboardHandler.Signup,
