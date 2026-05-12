@@ -334,7 +334,7 @@ func TestStorageHandler_ListBuckets_RoleChecking(t *testing.T) {
 			var result map[string]interface{}
 			err = json.NewDecoder(resp.Body).Decode(&result)
 			require.NoError(t, err)
-			assert.Contains(t, result["error"], "Admin access required")
+			assert.Contains(t, result["error"], "Admin role required")
 		})
 	}
 }

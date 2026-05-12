@@ -39,7 +39,7 @@ func TestBranching_ListBranches_Integration(t *testing.T) {
 	} else if resp.Status() == 503 {
 		var result map[string]interface{}
 		resp.JSON(&result)
-		assert.Equal(t, "branching_disabled", result["error"])
+		assert.Equal(t, "BRANCHING_DISABLED", result["code"])
 	}
 }
 
@@ -96,7 +96,7 @@ func TestBranching_CreateBranch_Disabled_Integration(t *testing.T) {
 	if resp.Status() == 503 {
 		var result map[string]interface{}
 		resp.JSON(&result)
-		assert.Equal(t, "branching_disabled", result["error"])
+		assert.Equal(t, "BRANCHING_DISABLED", result["code"])
 	}
 }
 
