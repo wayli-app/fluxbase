@@ -10,8 +10,10 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { ShareKnowledgeBaseDialog } from './-ShareKnowledgeBaseDialog'
-import type { KnowledgeBaseSummary } from '@/lib/api'
+import { userKnowledgeBasesApi, type KnowledgeBaseSummary } from '@/lib/api'
 
 interface KnowledgeBaseCardProps {
   kb: KnowledgeBaseSummary
@@ -20,6 +22,7 @@ interface KnowledgeBaseCardProps {
 
 function KnowledgeBaseCard({ kb, isOwner }: KnowledgeBaseCardProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
 
   const handleDelete = async (id: string) => {
@@ -28,18 +31,13 @@ function KnowledgeBaseCard({ kb, isOwner }: KnowledgeBaseCardProps) {
     }
 
     try {
-      const res = await fetch(`/api/v1/ai/knowledge-bases/${id}`, {
-        method: 'DELETE',
+      await userKnowledgeBasesApi.delete(id)
+      toast.success('Knowledge base deleted')
+      queryClient.invalidateQueries({ queryKey: ['user-knowledge-bases'] })
+    } catch (error) {
+      toast.error('Failed to delete knowledge base', {
+        description: error instanceof Error ? error.message : 'Unknown error',
       })
-
-      if (!res.ok) {
-        throw new Error('Failed to delete knowledge base')
-      }
-
-      // Invalidate and refetch
-      window.location.reload()
-    } catch {
-      alert('Failed to delete knowledge base')
     }
   }
 

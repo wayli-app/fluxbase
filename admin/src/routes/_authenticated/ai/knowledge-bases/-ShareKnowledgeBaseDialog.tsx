@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -14,11 +14,9 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-
-interface Permission {
-  user_id: string
-  permission: string
-}
+import { toast } from 'sonner'
+import { userKnowledgeBasesApi, type KBPermissionGrant, type KBPermission } from '@/lib/api'
+import { api } from '@/lib/api/client'
 
 interface User {
   id: string
@@ -36,75 +34,56 @@ interface ShareKnowledgeBaseDialogProps {
 function ShareKnowledgeBaseDialog({ kbId, kbName, open, onClose }: ShareKnowledgeBaseDialogProps) {
   const queryClient = useQueryClient()
 
-  // Fetch users to share with
   const { data: usersData } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const res = await fetch('/api/v1/admin/users')
-      if (!res.ok) throw new Error('Failed to fetch users')
-      return res.json()
+      const res = await api.get<{ users: User[] }>('/api/v1/admin/users')
+      return res.data
     },
   })
 
-  // Fetch existing permissions
   const { data: permissionsData } = useQuery({
     queryKey: ['kb-permissions', kbId],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/ai/knowledge-bases/${kbId}/permissions`)
-      if (!res.ok) throw new Error('Failed to fetch permissions')
-      return res.json()
-    },
+    queryFn: () => userKnowledgeBasesApi.listPermissions(kbId),
   })
 
-  // Compute permissions from data using useMemo
   const permissions = useMemo<Record<string, string>>(() => {
-    if (!permissionsData?.permissions) return {}
+    if (!permissionsData) return {}
     const perms: Record<string, string> = {}
-    permissionsData.permissions.forEach((p: Permission) => {
+    permissionsData.forEach((p: KBPermissionGrant) => {
       perms[p.user_id] = p.permission
     })
     return perms
   }, [permissionsData])
 
   const grantMutation = useMutation({
-    mutationFn: async ({ userId, permission }: { userId: string; permission: string }) => {
-      const res = await fetch(`/api/v1/ai/knowledge-bases/${kbId}/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, permission }),
-      })
-      if (!res.ok) throw new Error('Failed to grant permission')
-      return res.json()
+    mutationFn: ({ userId, permission }: { userId: string; permission: KBPermission }) =>
+      userKnowledgeBasesApi.share(kbId, userId, permission),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kb-permissions', kbId] })
+      toast.success('Permission granted')
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to grant permission', { description: error.message })
     },
   })
 
   const revokeMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await fetch(`/api/v1/ai/knowledge-bases/${kbId}/permissions/${userId}`, {
-        method: 'DELETE',
-      })
-      if (!res.ok) throw new Error('Failed to revoke permission')
+    mutationFn: (userId: string) => userKnowledgeBasesApi.revokePermission(kbId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kb-permissions', kbId] })
+      toast.success('Permission revoked')
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to revoke permission', { description: error.message })
     },
   })
-
-  // Invalidate queries when mutations succeed
-  useEffect(() => {
-    if (grantMutation.isSuccess) {
-      queryClient.invalidateQueries({ queryKey: ['kb-permissions', kbId] })
-    }
-  }, [grantMutation.isSuccess, queryClient, kbId])
-
-  useEffect(() => {
-    if (revokeMutation.isSuccess) {
-      queryClient.invalidateQueries({ queryKey: ['kb-permissions', kbId] })
-    }
-  }, [revokeMutation.isSuccess, queryClient, kbId])
 
   const handlePermissionChange = (userId: string, permission: string) => {
     if (permission === 'none') {
       revokeMutation.mutate(userId)
     } else {
-      grantMutation.mutate({ userId, permission })
+      grantMutation.mutate({ userId, permission: permission as KBPermission })
     }
   }
 
@@ -115,7 +94,7 @@ function ShareKnowledgeBaseDialog({ kbId, kbName, open, onClose }: ShareKnowledg
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Share Knowledge Base</DialogTitle>
-          <DialogDescription>Grant access to "{kbName}"</DialogDescription>
+          <DialogDescription>Grant access to &quot;{kbName}&quot;</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 max-h-96 overflow-y-auto">
