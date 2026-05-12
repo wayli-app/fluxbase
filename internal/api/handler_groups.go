@@ -79,10 +79,11 @@ type JobsHandlers struct {
 
 // RealtimeHandlers groups realtime/WebSocket handlers.
 type RealtimeHandlers struct {
-	Manager  *realtime.Manager
-	Handler  *realtime.RealtimeHandler
-	Listener realtime.RealtimeListener
-	Admin    *RealtimeAdminHandler
+	Manager     *realtime.Manager
+	Handler     *realtime.RealtimeHandler
+	Listener    realtime.RealtimeListener
+	Admin       *RealtimeAdminHandler
+	HandleStats fiber.Handler
 }
 
 // MCPHandlers groups Model Context Protocol handlers.
@@ -143,6 +144,9 @@ type SchemaHandlers struct {
 	Cache          *database.SchemaCache
 	Export         *SchemaExportHandler
 	InternalSchema *InternalSchemaHandler
+	Graph          *SchemaGraphHandlers
+	Policy         *PolicyHandlers
+	Admin          *SchemaAdminHandlers
 }
 
 // RPCHandlers groups RPC handlers.

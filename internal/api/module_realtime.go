@@ -65,6 +65,7 @@ func (m *RealtimeModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	m.Handlers.Manager = realtimeManager
 	m.Handlers.Handler = realtimeHandler
 	m.Handlers.Listener = realtimeListener
+	m.Handlers.HandleStats = newRealtimeStatsHandler(db, realtimeManager)
 
 	storageSvc := GetService[*storage.Service](registry)
 	var storageProvider storage.Provider

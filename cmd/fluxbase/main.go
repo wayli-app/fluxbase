@@ -376,7 +376,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
-		if err := server.LoadFunctionsFromFilesystem(ctx); err != nil {
+		if err := server.Functions.Handler.LoadFromFilesystem(ctx); err != nil {
 			log.Warn().Err(err).Msg("Failed to auto-load functions - continuing startup")
 		} else {
 			log.Info().Msg("Functions auto-loaded successfully")
@@ -389,7 +389,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
-		if err := server.LoadJobsFromFilesystem(ctx); err != nil {
+		if err := server.Jobs.Handler.LoadFromFilesystem(ctx, "default"); err != nil {
 			log.Warn().Err(err).Msg("Failed to auto-load jobs - continuing startup")
 		} else {
 			log.Info().Msg("Job functions auto-loaded successfully")

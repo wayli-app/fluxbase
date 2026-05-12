@@ -28,6 +28,7 @@ import (
 func (h *StorageHandler) StreamUpload(c fiber.Ctx) error {
 	bucket := c.Params("bucket")
 	key := c.Params("*") // Capture the rest of the path
+	key = sanitizeFilename(key)
 
 	if bucket == "" || key == "" {
 		return SendBadRequest(c, "bucket and key are required", ErrCodeMissingField)

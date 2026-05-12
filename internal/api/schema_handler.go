@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/nimbleflux/fluxbase/internal/database"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 )
 
@@ -114,11 +115,20 @@ func schemaGraphCacheKey(tenantID string, schemas []string) string {
 	return tenantID + ":" + strings.Join(sorted, ",")
 }
 
+type SchemaGraphHandlers struct {
+	db         *database.Connection
+	graphCache *schemaGraphCache
+}
+
+func NewSchemaGraphHandlers(db *database.Connection, graphCache *schemaGraphCache) *SchemaGraphHandlers {
+	return &SchemaGraphHandlers{db: db, graphCache: graphCache}
+}
+
 // GetSchemaGraph returns all tables and relationships for ERD visualization.
 // Results are cached for 2 minutes per (tenant, schema list) combination.
 // GET /api/v1/admin/schema/graph
-func (s *Server) GetSchemaGraph(c fiber.Ctx) error {
-	if s.db == nil {
+func (h *SchemaGraphHandlers) GetSchemaGraph(c fiber.Ctx) error {
+	if h.db == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Database connection not initialized",
 		})
@@ -134,18 +144,18 @@ func (s *Server) GetSchemaGraph(c fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	cacheKey := schemaGraphCacheKey(tenantID, schemaList)
 
-	if cached, ok := s.graphCache.Get(cacheKey); ok {
+	if cached, ok := h.graphCache.Get(cacheKey); ok {
 		return c.JSON(cached)
 	}
 
-	pool := s.schemaPool(c)
+	pool := tenantPool(c, h.db)
 
-	nodes, err := s.querySchemaNodes(ctx, pool, schemaList)
+	nodes, err := querySchemaNodes(ctx, pool, schemaList)
 	if err != nil {
 		return SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	edges, err := s.querySchemaEdges(ctx, pool, schemaList)
+	edges, err := querySchemaEdges(ctx, pool, schemaList)
 	if err != nil {
 		return SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -178,14 +188,14 @@ func (s *Server) GetSchemaGraph(c fiber.Ctx) error {
 		Schemas: schemaList,
 	}
 
-	s.graphCache.Set(cacheKey, resp)
+	h.graphCache.Set(cacheKey, resp)
 
 	return c.JSON(resp)
 }
 
 // querySchemaNodes fetches all tables with columns, PKs, indexes, FKs, RLS, and comments
 // using direct pg_catalog queries for optimal performance.
-func (s *Server) querySchemaNodes(ctx context.Context, pool *pgxpool.Pool, schemaList []string) (map[string]*SchemaNode, error) {
+func querySchemaNodes(ctx context.Context, pool *pgxpool.Pool, schemaList []string) (map[string]*SchemaNode, error) {
 	query := `
 		WITH tables AS (
 			SELECT
@@ -412,7 +422,7 @@ func (s *Server) querySchemaNodes(ctx context.Context, pool *pgxpool.Pool, schem
 }
 
 // querySchemaEdges fetches all foreign key relationships with cardinality.
-func (s *Server) querySchemaEdges(ctx context.Context, pool *pgxpool.Pool, schemaList []string) ([]SchemaRelationship, error) {
+func querySchemaEdges(ctx context.Context, pool *pgxpool.Pool, schemaList []string) ([]SchemaRelationship, error) {
 	query := `
 		WITH fk_info AS (
 			SELECT
@@ -515,7 +525,7 @@ func (s *Server) querySchemaEdges(ctx context.Context, pool *pgxpool.Pool, schem
 
 // GetTableRelationships returns relationships for a specific table
 // GET /api/v1/admin/tables/:schema/:table/relationships
-func (s *Server) GetTableRelationships(c fiber.Ctx) error {
+func (h *SchemaGraphHandlers) GetTableRelationships(c fiber.Ctx) error {
 	ctx := middleware.CtxWithTenant(c)
 	schema := c.Params("schema")
 	table := c.Params("table")
@@ -524,13 +534,13 @@ func (s *Server) GetTableRelationships(c fiber.Ctx) error {
 		return SendBadRequest(c, "schema and table are required", "MISSING_PARAMS")
 	}
 
-	if s.db == nil {
+	if h.db == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Database connection not initialized",
 		})
 	}
 
-	pool := s.schemaPool(c)
+	pool := tenantPool(c, h.db)
 
 	query := `
 		WITH outgoing AS (
@@ -626,10 +636,9 @@ func (s *Server) GetTableRelationships(c fiber.Ctx) error {
 	})
 }
 
-// schemaPool returns the tenant pool if available, otherwise the main pool.
-func (s *Server) schemaPool(c fiber.Ctx) *pgxpool.Pool {
+func tenantPool(c fiber.Ctx, db *database.Connection) *pgxpool.Pool {
 	if pool := middleware.GetTenantPool(c); pool != nil {
 		return pool
 	}
-	return s.db.Pool()
+	return db.Pool()
 }

@@ -446,7 +446,7 @@ sendResponse:
 			disposition = "inline"
 		}
 	}
-	c.Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, filename))
+	c.Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, sanitizeContentDispositionFilename(filename)))
 
 	log.Debug().
 		Str("bucket", bucket).

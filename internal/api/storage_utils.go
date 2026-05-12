@@ -213,3 +213,13 @@ func sanitizeFilename(filename string) string {
 
 	return filename
 }
+
+// sanitizeContentDispositionFilename escapes a filename for safe use in Content-Disposition headers.
+// Per RFC 6266, the filename parameter is a quoted-string where backslash and double-quote must be escaped.
+func sanitizeContentDispositionFilename(filename string) string {
+	filename = strings.ReplaceAll(filename, `\`, `\\`)
+	filename = strings.ReplaceAll(filename, `"`, `\"`)
+	filename = strings.ReplaceAll(filename, "\n", "")
+	filename = strings.ReplaceAll(filename, "\r", "")
+	return filename
+}

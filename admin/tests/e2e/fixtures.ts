@@ -167,10 +167,13 @@ export const test = base.extend<Fixtures>({
     { scope: "worker" },
   ],
 
-  adminToken: async ({}, use) => {
-    const token = await getAdminToken();
-    await use(token);
-  },
+  adminToken: [
+    async ({}, use) => {
+      const token = await getAdminToken();
+      await use(token);
+    },
+    { scope: "worker" },
+  ],
 
   /**
    * Provides a tenant admin page (logged in as tenant admin).
@@ -208,7 +211,7 @@ export const test = base.extend<Fixtures>({
     await use(token || "");
   },
 
-  tenantAdminInfo: async ({}, use) => {
+  tenantAdminInfo: async ({ adminToken }, use) => {
     const user = await getUserByEmail(TENANT_ADMIN_EMAIL);
     if (!user) {
       throw new Error(
@@ -216,7 +219,6 @@ export const test = base.extend<Fixtures>({
       );
     }
 
-    const adminToken = await getAdminToken();
     const tenantsResult = await listTenants(adminToken);
     const secondTenant = (tenantsResult.body as TenantInfo[])?.find(
       (t) => t.slug === SECOND_TENANT_SLUG,

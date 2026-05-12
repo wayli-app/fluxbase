@@ -5,11 +5,17 @@ import (
 )
 
 type InvitationDeps struct {
+	AcceptLimiter      fiber.Handler
 	ValidateInvitation fiber.Handler
 	AcceptInvitation   fiber.Handler
 }
 
 func BuildInvitationRoutes(deps *InvitationDeps) *RouteGroup {
+	acceptMiddlewares := []Middleware{}
+	if deps.AcceptLimiter != nil {
+		acceptMiddlewares = append(acceptMiddlewares, Middleware{Name: "AcceptLimiter", Handler: deps.AcceptLimiter})
+	}
+
 	return &RouteGroup{
 		Name:   "invitations",
 		Prefix: "/api/v1/invitations",
@@ -23,12 +29,13 @@ func BuildInvitationRoutes(deps *InvitationDeps) *RouteGroup {
 				Public:  true,
 			},
 			{
-				Method:  "POST",
-				Path:    "/:token/accept",
-				Handler: deps.AcceptInvitation,
-				Summary: "Accept invitation",
-				Auth:    AuthNone,
-				Public:  true,
+				Method:      "POST",
+				Path:        "/:token/accept",
+				Handler:     deps.AcceptInvitation,
+				Summary:     "Accept invitation",
+				Auth:        AuthNone,
+				Public:      true,
+				Middlewares: acceptMiddlewares,
 			},
 		},
 	}

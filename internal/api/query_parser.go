@@ -979,14 +979,13 @@ func (params *QueryParams) BuildSelectClause(tableName string) string {
 			// In which case, validate it against SQL injection patterns
 			if strings.ContainsAny(field, "()+-*/ ") {
 				upper := strings.ToUpper(field)
-				for _, kw := range []string{"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "EXECUTE", "GRANT", "REVOKE", "EXEC"} {
+				for _, kw := range []string{"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "EXECUTE", "GRANT", "REVOKE", "EXEC", "UNION"} {
 					if strings.Contains(upper, kw) {
-						return "" // reject expression containing dangerous keyword
+						return ""
 					}
 				}
-				// Check for subquery patterns
-				if strings.Contains(upper, "SELECT") && strings.Count(field, "(") != strings.Count(field, ")") {
-					return "" // reject unbalanced parens (likely injection)
+				if strings.Contains(upper, "SELECT") {
+					return ""
 				}
 				parts = append(parts, field)
 			} else {

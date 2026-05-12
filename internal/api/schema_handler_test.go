@@ -414,43 +414,38 @@ func TestSchemaGraphResponse_Struct(t *testing.T) {
 
 func TestGetSchemaGraph_ParameterParsing(t *testing.T) {
 	t.Run("default schemas parameter", func(t *testing.T) {
-		// Note: Full testing requires mocked database
-		// This test verifies the handler setup and default parameter
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/schema/graph", server.GetSchemaGraph)
+		app.Get("/schema/graph", h.GetSchemaGraph)
 
 		req := httptest.NewRequest(http.MethodGet, "/schema/graph", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Without DB, will return internal server error
-		// But we verify the handler was reached
 		assert.NotEqual(t, fiber.StatusNotFound, resp.StatusCode)
 	})
 
 	t.Run("custom schemas parameter", func(t *testing.T) {
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/schema/graph", server.GetSchemaGraph)
+		app.Get("/schema/graph", h.GetSchemaGraph)
 
 		req := httptest.NewRequest(http.MethodGet, "/schema/graph?schemas=public,auth,storage", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Handler should accept comma-separated schemas
 		assert.NotEqual(t, fiber.StatusNotFound, resp.StatusCode)
 	})
 
 	t.Run("single schema parameter", func(t *testing.T) {
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/schema/graph", server.GetSchemaGraph)
+		app.Get("/schema/graph", h.GetSchemaGraph)
 
 		req := httptest.NewRequest(http.MethodGet, "/schema/graph?schemas=auth", nil)
 		resp, err := app.Test(req)
@@ -462,11 +457,10 @@ func TestGetSchemaGraph_ParameterParsing(t *testing.T) {
 
 	t.Run("schemas with whitespace", func(t *testing.T) {
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/schema/graph", server.GetSchemaGraph)
+		app.Get("/schema/graph", h.GetSchemaGraph)
 
-		// Whitespace should be trimmed
 		req := httptest.NewRequest(http.MethodGet, "/schema/graph?schemas=public,%20auth,%20storage", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
@@ -483,65 +477,58 @@ func TestGetSchemaGraph_ParameterParsing(t *testing.T) {
 func TestGetTableRelationships_ParameterValidation(t *testing.T) {
 	t.Run("missing schema parameter", func(t *testing.T) {
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/tables/:schema/:table/relationships", server.GetTableRelationships)
+		app.Get("/tables/:schema/:table/relationships", h.GetTableRelationships)
 
-		// Empty schema should return bad request
 		req := httptest.NewRequest(http.MethodGet, "/tables//users/relationships", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Fiber treats empty param as route not found or bad request
 		assert.True(t, resp.StatusCode == fiber.StatusNotFound || resp.StatusCode == fiber.StatusBadRequest)
 	})
 
 	t.Run("missing table parameter", func(t *testing.T) {
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/tables/:schema/:table/relationships", server.GetTableRelationships)
+		app.Get("/tables/:schema/:table/relationships", h.GetTableRelationships)
 
-		// Empty table should return bad request
 		req := httptest.NewRequest(http.MethodGet, "/tables/public//relationships", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Fiber treats empty param as route not found or bad request
 		assert.True(t, resp.StatusCode == fiber.StatusNotFound || resp.StatusCode == fiber.StatusBadRequest)
 	})
 
 	t.Run("valid schema and table parameters", func(t *testing.T) {
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/tables/:schema/:table/relationships", server.GetTableRelationships)
+		app.Get("/tables/:schema/:table/relationships", h.GetTableRelationships)
 
 		req := httptest.NewRequest(http.MethodGet, "/tables/public/users/relationships", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Without DB, will return internal server error
-		// But we verify parameters were parsed correctly
 		assert.NotEqual(t, fiber.StatusNotFound, resp.StatusCode)
 		assert.NotEqual(t, fiber.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("schema and table with underscores", func(t *testing.T) {
 		app := newTestApp(t)
-		server := &Server{db: nil}
+		h := &SchemaGraphHandlers{db: nil}
 
-		app.Get("/tables/:schema/:table/relationships", server.GetTableRelationships)
+		app.Get("/tables/:schema/:table/relationships", h.GetTableRelationships)
 
 		req := httptest.NewRequest(http.MethodGet, "/tables/my_schema/my_table/relationships", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		// Parameters with underscores should be valid
 		assert.NotEqual(t, fiber.StatusNotFound, resp.StatusCode)
 		assert.NotEqual(t, fiber.StatusBadRequest, resp.StatusCode)
 	})
