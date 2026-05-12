@@ -11,35 +11,40 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// querier abstracts the query interface shared by *Connection and *pgxpool.Pool.
 type querier interface {
 	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
 }
 
-// SchemaInspector provides PostgreSQL schema introspection capabilities
 type SchemaInspector struct {
 	conn *Connection
 }
 
-// TableInfo represents metadata about a database table, view, or materialized view
-type TableInfo struct {
-	Schema      string       `json:"schema"`
-	Name        string       `json:"name"`
-	Type        string       `json:"type"`                // "table", "view", or "materialized_view"
-	RESTPath    string       `json:"rest_path,omitempty"` // The REST API path for this table (e.g., "/auth/users")
-	Columns     []ColumnInfo `json:"columns"`
-	PrimaryKey  []string     `json:"primary_key"`
-	ForeignKeys []ForeignKey `json:"foreign_keys"`
-	Indexes     []IndexInfo  `json:"indexes"`
-	RLSEnabled  bool         `json:"rls_enabled"`
-
-	// ColumnMap provides O(1) column lookup by name (populated lazily or by BuildColumnMap)
-	ColumnMap map[string]*ColumnInfo `json:"-"`
+func (si *SchemaInspector) q() querier {
+	return si.conn
 }
 
-// BuildColumnMap populates the ColumnMap for O(1) column lookups.
-// This is called automatically during schema cache refresh.
+func PoolQuerier(pool *pgxpool.Pool) querier {
+	return poolQuerier{Pool: pool}
+}
+
+type poolQuerier struct {
+	*pgxpool.Pool
+}
+
+type TableInfo struct {
+	Schema      string                 `json:"schema"`
+	Name        string                 `json:"name"`
+	Type        string                 `json:"type"`
+	RESTPath    string                 `json:"rest_path,omitempty"`
+	Columns     []ColumnInfo           `json:"columns"`
+	PrimaryKey  []string               `json:"primary_key"`
+	ForeignKeys []ForeignKey           `json:"foreign_keys"`
+	Indexes     []IndexInfo            `json:"indexes"`
+	RLSEnabled  bool                   `json:"rls_enabled"`
+	ColumnMap   map[string]*ColumnInfo `json:"-"`
+}
+
 func (t *TableInfo) BuildColumnMap() {
 	t.ColumnMap = make(map[string]*ColumnInfo, len(t.Columns))
 	for i := range t.Columns {
@@ -47,13 +52,10 @@ func (t *TableInfo) BuildColumnMap() {
 	}
 }
 
-// GetColumn returns the column info for the given column name, or nil if not found.
-// Uses ColumnMap for O(1) lookup if available, otherwise falls back to O(n) search.
 func (t *TableInfo) GetColumn(name string) *ColumnInfo {
 	if t.ColumnMap != nil {
 		return t.ColumnMap[name]
 	}
-	// Fallback to linear search if map not built
 	for i := range t.Columns {
 		if t.Columns[i].Name == name {
 			return &t.Columns[i]
@@ -62,12 +64,10 @@ func (t *TableInfo) GetColumn(name string) *ColumnInfo {
 	return nil
 }
 
-// HasColumn checks if a column exists in the table using O(1) lookup.
 func (t *TableInfo) HasColumn(name string) bool {
 	return t.GetColumn(name) != nil
 }
 
-// ColumnInfo represents metadata about a table column
 type ColumnInfo struct {
 	Name         string           `json:"name"`
 	DataType     string           `json:"data_type"`
@@ -82,21 +82,18 @@ type ColumnInfo struct {
 	JSONBSchema  *JSONBSchemaInfo `json:"jsonb_schema,omitempty"`
 }
 
-// JSONBSchemaInfo represents the schema of a JSONB column
 type JSONBSchemaInfo struct {
 	Properties map[string]JSONBProperty `json:"properties,omitempty"`
 	Required   []string                 `json:"required,omitempty"`
 }
 
-// JSONBProperty represents a single property in a JSONB schema
 type JSONBProperty struct {
 	Type        string                   `json:"type"`
 	Description string                   `json:"description,omitempty"`
-	Properties  map[string]JSONBProperty `json:"properties,omitempty"` // For nested objects
-	Items       *JSONBProperty           `json:"items,omitempty"`      // For arrays
+	Properties  map[string]JSONBProperty `json:"properties,omitempty"`
+	Items       *JSONBProperty           `json:"items,omitempty"`
 }
 
-// ForeignKey represents a foreign key relationship
 type ForeignKey struct {
 	Name             string `json:"name"`
 	ColumnName       string `json:"column_name"`
@@ -106,7 +103,6 @@ type ForeignKey struct {
 	OnUpdate         string `json:"on_update"`
 }
 
-// IndexInfo represents an index on a table
 type IndexInfo struct {
 	Name      string   `json:"name"`
 	Columns   []string `json:"columns"`
@@ -114,1295 +110,36 @@ type IndexInfo struct {
 	IsPrimary bool     `json:"is_primary"`
 }
 
-// NewSchemaInspector creates a new schema inspector
 func NewSchemaInspector(conn *Connection) *SchemaInspector {
 	return &SchemaInspector{conn: conn}
 }
 
-// GetAllTables retrieves information about all tables in the specified schemas.
-// This uses batched queries to avoid N+1 query patterns.
 func (si *SchemaInspector) GetAllTables(ctx context.Context, schemas ...string) ([]TableInfo, error) {
-	// Log schema introspection for audit purposes
+	return si.GetAllTablesFromQ(ctx, si.q(), schemas...)
+}
+
+func (si *SchemaInspector) GetAllTablesFromQ(ctx context.Context, q querier, schemas ...string) ([]TableInfo, error) {
 	LogSchemaIntrospection(ctx, "GetAllTables", map[string]interface{}{"schemas": schemas})
 	if len(schemas) == 0 {
 		schemas = []string{"public"}
 	}
 
-	// Query to get all tables from specified schemas
 	query := `
 		SELECT
-			schemaname,
-			tablename,
+			n.nspname as schemaname,
+			c.relname as tablename,
 			CASE
-				WHEN relrowsecurity THEN true
+				WHEN c.relrowsecurity THEN true
 				ELSE false
 			END as rls_enabled
-		FROM pg_tables t
-		JOIN pg_class c ON c.relname = t.tablename AND c.relnamespace = (
-			SELECT oid FROM pg_namespace WHERE nspname = t.schemaname
-		)
-		WHERE schemaname = ANY($1)
-			AND tablename NOT LIKE 'pg_%'
-			AND tablename NOT LIKE '_fluxbase.%'
-			AND schemaname NOT IN ('information_schema', 'pg_catalog', '_fluxbase')
-		ORDER BY schemaname, tablename
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query tables: %w", err)
-	}
-	defer rows.Close()
-
-	// Collect all table names and build initial TableInfo map
-	tableMap := make(map[string]*TableInfo) // key: "schema.table"
-	var tableKeys []string
-
-	for rows.Next() {
-		var schema, name string
-		var rlsEnabled bool
-
-		if err := rows.Scan(&schema, &name, &rlsEnabled); err != nil {
-			return nil, fmt.Errorf("failed to scan table: %w", err)
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, name)
-		tableMap[key] = &TableInfo{
-			Schema:     schema,
-			Name:       name,
-			Type:       "table",
-			RLSEnabled: rlsEnabled,
-		}
-		tableKeys = append(tableKeys, key)
-	}
-
-	if len(tableMap) == 0 {
-		return []TableInfo{}, nil
-	}
-
-	// Batch fetch all metadata
-	if err := si.batchFetchTableMetadata(ctx, schemas, tableMap, "table"); err != nil {
-		return nil, err
-	}
-
-	// Build result slice in original order
-	tables := make([]TableInfo, 0, len(tableKeys))
-	for _, key := range tableKeys {
-		if info, ok := tableMap[key]; ok {
-			tables = append(tables, *info)
-		}
-	}
-
-	return tables, nil
-}
-
-// GetTableInfo retrieves detailed information about a specific table
-func (si *SchemaInspector) GetTableInfo(ctx context.Context, schema, table string) (*TableInfo, error) {
-	// Log schema introspection for audit purposes
-	LogSchemaIntrospection(ctx, "GetTableInfo", map[string]interface{}{"schema": schema, "table": table})
-	tableInfo := &TableInfo{
-		Schema: schema,
-		Name:   table,
-	}
-
-	// Get columns
-	columns, err := si.getColumns(ctx, schema, table)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
-	}
-	tableInfo.Columns = columns
-
-	// Get primary key
-	primaryKey, err := si.getPrimaryKey(ctx, schema, table)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get primary key: %w", err)
-	}
-	tableInfo.PrimaryKey = primaryKey
-
-	// Get foreign keys
-	foreignKeys, err := si.getForeignKeys(ctx, schema, table)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get foreign keys: %w", err)
-	}
-	tableInfo.ForeignKeys = foreignKeys
-
-	// Get indexes
-	indexes, err := si.getIndexes(ctx, schema, table)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get indexes: %w", err)
-	}
-	tableInfo.Indexes = indexes
-
-	// Mark primary key columns
-	for i := range tableInfo.Columns {
-		for _, pk := range tableInfo.PrimaryKey {
-			if tableInfo.Columns[i].Name == pk {
-				tableInfo.Columns[i].IsPrimaryKey = true
-				break
-			}
-		}
-	}
-
-	// Mark foreign key columns
-	for i := range tableInfo.Columns {
-		for _, fk := range tableInfo.ForeignKeys {
-			if tableInfo.Columns[i].Name == fk.ColumnName {
-				tableInfo.Columns[i].IsForeignKey = true
-				break
-			}
-		}
-	}
-
-	// Build column lookup map for O(1) access
-	tableInfo.BuildColumnMap()
-
-	return tableInfo, nil
-}
-
-// getColumns retrieves column information for a table, view, or materialized view
-func (si *SchemaInspector) getColumns(ctx context.Context, schema, table string) ([]ColumnInfo, error) {
-	// First try information_schema.columns (works for tables and regular views)
-	query := `
-		SELECT
-			c.column_name,
-			CASE
-				WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
-				ELSE c.data_type
-			END as data_type,
-			c.is_nullable,
-			c.column_default,
-			c.character_maximum_length,
-			c.ordinal_position,
-			COALESCE(pg_catalog.col_description(
-				(c.table_schema || '.' || c.table_name)::regclass::oid,
-				c.ordinal_position
-			), '') as column_comment
-		FROM information_schema.columns c
-		WHERE c.table_schema = $1 AND c.table_name = $2
-		ORDER BY c.ordinal_position
-	`
-
-	rows, err := si.conn.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var columns []ColumnInfo
-	for rows.Next() {
-		var col ColumnInfo
-		var isNullable string
-		var maxLength *int32
-		var comment string
-
-		err := rows.Scan(
-			&col.Name,
-			&col.DataType,
-			&isNullable,
-			&col.DefaultValue,
-			&maxLength,
-			&col.Position,
-			&comment,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		col.IsNullable = isNullable == "YES"
-		if maxLength != nil {
-			length := int(*maxLength)
-			col.MaxLength = &length
-		}
-
-		// Parse column comment for description and/or JSONB schema
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
-		columns = append(columns, col)
-	}
-
-	// If no columns found, it might be a materialized view
-	// Materialized views are NOT in information_schema.columns, use pg_attribute instead
-	if len(columns) == 0 {
-		columns, err = si.getMaterializedViewColumns(ctx, schema, table)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return columns, nil
-}
-
-// getMaterializedViewColumns retrieves column information for a materialized view using pg_catalog
-func (si *SchemaInspector) getMaterializedViewColumns(ctx context.Context, schema, table string) ([]ColumnInfo, error) {
-	query := `
-		SELECT
-			a.attname AS column_name,
-			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
-			NOT a.attnotnull AS is_nullable,
-			pg_get_expr(d.adbin, d.adrelid) AS column_default,
-			a.attnum AS ordinal_position,
-			COALESCE(pg_catalog.col_description(c.oid, a.attnum), '') as column_comment
-		FROM pg_catalog.pg_attribute a
-		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
-		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-		WHERE n.nspname = $1
-		  AND c.relname = $2
-		  AND c.relkind = 'm'  -- 'm' = materialized view
-		  AND a.attnum > 0     -- skip system columns
-		  AND NOT a.attisdropped
-		ORDER BY a.attnum
-	`
-
-	rows, err := si.conn.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var columns []ColumnInfo
-	for rows.Next() {
-		var col ColumnInfo
-		var isNullable bool
-		var comment string
-
-		err := rows.Scan(
-			&col.Name,
-			&col.DataType,
-			&isNullable,
-			&col.DefaultValue,
-			&col.Position,
-			&comment,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		col.IsNullable = isNullable
-
-		// Parse column comment for description and/or JSONB schema
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
-		columns = append(columns, col)
-	}
-
-	return columns, nil
-}
-
-// parseColumnComment parses a column comment to extract description and/or JSONB schema.
-// If the comment contains a _fluxbase_jsonb_schema marker, it extracts the schema.
-// Otherwise, it returns the comment as a plain description.
-func parseColumnComment(comment string) (description string, schema *JSONBSchemaInfo) {
-	if comment == "" {
-		return "", nil
-	}
-
-	// Check for Fluxbase JSONB schema marker
-	if strings.Contains(comment, "_fluxbase_jsonb_schema") {
-		var data struct {
-			FluxbaseJSONBSchema *JSONBSchemaInfo `json:"_fluxbase_jsonb_schema"`
-		}
-		if err := json.Unmarshal([]byte(comment), &data); err == nil && data.FluxbaseJSONBSchema != nil {
-			return "", data.FluxbaseJSONBSchema
-		}
-		// If parsing fails, fall through to treat as regular comment
-	}
-
-	// Regular comment, return as description
-	return comment, nil
-}
-
-// getPrimaryKey retrieves primary key columns for a table
-func (si *SchemaInspector) getPrimaryKey(ctx context.Context, schema, table string) ([]string, error) {
-	query := `
-		SELECT a.attname
-		FROM pg_index i
-		JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-		JOIN pg_class c ON c.oid = i.indrelid
-		JOIN pg_namespace n ON n.oid = c.relnamespace
-		WHERE n.nspname = $1
-			AND c.relname = $2
-			AND i.indisprimary
-		ORDER BY array_position(i.indkey, a.attnum)
-	`
-
-	rows, err := si.conn.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var primaryKey []string
-	for rows.Next() {
-		var column string
-		if err := rows.Scan(&column); err != nil {
-			return nil, err
-		}
-		primaryKey = append(primaryKey, column)
-	}
-
-	return primaryKey, nil
-}
-
-// getForeignKeys retrieves foreign key information for a table
-func (si *SchemaInspector) getForeignKeys(ctx context.Context, schema, table string) ([]ForeignKey, error) {
-	query := `
-		SELECT
-			tc.constraint_name,
-			kcu.column_name,
-			ccu.table_schema || '.' || ccu.table_name AS referenced_table,
-			ccu.column_name AS referenced_column,
-			rc.delete_rule,
-			rc.update_rule
-		FROM information_schema.table_constraints AS tc
-		JOIN information_schema.key_column_usage AS kcu
-			ON tc.constraint_name = kcu.constraint_name
-			AND tc.table_schema = kcu.table_schema
-		JOIN information_schema.constraint_column_usage AS ccu
-			ON ccu.constraint_name = tc.constraint_name
-			AND ccu.table_schema = tc.table_schema
-		JOIN information_schema.referential_constraints AS rc
-			ON rc.constraint_name = tc.constraint_name
-			AND rc.constraint_schema = tc.table_schema
-		WHERE tc.constraint_type = 'FOREIGN KEY'
-			AND tc.table_schema = $1
-			AND tc.table_name = $2
-	`
-
-	rows, err := si.conn.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var foreignKeys []ForeignKey
-	for rows.Next() {
-		var fk ForeignKey
-		err := rows.Scan(
-			&fk.Name,
-			&fk.ColumnName,
-			&fk.ReferencedTable,
-			&fk.ReferencedColumn,
-			&fk.OnDelete,
-			&fk.OnUpdate,
-		)
-		if err != nil {
-			return nil, err
-		}
-		foreignKeys = append(foreignKeys, fk)
-	}
-
-	return foreignKeys, nil
-}
-
-// getIndexes retrieves index information for a table
-func (si *SchemaInspector) getIndexes(ctx context.Context, schema, table string) ([]IndexInfo, error) {
-	query := `
-		SELECT
-			i.relname AS index_name,
-			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
-			ix.indisunique,
-			ix.indisprimary
-		FROM pg_index ix
-		JOIN pg_class t ON t.oid = ix.indrelid
-		JOIN pg_class i ON i.oid = ix.indexrelid
-		JOIN pg_namespace n ON n.oid = t.relnamespace
-		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
-		WHERE n.nspname = $1
-			AND t.relname = $2
-		GROUP BY i.relname, ix.indisunique, ix.indisprimary
-		ORDER BY i.relname
-	`
-
-	rows, err := si.conn.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var indexes []IndexInfo
-	for rows.Next() {
-		var idx IndexInfo
-		err := rows.Scan(
-			&idx.Name,
-			&idx.Columns,
-			&idx.IsUnique,
-			&idx.IsPrimary,
-		)
-		if err != nil {
-			return nil, err
-		}
-		indexes = append(indexes, idx)
-	}
-
-	return indexes, nil
-}
-
-// batchFetchTableMetadata fetches columns, primary keys, foreign keys, and indexes
-// for all tables in the map using batched queries. This avoids the N+1 query problem.
-// The objectType parameter specifies whether we're fetching for "table", "view", or "materialized_view".
-func (si *SchemaInspector) batchFetchTableMetadata(ctx context.Context, schemas []string, tableMap map[string]*TableInfo, objectType string) error {
-	// Batch fetch columns
-	columns, err := si.batchGetColumns(ctx, schemas, objectType)
-	if err != nil {
-		return fmt.Errorf("failed to batch get columns: %w", err)
-	}
-
-	// Assign columns to tables
-	for key, cols := range columns {
-		if info, ok := tableMap[key]; ok {
-			info.Columns = cols
-		}
-	}
-
-	// For tables, also fetch primary keys, foreign keys, and indexes
-	if objectType == "table" {
-		// Batch fetch primary keys
-		primaryKeys, err := si.batchGetPrimaryKeys(ctx, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get primary keys: %w", err)
-		}
-
-		for key, pks := range primaryKeys {
-			if info, ok := tableMap[key]; ok {
-				info.PrimaryKey = pks
-				// Mark primary key columns
-				for i := range info.Columns {
-					for _, pk := range pks {
-						if info.Columns[i].Name == pk {
-							info.Columns[i].IsPrimaryKey = true
-							break
-						}
-					}
-				}
-			}
-		}
-
-		// Batch fetch foreign keys
-		foreignKeys, err := si.batchGetForeignKeys(ctx, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get foreign keys: %w", err)
-		}
-
-		for key, fks := range foreignKeys {
-			if info, ok := tableMap[key]; ok {
-				info.ForeignKeys = fks
-				// Mark foreign key columns
-				for i := range info.Columns {
-					for _, fk := range fks {
-						if info.Columns[i].Name == fk.ColumnName {
-							info.Columns[i].IsForeignKey = true
-							break
-						}
-					}
-				}
-			}
-		}
-
-		// Batch fetch indexes
-		indexes, err := si.batchGetIndexes(ctx, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get indexes: %w", err)
-		}
-
-		for key, idxs := range indexes {
-			if info, ok := tableMap[key]; ok {
-				info.Indexes = idxs
-			}
-		}
-	}
-
-	// For materialized views, fetch indexes (they can have indexes)
-	if objectType == "materialized_view" {
-		indexes, err := si.batchGetIndexes(ctx, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get indexes: %w", err)
-		}
-
-		for key, idxs := range indexes {
-			if info, ok := tableMap[key]; ok {
-				info.Indexes = idxs
-			}
-		}
-	}
-
-	// Build column lookup maps for O(1) access
-	for _, info := range tableMap {
-		info.BuildColumnMap()
-	}
-
-	return nil
-}
-
-// batchGetColumns retrieves columns for all tables/views in the specified schemas in a single query.
-// Returns a map from "schema.table" to column list.
-func (si *SchemaInspector) batchGetColumns(ctx context.Context, schemas []string, objectType string) (map[string][]ColumnInfo, error) {
-	result := make(map[string][]ColumnInfo)
-
-	if objectType == "materialized_view" {
-		// Materialized views need pg_attribute query
-		return si.batchGetMaterializedViewColumns(ctx, schemas)
-	}
-
-	// For tables and regular views, use information_schema
-	query := `
-		SELECT
-			c.table_schema,
-			c.table_name,
-			c.column_name,
-			CASE
-				WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
-				ELSE c.data_type
-			END as data_type,
-			c.is_nullable,
-			c.column_default,
-			c.character_maximum_length,
-			c.ordinal_position,
-			COALESCE(pg_catalog.col_description(
-				(c.table_schema || '.' || c.table_name)::regclass::oid,
-				c.ordinal_position
-			), '') as column_comment
-		FROM information_schema.columns c
-		WHERE c.table_schema = ANY($1)
-		ORDER BY c.table_schema, c.table_name, c.ordinal_position
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table string
-		var col ColumnInfo
-		var isNullable string
-		var maxLength *int32
-		var comment string
-
-		err := rows.Scan(
-			&schema,
-			&table,
-			&col.Name,
-			&col.DataType,
-			&isNullable,
-			&col.DefaultValue,
-			&maxLength,
-			&col.Position,
-			&comment,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		col.IsNullable = isNullable == "YES"
-		if maxLength != nil {
-			length := int(*maxLength)
-			col.MaxLength = &length
-		}
-
-		// Parse column comment for description and/or JSONB schema
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], col)
-	}
-
-	return result, nil
-}
-
-// batchGetMaterializedViewColumns retrieves columns for all materialized views using pg_attribute.
-func (si *SchemaInspector) batchGetMaterializedViewColumns(ctx context.Context, schemas []string) (map[string][]ColumnInfo, error) {
-	result := make(map[string][]ColumnInfo)
-
-	query := `
-		SELECT
-			n.nspname AS schema_name,
-			c.relname AS table_name,
-			a.attname AS column_name,
-			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
-			NOT a.attnotnull AS is_nullable,
-			pg_get_expr(d.adbin, d.adrelid) AS column_default,
-			a.attnum AS ordinal_position,
-			COALESCE(pg_catalog.col_description(c.oid, a.attnum), '') as column_comment
-		FROM pg_catalog.pg_attribute a
-		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
-		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-		WHERE n.nspname = ANY($1)
-		  AND c.relkind = 'm'  -- 'm' = materialized view
-		  AND a.attnum > 0     -- skip system columns
-		  AND NOT a.attisdropped
-		ORDER BY n.nspname, c.relname, a.attnum
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table string
-		var col ColumnInfo
-		var isNullable bool
-		var comment string
-
-		err := rows.Scan(
-			&schema,
-			&table,
-			&col.Name,
-			&col.DataType,
-			&isNullable,
-			&col.DefaultValue,
-			&col.Position,
-			&comment,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		col.IsNullable = isNullable
-
-		// Parse column comment for description and/or JSONB schema
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], col)
-	}
-
-	return result, nil
-}
-
-// batchGetPrimaryKeys retrieves primary keys for all tables in the specified schemas.
-func (si *SchemaInspector) batchGetPrimaryKeys(ctx context.Context, schemas []string) (map[string][]string, error) {
-	result := make(map[string][]string)
-
-	query := `
-		SELECT
-			n.nspname AS schema_name,
-			c.relname AS table_name,
-			a.attname AS column_name,
-			array_position(i.indkey, a.attnum) AS key_position
-		FROM pg_index i
-		JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-		JOIN pg_class c ON c.oid = i.indrelid
+		FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE n.nspname = ANY($1)
-			AND i.indisprimary
-		ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum)
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table, column string
-		var position int
-
-		if err := rows.Scan(&schema, &table, &column, &position); err != nil {
-			return nil, err
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], column)
-	}
-
-	return result, nil
-}
-
-// batchGetForeignKeys retrieves foreign keys for all tables in the specified schemas.
-func (si *SchemaInspector) batchGetForeignKeys(ctx context.Context, schemas []string) (map[string][]ForeignKey, error) {
-	result := make(map[string][]ForeignKey)
-
-	query := `
-		SELECT
-			tc.table_schema,
-			tc.table_name,
-			tc.constraint_name,
-			kcu.column_name,
-			ccu.table_schema || '.' || ccu.table_name AS referenced_table,
-			ccu.column_name AS referenced_column,
-			rc.delete_rule,
-			rc.update_rule
-		FROM information_schema.table_constraints AS tc
-		JOIN information_schema.key_column_usage AS kcu
-			ON tc.constraint_name = kcu.constraint_name
-			AND tc.table_schema = kcu.table_schema
-		JOIN information_schema.referential_constraints AS rc
-			ON rc.constraint_name = tc.constraint_name
-			AND rc.constraint_schema = tc.table_schema
-		JOIN information_schema.key_column_usage AS ccu
-			ON ccu.constraint_name = rc.unique_constraint_name
-			AND ccu.table_schema = rc.unique_constraint_schema
-		WHERE tc.constraint_type = 'FOREIGN KEY'
-			AND tc.table_schema = ANY($1)
-		ORDER BY tc.table_schema, tc.table_name, tc.constraint_name
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table string
-		var fk ForeignKey
-		err := rows.Scan(
-			&schema,
-			&table,
-			&fk.Name,
-			&fk.ColumnName,
-			&fk.ReferencedTable,
-			&fk.ReferencedColumn,
-			&fk.OnDelete,
-			&fk.OnUpdate,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], fk)
-	}
-
-	return result, nil
-}
-
-// batchGetIndexes retrieves indexes for all tables in the specified schemas.
-func (si *SchemaInspector) batchGetIndexes(ctx context.Context, schemas []string) (map[string][]IndexInfo, error) {
-	result := make(map[string][]IndexInfo)
-
-	query := `
-		SELECT
-			n.nspname AS schema_name,
-			t.relname AS table_name,
-			i.relname AS index_name,
-			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
-			ix.indisunique,
-			ix.indisprimary
-		FROM pg_index ix
-		JOIN pg_class t ON t.oid = ix.indrelid
-		JOIN pg_class i ON i.oid = ix.indexrelid
-		JOIN pg_namespace n ON n.oid = t.relnamespace
-		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
-		WHERE n.nspname = ANY($1)
-		GROUP BY n.nspname, t.relname, i.relname, ix.indisunique, ix.indisprimary
-		ORDER BY n.nspname, t.relname, i.relname
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table string
-		var idx IndexInfo
-		err := rows.Scan(
-			&schema,
-			&table,
-			&idx.Name,
-			&idx.Columns,
-			&idx.IsUnique,
-			&idx.IsPrimary,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], idx)
-	}
-
-	return result, nil
-}
-
-// GetSchemas retrieves all available schemas
-func (si *SchemaInspector) GetSchemas(ctx context.Context) ([]string, error) {
-	// Log schema introspection for audit purposes
-	LogSchemaIntrospection(ctx, "GetSchemas", nil)
-	query := `
-		SELECT schema_name
-		FROM information_schema.schemata
-		WHERE schema_name NOT IN ('pg_catalog', 'information_schema')
-			AND schema_name NOT LIKE 'pg_%'
-		ORDER BY schema_name
-	`
-
-	rows, err := si.conn.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var schemas []string
-	for rows.Next() {
-		var schema string
-		if err := rows.Scan(&schema); err != nil {
-			return nil, err
-		}
-		schemas = append(schemas, schema)
-	}
-
-	return schemas, nil
-}
-
-// GetAllViews retrieves information about all views in the specified schemas.
-// This uses batched queries to avoid N+1 query patterns.
-func (si *SchemaInspector) GetAllViews(ctx context.Context, schemas ...string) ([]TableInfo, error) {
-	// Log schema introspection for audit purposes
-	LogSchemaIntrospection(ctx, "GetAllViews", map[string]interface{}{"schemas": schemas})
-	if len(schemas) == 0 {
-		schemas = []string{"public"}
-	}
-
-	// Query to get all views from specified schemas
-	query := `
-		SELECT
-			schemaname,
-			viewname
-		FROM pg_views
-		WHERE schemaname = ANY($1)
-			AND schemaname NOT IN ('information_schema', 'pg_catalog')
-		ORDER BY schemaname, viewname
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query views: %w", err)
-	}
-	defer rows.Close()
-
-	// Collect all view names and build initial TableInfo map
-	viewMap := make(map[string]*TableInfo)
-	var viewKeys []string
-
-	for rows.Next() {
-		var schema, name string
-
-		if err := rows.Scan(&schema, &name); err != nil {
-			return nil, fmt.Errorf("failed to scan view: %w", err)
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, name)
-		viewMap[key] = &TableInfo{
-			Schema:     schema,
-			Name:       name,
-			Type:       "view",
-			RLSEnabled: false,
-		}
-		viewKeys = append(viewKeys, key)
-	}
-
-	if len(viewMap) == 0 {
-		return []TableInfo{}, nil
-	}
-
-	// Batch fetch all metadata (views don't have primary keys, foreign keys, or indexes)
-	if err := si.batchFetchTableMetadata(ctx, schemas, viewMap, "view"); err != nil {
-		return nil, err
-	}
-
-	// Build result slice in original order
-	views := make([]TableInfo, 0, len(viewKeys))
-	for _, key := range viewKeys {
-		if info, ok := viewMap[key]; ok {
-			views = append(views, *info)
-		}
-	}
-
-	return views, nil
-}
-
-// GetAllMaterializedViews retrieves information about all materialized views in the specified schemas.
-// This uses batched queries to avoid N+1 query patterns.
-func (si *SchemaInspector) GetAllMaterializedViews(ctx context.Context, schemas ...string) ([]TableInfo, error) {
-	// Log schema introspection for audit purposes
-	LogSchemaIntrospection(ctx, "GetAllMaterializedViews", map[string]interface{}{"schemas": schemas})
-	if len(schemas) == 0 {
-		schemas = []string{"public"}
-	}
-
-	// Query to get all materialized views from specified schemas
-	query := `
-		SELECT
-			schemaname,
-			matviewname
-		FROM pg_matviews
-		WHERE schemaname = ANY($1)
-			AND schemaname NOT IN ('information_schema', 'pg_catalog')
-		ORDER BY schemaname, matviewname
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query materialized views: %w", err)
-	}
-	defer rows.Close()
-
-	// Collect all materialized view names and build initial TableInfo map
-	matviewMap := make(map[string]*TableInfo)
-	var matviewKeys []string
-
-	for rows.Next() {
-		var schema, name string
-
-		if err := rows.Scan(&schema, &name); err != nil {
-			return nil, fmt.Errorf("failed to scan materialized view: %w", err)
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, name)
-		matviewMap[key] = &TableInfo{
-			Schema:     schema,
-			Name:       name,
-			Type:       "materialized_view",
-			RLSEnabled: false,
-		}
-		matviewKeys = append(matviewKeys, key)
-	}
-
-	if len(matviewMap) == 0 {
-		return []TableInfo{}, nil
-	}
-
-	// Batch fetch all metadata (materialized views have indexes but no primary/foreign keys)
-	if err := si.batchFetchTableMetadata(ctx, schemas, matviewMap, "materialized_view"); err != nil {
-		return nil, err
-	}
-
-	// Build result slice in original order
-	matviews := make([]TableInfo, 0, len(matviewKeys))
-	for _, key := range matviewKeys {
-		if info, ok := matviewMap[key]; ok {
-			matviews = append(matviews, *info)
-		}
-	}
-
-	return matviews, nil
-}
-
-// FunctionInfo represents metadata about a database function
-type FunctionInfo struct {
-	Schema      string          `json:"schema"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  []FunctionParam `json:"parameters"`
-	ReturnType  string          `json:"return_type"`
-	IsSetOf     bool            `json:"is_set_of"`
-	Volatility  string          `json:"volatility"` // VOLATILE, STABLE, IMMUTABLE
-	Language    string          `json:"language"`
-}
-
-// FunctionParam represents a function parameter
-type FunctionParam struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Mode       string `json:"mode"` // IN, OUT, INOUT
-	HasDefault bool   `json:"has_default"`
-	Position   int    `json:"position"`
-}
-
-// GetAllFunctions retrieves information about all functions in the specified schemas
-func (si *SchemaInspector) GetAllFunctions(ctx context.Context, schemas ...string) ([]FunctionInfo, error) {
-	// Log schema introspection for audit purposes
-	LogSchemaIntrospection(ctx, "GetAllFunctions", map[string]interface{}{"schemas": schemas})
-	if len(schemas) == 0 {
-		schemas = []string{"public"}
-	}
-
-	var functions []FunctionInfo
-
-	// Query to get all functions from specified schemas
-	// Excludes extension functions (PostGIS, pg_trgm, etc.)
-	query := `
-		SELECT
-			n.nspname as schema_name,
-			p.proname as function_name,
-			pg_catalog.obj_description(p.oid, 'pg_proc') as description,
-			pg_catalog.pg_get_function_result(p.oid) as return_type,
-			p.proretset as is_set_of,
-			CASE p.provolatile
-				WHEN 'i' THEN 'IMMUTABLE'
-				WHEN 's' THEN 'STABLE'
-				WHEN 'v' THEN 'VOLATILE'
-			END as volatility,
-			l.lanname as language
-		FROM pg_proc p
-		JOIN pg_namespace n ON n.oid = p.pronamespace
-		JOIN pg_language l ON l.oid = p.prolang
-		LEFT JOIN pg_depend d ON d.objid = p.oid AND d.deptype = 'e'
-		WHERE n.nspname = ANY($1)
-			AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-			AND p.prokind = 'f'  -- Only functions, not procedures
-			AND d.objid IS NULL  -- Exclude extension functions
-		ORDER BY n.nspname, p.proname
-	`
-
-	rows, err := si.conn.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query functions: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var fn FunctionInfo
-		var description *string
-
-		if err := rows.Scan(
-			&fn.Schema,
-			&fn.Name,
-			&description,
-			&fn.ReturnType,
-			&fn.IsSetOf,
-			&fn.Volatility,
-			&fn.Language,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan function: %w", err)
-		}
-
-		if description != nil {
-			fn.Description = *description
-		}
-
-		// Get function parameters
-		params, err := si.getFunctionParameters(ctx, fn.Schema, fn.Name)
-		if err != nil {
-			log.Warn().Err(err).Str("function", fmt.Sprintf("%s.%s", fn.Schema, fn.Name)).Msg("Failed to get function parameters")
-			continue
-		}
-		fn.Parameters = params
-
-		functions = append(functions, fn)
-	}
-
-	return functions, nil
-}
-
-// getFunctionParameters retrieves parameter information for a function
-func (si *SchemaInspector) getFunctionParameters(ctx context.Context, schema, function string) ([]FunctionParam, error) {
-	query := `
-		SELECT
-			COALESCE(p.parameter_name, '') as param_name,
-			p.data_type,
-			p.parameter_mode,
-			COALESCE(p.parameter_default, '') != '' as has_default,
-			p.ordinal_position
-		FROM information_schema.parameters p
-		WHERE p.specific_schema = $1
-			AND p.specific_name IN (
-				SELECT pg_proc.proname || '_' || pg_proc.oid
-				FROM pg_proc
-				JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
-				WHERE pg_namespace.nspname = $1 AND pg_proc.proname = $2
-			)
-		ORDER BY p.ordinal_position
-	`
-
-	rows, err := si.conn.Query(ctx, query, schema, function)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var params []FunctionParam
-	for rows.Next() {
-		var param FunctionParam
-		if err := rows.Scan(
-			&param.Name,
-			&param.Type,
-			&param.Mode,
-			&param.HasDefault,
-			&param.Position,
-		); err != nil {
-			return nil, err
-		}
-		params = append(params, param)
-	}
-
-	return params, nil
-}
-
-// BuildRESTPath builds a REST API path for a table
-func (si *SchemaInspector) BuildRESTPath(table TableInfo) string {
-	// Convert table name to plural form (simple pluralization)
-	tableName := table.Name
-	if !strings.HasSuffix(tableName, "s") {
-		switch {
-		case strings.HasSuffix(tableName, "x"),
-			strings.HasSuffix(tableName, "ch"),
-			strings.HasSuffix(tableName, "sh"):
-			// box -> boxes, match -> matches, dish -> dishes
-			tableName += "es"
-		case strings.HasSuffix(tableName, "y") && len(tableName) >= 2:
-			// Check if preceded by consonant (y -> ies) or vowel (y -> ys)
-			beforeY := tableName[len(tableName)-2]
-			if beforeY == 'a' || beforeY == 'e' || beforeY == 'i' || beforeY == 'o' || beforeY == 'u' {
-				tableName += "s" // vowel + y: key -> keys, day -> days
-			} else {
-				tableName = strings.TrimSuffix(tableName, "y") + "ies" // consonant + y: story -> stories
-			}
-		default:
-			tableName += "s"
-		}
-	}
-
-	if table.Schema != "public" {
-		return fmt.Sprintf("/api/rest/%s/%s", table.Schema, tableName)
-	}
-	return fmt.Sprintf("/api/rest/%s", tableName)
-}
-
-// VectorColumnInfo represents metadata about a vector column (pgvector)
-type VectorColumnInfo struct {
-	SchemaName string `json:"schema_name"`
-	TableName  string `json:"table_name"`
-	ColumnName string `json:"column_name"`
-	Dimensions int    `json:"dimensions"` // -1 if variable/unspecified
-}
-
-// GetVectorColumns retrieves all vector columns in the specified schema and table
-// If table is empty, returns all vector columns in the schema
-// If both schema and table are empty, returns all vector columns in public schema
-func (si *SchemaInspector) GetVectorColumns(ctx context.Context, schema, table string) ([]VectorColumnInfo, error) {
-	if schema == "" {
-		schema = "public"
-	}
-
-	// First check if pgvector extension is installed
-	var hasVector bool
-	err := si.conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')").Scan(&hasVector)
-	if err != nil || !hasVector {
-		// pgvector not installed, return empty list
-		return []VectorColumnInfo{}, nil
-	}
-
-	// Query to find all vector columns
-	// The dimensions are stored in the typmod field of pg_attribute
-	query := `
-		SELECT
-			n.nspname as schema_name,
-			c.relname as table_name,
-			a.attname as column_name,
-			CASE
-				WHEN a.atttypmod = -1 THEN -1
-				ELSE a.atttypmod
-			END as dimensions
-		FROM pg_attribute a
-		JOIN pg_class c ON a.attrelid = c.oid
-		JOIN pg_namespace n ON c.relnamespace = n.oid
-		JOIN pg_type t ON a.atttypid = t.oid
-		WHERE t.typname = 'vector'
-			AND a.attnum > 0
-			AND NOT a.attisdropped
-			AND n.nspname = $1
-	`
-
-	args := []interface{}{schema}
-	if table != "" {
-		query += " AND c.relname = $2"
-		args = append(args, table)
-	}
-
-	query += " ORDER BY n.nspname, c.relname, a.attnum"
-
-	rows, err := si.conn.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query vector columns: %w", err)
-	}
-	defer rows.Close()
-
-	var columns []VectorColumnInfo
-	for rows.Next() {
-		var col VectorColumnInfo
-		if err := rows.Scan(&col.SchemaName, &col.TableName, &col.ColumnName, &col.Dimensions); err != nil {
-			return nil, fmt.Errorf("failed to scan vector column: %w", err)
-		}
-		columns = append(columns, col)
-	}
-
-	return columns, nil
-}
-
-// IsPgVectorInstalled checks if the pgvector extension is installed
-func (si *SchemaInspector) IsPgVectorInstalled(ctx context.Context) (bool, string, error) {
-	var version *string
-	err := si.conn.QueryRow(ctx, `
-		SELECT installed_version
-		FROM pg_available_extensions
-		WHERE name = 'vector'
-	`).Scan(&version)
-	if err != nil {
-		// Extension not in catalog
-		return false, "", nil
-	}
-
-	if version == nil {
-		// Extension available but not installed
-		return false, "", nil
-	}
-
-	return true, *version, nil
-}
-
-// poolQuerier wraps a *pgxpool.Pool to satisfy the querier interface.
-type poolQuerier struct {
-	*pgxpool.Pool
-}
-
-// GetAllTablesFromPool retrieves table info using a tenant-specific pool.
-func (si *SchemaInspector) GetAllTablesFromPool(ctx context.Context, pool *pgxpool.Pool, schemas ...string) ([]TableInfo, error) {
-	return si.getAllTables(ctx, poolQuerier{Pool: pool}, schemas...)
-}
-
-// GetTableInfoFromPool retrieves detailed table info using a tenant-specific pool.
-func (si *SchemaInspector) GetTableInfoFromPool(ctx context.Context, pool *pgxpool.Pool, schema, table string) (*TableInfo, error) {
-	return si.getTableInfo(ctx, poolQuerier{Pool: pool}, schema, table)
-}
-
-// GetSchemasFromPool retrieves all schemas using a tenant-specific pool.
-func (si *SchemaInspector) GetSchemasFromPool(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
-	return si.getSchemas(ctx, poolQuerier{Pool: pool})
-}
-
-// GetAllViewsFromPool retrieves view info using a tenant-specific pool.
-func (si *SchemaInspector) GetAllViewsFromPool(ctx context.Context, pool *pgxpool.Pool, schemas ...string) ([]TableInfo, error) {
-	return si.getAllViews(ctx, poolQuerier{Pool: pool}, schemas...)
-}
-
-// GetAllMaterializedViewsFromPool retrieves materialized view info using a tenant-specific pool.
-func (si *SchemaInspector) GetAllMaterializedViewsFromPool(ctx context.Context, pool *pgxpool.Pool, schemas ...string) ([]TableInfo, error) {
-	return si.getAllMaterializedViews(ctx, poolQuerier{Pool: pool}, schemas...)
-}
-
-// Internal methods that accept a querier interface
-
-func (si *SchemaInspector) getAllTables(ctx context.Context, q querier, schemas ...string) ([]TableInfo, error) {
-	if len(schemas) == 0 {
-		schemas = []string{"public"}
-	}
-
-	query := `
-			SELECT
-				n.nspname as schemaname,
-				c.relname as tablename,
-				CASE
-					WHEN c.relrowsecurity THEN true
-					ELSE false
-				END as rls_enabled
-			FROM pg_class c
-			JOIN pg_namespace n ON n.oid = c.relnamespace
-			WHERE n.nspname = ANY($1)
-				AND c.relkind IN ('r', 'f')
-				AND c.relname NOT LIKE 'pg_%'
-				AND c.relname NOT LIKE '_fluxbase.%'
-				AND n.nspname NOT IN ('information_schema', 'pg_catalog', '_fluxbase')
-			ORDER BY n.nspname, c.relname
+			AND c.relkind IN ('r', 'f')
+			AND c.relname NOT LIKE 'pg_%'
+			AND c.relname NOT LIKE '_fluxbase.%'
+			AND n.nspname NOT IN ('information_schema', 'pg_catalog', '_fluxbase')
+		ORDER BY n.nspname, c.relname
 	`
 
 	rows, err := q.Query(ctx, query, schemas)
@@ -1436,7 +173,7 @@ func (si *SchemaInspector) getAllTables(ctx context.Context, q querier, schemas 
 		return []TableInfo{}, nil
 	}
 
-	if err := si.batchFetchTableMetadataQ(ctx, q, schemas, tableMap, "table"); err != nil {
+	if err := si.batchFetchTableMetadata(ctx, q, schemas, tableMap, "table"); err != nil {
 		return nil, err
 	}
 
@@ -1450,31 +187,36 @@ func (si *SchemaInspector) getAllTables(ctx context.Context, q querier, schemas 
 	return tables, nil
 }
 
-func (si *SchemaInspector) getTableInfo(ctx context.Context, q querier, schema, table string) (*TableInfo, error) {
+func (si *SchemaInspector) GetTableInfo(ctx context.Context, schema, table string) (*TableInfo, error) {
+	return si.GetTableInfoFromQ(ctx, si.q(), schema, table)
+}
+
+func (si *SchemaInspector) GetTableInfoFromQ(ctx context.Context, q querier, schema, table string) (*TableInfo, error) {
+	LogSchemaIntrospection(ctx, "GetTableInfo", map[string]interface{}{"schema": schema, "table": table})
 	tableInfo := &TableInfo{
 		Schema: schema,
 		Name:   table,
 	}
 
-	columns, err := si.getColumnsQ(ctx, q, schema, table)
+	columns, err := si.getColumns(ctx, q, schema, table)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get columns: %w", err)
 	}
 	tableInfo.Columns = columns
 
-	primaryKey, err := si.getPrimaryKeyQ(ctx, q, schema, table)
+	primaryKey, err := si.getPrimaryKey(ctx, q, schema, table)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get primary key: %w", err)
 	}
 	tableInfo.PrimaryKey = primaryKey
 
-	foreignKeys, err := si.getForeignKeysQ(ctx, q, schema, table)
+	foreignKeys, err := si.getForeignKeys(ctx, q, schema, table)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get foreign keys: %w", err)
 	}
 	tableInfo.ForeignKeys = foreignKeys
 
-	indexes, err := si.getIndexesQ(ctx, q, schema, table)
+	indexes, err := si.getIndexes(ctx, q, schema, table)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get indexes: %w", err)
 	}
@@ -1503,7 +245,635 @@ func (si *SchemaInspector) getTableInfo(ctx context.Context, q querier, schema, 
 	return tableInfo, nil
 }
 
-func (si *SchemaInspector) getSchemas(ctx context.Context, q querier) ([]string, error) {
+func (si *SchemaInspector) getColumns(ctx context.Context, q querier, schema, table string) ([]ColumnInfo, error) {
+	query := `
+		SELECT
+			c.column_name,
+			CASE
+				WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
+				ELSE c.data_type
+			END as data_type,
+			c.is_nullable,
+			c.column_default,
+			c.character_maximum_length,
+			c.ordinal_position,
+			COALESCE(pg_catalog.col_description(
+				(c.table_schema || '.' || c.table_name)::regclass::oid,
+				c.ordinal_position
+			), '') as column_comment
+		FROM information_schema.columns c
+		WHERE c.table_schema = $1 AND c.table_name = $2
+		ORDER BY c.ordinal_position
+	`
+
+	rows, err := q.Query(ctx, query, schema, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var columns []ColumnInfo
+	for rows.Next() {
+		var col ColumnInfo
+		var isNullable string
+		var maxLength *int32
+		var comment string
+
+		err := rows.Scan(
+			&col.Name,
+			&col.DataType,
+			&isNullable,
+			&col.DefaultValue,
+			&maxLength,
+			&col.Position,
+			&comment,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		col.IsNullable = isNullable == "YES"
+		if maxLength != nil {
+			length := int(*maxLength)
+			col.MaxLength = &length
+		}
+
+		col.Description, col.JSONBSchema = parseColumnComment(comment)
+
+		columns = append(columns, col)
+	}
+
+	if len(columns) == 0 {
+		columns, err = si.getMaterializedViewColumns(ctx, q, schema, table)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return columns, nil
+}
+
+func (si *SchemaInspector) getMaterializedViewColumns(ctx context.Context, q querier, schema, table string) ([]ColumnInfo, error) {
+	query := `
+		SELECT
+			a.attname AS column_name,
+			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+			NOT a.attnotnull AS is_nullable,
+			pg_get_expr(d.adbin, d.adrelid) AS column_default,
+			a.attnum AS ordinal_position,
+			COALESCE(pg_catalog.col_description(c.oid, a.attnum), '') as column_comment
+		FROM pg_catalog.pg_attribute a
+		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+		WHERE n.nspname = $1
+		  AND c.relname = $2
+		  AND c.relkind = 'm'
+		  AND a.attnum > 0
+		  AND NOT a.attisdropped
+		ORDER BY a.attnum
+	`
+
+	rows, err := q.Query(ctx, query, schema, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var columns []ColumnInfo
+	for rows.Next() {
+		var col ColumnInfo
+		var isNullable bool
+		var comment string
+
+		err := rows.Scan(
+			&col.Name,
+			&col.DataType,
+			&isNullable,
+			&col.DefaultValue,
+			&col.Position,
+			&comment,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		col.IsNullable = isNullable
+		col.Description, col.JSONBSchema = parseColumnComment(comment)
+
+		columns = append(columns, col)
+	}
+
+	return columns, nil
+}
+
+func parseColumnComment(comment string) (description string, schema *JSONBSchemaInfo) {
+	if comment == "" {
+		return "", nil
+	}
+
+	if strings.Contains(comment, "_fluxbase_jsonb_schema") {
+		var data struct {
+			FluxbaseJSONBSchema *JSONBSchemaInfo `json:"_fluxbase_jsonb_schema"`
+		}
+		if err := json.Unmarshal([]byte(comment), &data); err == nil && data.FluxbaseJSONBSchema != nil {
+			return "", data.FluxbaseJSONBSchema
+		}
+	}
+
+	return comment, nil
+}
+
+func (si *SchemaInspector) getPrimaryKey(ctx context.Context, q querier, schema, table string) ([]string, error) {
+	query := `
+		SELECT a.attname
+		FROM pg_index i
+		JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+		JOIN pg_class c ON c.oid = i.indrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = $1
+			AND c.relname = $2
+			AND i.indisprimary
+		ORDER BY array_position(i.indkey, a.attnum)
+	`
+
+	rows, err := q.Query(ctx, query, schema, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var primaryKey []string
+	for rows.Next() {
+		var column string
+		if err := rows.Scan(&column); err != nil {
+			return nil, err
+		}
+		primaryKey = append(primaryKey, column)
+	}
+
+	return primaryKey, nil
+}
+
+func (si *SchemaInspector) getForeignKeys(ctx context.Context, q querier, schema, table string) ([]ForeignKey, error) {
+	query := `
+		SELECT
+			tc.constraint_name,
+			kcu.column_name,
+			ccu.table_schema || '.' || ccu.table_name AS referenced_table,
+			ccu.column_name AS referenced_column,
+			rc.delete_rule,
+			rc.update_rule
+		FROM information_schema.table_constraints AS tc
+		JOIN information_schema.key_column_usage AS kcu
+			ON tc.constraint_name = kcu.constraint_name
+			AND tc.table_schema = kcu.table_schema
+		JOIN information_schema.constraint_column_usage AS ccu
+			ON ccu.constraint_name = tc.constraint_name
+			AND ccu.table_schema = tc.table_schema
+		JOIN information_schema.referential_constraints AS rc
+			ON rc.constraint_name = tc.constraint_name
+			AND rc.constraint_schema = tc.table_schema
+		WHERE tc.constraint_type = 'FOREIGN KEY'
+			AND tc.table_schema = $1
+			AND tc.table_name = $2
+	`
+
+	rows, err := q.Query(ctx, query, schema, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var foreignKeys []ForeignKey
+	for rows.Next() {
+		var fk ForeignKey
+		err := rows.Scan(
+			&fk.Name,
+			&fk.ColumnName,
+			&fk.ReferencedTable,
+			&fk.ReferencedColumn,
+			&fk.OnDelete,
+			&fk.OnUpdate,
+		)
+		if err != nil {
+			return nil, err
+		}
+		foreignKeys = append(foreignKeys, fk)
+	}
+
+	return foreignKeys, nil
+}
+
+func (si *SchemaInspector) getIndexes(ctx context.Context, q querier, schema, table string) ([]IndexInfo, error) {
+	query := `
+		SELECT
+			i.relname AS index_name,
+			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
+			ix.indisunique,
+			ix.indisprimary
+		FROM pg_index ix
+		JOIN pg_class t ON t.oid = ix.indrelid
+		JOIN pg_class i ON i.oid = ix.indexrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace
+		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+		WHERE n.nspname = $1
+			AND t.relname = $2
+		GROUP BY i.relname, ix.indisunique, ix.indisprimary
+		ORDER BY i.relname
+	`
+
+	rows, err := q.Query(ctx, query, schema, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var indexes []IndexInfo
+	for rows.Next() {
+		var idx IndexInfo
+		err := rows.Scan(
+			&idx.Name,
+			&idx.Columns,
+			&idx.IsUnique,
+			&idx.IsPrimary,
+		)
+		if err != nil {
+			return nil, err
+		}
+		indexes = append(indexes, idx)
+	}
+
+	return indexes, nil
+}
+
+func (si *SchemaInspector) batchFetchTableMetadata(ctx context.Context, q querier, schemas []string, tableMap map[string]*TableInfo, objectType string) error {
+	columns, err := si.batchGetColumns(ctx, q, schemas, objectType)
+	if err != nil {
+		return fmt.Errorf("failed to batch get columns: %w", err)
+	}
+
+	for key, cols := range columns {
+		if info, ok := tableMap[key]; ok {
+			info.Columns = cols
+		}
+	}
+
+	if objectType == "table" {
+		primaryKeys, err := si.batchGetPrimaryKeys(ctx, q, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get primary keys: %w", err)
+		}
+
+		for key, pks := range primaryKeys {
+			if info, ok := tableMap[key]; ok {
+				info.PrimaryKey = pks
+				for i := range info.Columns {
+					for _, pk := range pks {
+						if info.Columns[i].Name == pk {
+							info.Columns[i].IsPrimaryKey = true
+							break
+						}
+					}
+				}
+			}
+		}
+
+		foreignKeys, err := si.batchGetForeignKeys(ctx, q, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get foreign keys: %w", err)
+		}
+
+		for key, fks := range foreignKeys {
+			if info, ok := tableMap[key]; ok {
+				info.ForeignKeys = fks
+				for i := range info.Columns {
+					for _, fk := range fks {
+						if info.Columns[i].Name == fk.ColumnName {
+							info.Columns[i].IsForeignKey = true
+							break
+						}
+					}
+				}
+			}
+		}
+
+		indexes, err := si.batchGetIndexes(ctx, q, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get indexes: %w", err)
+		}
+
+		for key, idxs := range indexes {
+			if info, ok := tableMap[key]; ok {
+				info.Indexes = idxs
+			}
+		}
+	}
+
+	if objectType == "materialized_view" {
+		indexes, err := si.batchGetIndexes(ctx, q, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get indexes: %w", err)
+		}
+
+		for key, idxs := range indexes {
+			if info, ok := tableMap[key]; ok {
+				info.Indexes = idxs
+			}
+		}
+	}
+
+	for _, info := range tableMap {
+		info.BuildColumnMap()
+	}
+
+	return nil
+}
+
+func (si *SchemaInspector) batchGetColumns(ctx context.Context, q querier, schemas []string, objectType string) (map[string][]ColumnInfo, error) {
+	result := make(map[string][]ColumnInfo)
+
+	if objectType == "materialized_view" {
+		return si.batchGetMaterializedViewColumns(ctx, q, schemas)
+	}
+
+	query := `
+		SELECT
+			c.table_schema,
+			c.table_name,
+			c.column_name,
+			CASE
+				WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
+				ELSE c.data_type
+			END as data_type,
+			c.is_nullable,
+			c.column_default,
+			c.character_maximum_length,
+			c.ordinal_position,
+			COALESCE(pg_catalog.col_description(
+				(c.table_schema || '.' || c.table_name)::regclass::oid,
+				c.ordinal_position
+			), '') as column_comment
+		FROM information_schema.columns c
+		WHERE c.table_schema = ANY($1)
+		ORDER BY c.table_schema, c.table_name, c.ordinal_position
+	`
+
+	rows, err := q.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var col ColumnInfo
+		var isNullable string
+		var maxLength *int32
+		var comment string
+
+		err := rows.Scan(
+			&schema,
+			&table,
+			&col.Name,
+			&col.DataType,
+			&isNullable,
+			&col.DefaultValue,
+			&maxLength,
+			&col.Position,
+			&comment,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		col.IsNullable = isNullable == "YES"
+		if maxLength != nil {
+			length := int(*maxLength)
+			col.MaxLength = &length
+		}
+
+		col.Description, col.JSONBSchema = parseColumnComment(comment)
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], col)
+	}
+
+	return result, nil
+}
+
+func (si *SchemaInspector) batchGetMaterializedViewColumns(ctx context.Context, q querier, schemas []string) (map[string][]ColumnInfo, error) {
+	result := make(map[string][]ColumnInfo)
+
+	query := `
+		SELECT
+			n.nspname AS schema_name,
+			c.relname AS table_name,
+			a.attname AS column_name,
+			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+			NOT a.attnotnull AS is_nullable,
+			pg_get_expr(d.adbin, d.adrelid) AS column_default,
+			a.attnum AS ordinal_position,
+			COALESCE(pg_catalog.col_description(c.oid, a.attnum), '') as column_comment
+		FROM pg_catalog.pg_attribute a
+		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+		WHERE n.nspname = ANY($1)
+		  AND c.relkind = 'm'
+		  AND a.attnum > 0
+		  AND NOT a.attisdropped
+		ORDER BY n.nspname, c.relname, a.attnum
+	`
+
+	rows, err := q.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var col ColumnInfo
+		var isNullable bool
+		var comment string
+
+		err := rows.Scan(
+			&schema,
+			&table,
+			&col.Name,
+			&col.DataType,
+			&isNullable,
+			&col.DefaultValue,
+			&col.Position,
+			&comment,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		col.IsNullable = isNullable
+		col.Description, col.JSONBSchema = parseColumnComment(comment)
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], col)
+	}
+
+	return result, nil
+}
+
+func (si *SchemaInspector) batchGetPrimaryKeys(ctx context.Context, q querier, schemas []string) (map[string][]string, error) {
+	result := make(map[string][]string)
+
+	query := `
+		SELECT
+			n.nspname AS schema_name,
+			c.relname AS table_name,
+			a.attname AS column_name,
+			array_position(i.indkey, a.attnum) AS key_position
+		FROM pg_index i
+		JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+		JOIN pg_class c ON c.oid = i.indrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = ANY($1)
+			AND i.indisprimary
+		ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum)
+	`
+
+	rows, err := q.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table, column string
+		var position int
+
+		if err := rows.Scan(&schema, &table, &column, &position); err != nil {
+			return nil, err
+		}
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], column)
+	}
+
+	return result, nil
+}
+
+func (si *SchemaInspector) batchGetForeignKeys(ctx context.Context, q querier, schemas []string) (map[string][]ForeignKey, error) {
+	result := make(map[string][]ForeignKey)
+
+	query := `
+		SELECT
+			tc.table_schema,
+			tc.table_name,
+			tc.constraint_name,
+			kcu.column_name,
+			ccu.table_schema || '.' || ccu.table_name AS referenced_table,
+			ccu.column_name AS referenced_column,
+			rc.delete_rule,
+			rc.update_rule
+		FROM information_schema.table_constraints AS tc
+		JOIN information_schema.key_column_usage AS kcu
+			ON tc.constraint_name = kcu.constraint_name
+			AND tc.table_schema = kcu.table_schema
+		JOIN information_schema.referential_constraints AS rc
+			ON rc.constraint_name = tc.constraint_name
+			AND rc.constraint_schema = tc.table_schema
+		JOIN information_schema.key_column_usage AS ccu
+			ON ccu.constraint_name = rc.unique_constraint_name
+			AND ccu.table_schema = rc.unique_constraint_schema
+		WHERE tc.constraint_type = 'FOREIGN KEY'
+			AND tc.table_schema = ANY($1)
+		ORDER BY tc.table_schema, tc.table_name, tc.constraint_name
+	`
+
+	rows, err := q.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var fk ForeignKey
+		err := rows.Scan(
+			&schema,
+			&table,
+			&fk.Name,
+			&fk.ColumnName,
+			&fk.ReferencedTable,
+			&fk.ReferencedColumn,
+			&fk.OnDelete,
+			&fk.OnUpdate,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], fk)
+	}
+
+	return result, nil
+}
+
+func (si *SchemaInspector) batchGetIndexes(ctx context.Context, q querier, schemas []string) (map[string][]IndexInfo, error) {
+	result := make(map[string][]IndexInfo)
+
+	query := `
+		SELECT
+			n.nspname AS schema_name,
+			t.relname AS table_name,
+			i.relname AS index_name,
+			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
+			ix.indisunique,
+			ix.indisprimary
+		FROM pg_index ix
+		JOIN pg_class t ON t.oid = ix.indrelid
+		JOIN pg_class i ON i.oid = ix.indexrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace
+		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+		WHERE n.nspname = ANY($1)
+		GROUP BY n.nspname, t.relname, i.relname, ix.indisunique, ix.indisprimary
+		ORDER BY n.nspname, t.relname, i.relname
+	`
+
+	rows, err := q.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var idx IndexInfo
+		err := rows.Scan(
+			&schema,
+			&table,
+			&idx.Name,
+			&idx.Columns,
+			&idx.IsUnique,
+			&idx.IsPrimary,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], idx)
+	}
+
+	return result, nil
+}
+
+func (si *SchemaInspector) GetSchemas(ctx context.Context) ([]string, error) {
+	return si.GetSchemasFromQ(ctx, si.q())
+}
+
+func (si *SchemaInspector) GetSchemasFromQ(ctx context.Context, q querier) ([]string, error) {
+	LogSchemaIntrospection(ctx, "GetSchemas", nil)
 	query := `
 		SELECT schema_name
 		FROM information_schema.schemata
@@ -1530,7 +900,12 @@ func (si *SchemaInspector) getSchemas(ctx context.Context, q querier) ([]string,
 	return schemas, nil
 }
 
-func (si *SchemaInspector) getAllViews(ctx context.Context, q querier, schemas ...string) ([]TableInfo, error) {
+func (si *SchemaInspector) GetAllViews(ctx context.Context, schemas ...string) ([]TableInfo, error) {
+	return si.GetAllViewsFromQ(ctx, si.q(), schemas...)
+}
+
+func (si *SchemaInspector) GetAllViewsFromQ(ctx context.Context, q querier, schemas ...string) ([]TableInfo, error) {
+	LogSchemaIntrospection(ctx, "GetAllViews", map[string]interface{}{"schemas": schemas})
 	if len(schemas) == 0 {
 		schemas = []string{"public"}
 	}
@@ -1571,7 +946,7 @@ func (si *SchemaInspector) getAllViews(ctx context.Context, q querier, schemas .
 		return []TableInfo{}, nil
 	}
 
-	if err := si.batchFetchTableMetadataQ(ctx, q, schemas, viewMap, "view"); err != nil {
+	if err := si.batchFetchTableMetadata(ctx, q, schemas, viewMap, "view"); err != nil {
 		return nil, err
 	}
 
@@ -1585,7 +960,12 @@ func (si *SchemaInspector) getAllViews(ctx context.Context, q querier, schemas .
 	return views, nil
 }
 
-func (si *SchemaInspector) getAllMaterializedViews(ctx context.Context, q querier, schemas ...string) ([]TableInfo, error) {
+func (si *SchemaInspector) GetAllMaterializedViews(ctx context.Context, schemas ...string) ([]TableInfo, error) {
+	return si.GetAllMaterializedViewsFromQ(ctx, si.q(), schemas...)
+}
+
+func (si *SchemaInspector) GetAllMaterializedViewsFromQ(ctx context.Context, q querier, schemas ...string) ([]TableInfo, error) {
+	LogSchemaIntrospection(ctx, "GetAllMaterializedViews", map[string]interface{}{"schemas": schemas})
 	if len(schemas) == 0 {
 		schemas = []string{"public"}
 	}
@@ -1626,7 +1006,7 @@ func (si *SchemaInspector) getAllMaterializedViews(ctx context.Context, q querie
 		return []TableInfo{}, nil
 	}
 
-	if err := si.batchFetchTableMetadataQ(ctx, q, schemas, matviewMap, "materialized_view"); err != nil {
+	if err := si.batchFetchTableMetadata(ctx, q, schemas, matviewMap, "materialized_view"); err != nil {
 		return nil, err
 	}
 
@@ -1640,542 +1020,242 @@ func (si *SchemaInspector) getAllMaterializedViews(ctx context.Context, q querie
 	return matviews, nil
 }
 
-// Querier-aware private helpers for batch metadata
-
-func (si *SchemaInspector) batchFetchTableMetadataQ(ctx context.Context, q querier, schemas []string, tableMap map[string]*TableInfo, objectType string) error {
-	columns, err := si.batchGetColumnsQ(ctx, q, schemas, objectType)
-	if err != nil {
-		return fmt.Errorf("failed to batch get columns: %w", err)
-	}
-
-	for key, cols := range columns {
-		if info, ok := tableMap[key]; ok {
-			info.Columns = cols
-		}
-	}
-
-	if objectType == "table" {
-		primaryKeys, err := si.batchGetPrimaryKeysQ(ctx, q, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get primary keys: %w", err)
-		}
-		for key, pks := range primaryKeys {
-			if info, ok := tableMap[key]; ok {
-				info.PrimaryKey = pks
-				for i := range info.Columns {
-					for _, pk := range pks {
-						if info.Columns[i].Name == pk {
-							info.Columns[i].IsPrimaryKey = true
-							break
-						}
-					}
-				}
-			}
-		}
-
-		foreignKeys, err := si.batchGetForeignKeysQ(ctx, q, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get foreign keys: %w", err)
-		}
-		for key, fks := range foreignKeys {
-			if info, ok := tableMap[key]; ok {
-				info.ForeignKeys = fks
-				for i := range info.Columns {
-					for _, fk := range fks {
-						if info.Columns[i].Name == fk.ColumnName {
-							info.Columns[i].IsForeignKey = true
-							break
-						}
-					}
-				}
-			}
-		}
-
-		indexes, err := si.batchGetIndexesQ(ctx, q, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get indexes: %w", err)
-		}
-		for key, idxs := range indexes {
-			if info, ok := tableMap[key]; ok {
-				info.Indexes = idxs
-			}
-		}
-	}
-
-	if objectType == "materialized_view" {
-		indexes, err := si.batchGetIndexesQ(ctx, q, schemas)
-		if err != nil {
-			return fmt.Errorf("failed to batch get indexes: %w", err)
-		}
-		for key, idxs := range indexes {
-			if info, ok := tableMap[key]; ok {
-				info.Indexes = idxs
-			}
-		}
-	}
-
-	for _, info := range tableMap {
-		info.BuildColumnMap()
-	}
-
-	return nil
+type FunctionInfo struct {
+	Schema      string          `json:"schema"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  []FunctionParam `json:"parameters"`
+	ReturnType  string          `json:"return_type"`
+	IsSetOf     bool            `json:"is_set_of"`
+	Volatility  string          `json:"volatility"`
+	Language    string          `json:"language"`
 }
 
-func (si *SchemaInspector) batchGetColumnsQ(ctx context.Context, q querier, schemas []string, objectType string) (map[string][]ColumnInfo, error) {
-	result := make(map[string][]ColumnInfo)
+type FunctionParam struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Mode       string `json:"mode"`
+	HasDefault bool   `json:"has_default"`
+	Position   int    `json:"position"`
+}
 
-	if objectType == "materialized_view" {
-		return si.batchGetMaterializedViewColumnsQ(ctx, q, schemas)
+func (si *SchemaInspector) GetAllFunctions(ctx context.Context, schemas ...string) ([]FunctionInfo, error) {
+	LogSchemaIntrospection(ctx, "GetAllFunctions", map[string]interface{}{"schemas": schemas})
+	if len(schemas) == 0 {
+		schemas = []string{"public"}
+	}
+
+	var functions []FunctionInfo
+
+	query := `
+		SELECT
+			n.nspname as schema_name,
+			p.proname as function_name,
+			pg_catalog.obj_description(p.oid, 'pg_proc') as description,
+			pg_catalog.pg_get_function_result(p.oid) as return_type,
+			p.proretset as is_set_of,
+			CASE p.provolatile
+				WHEN 'i' THEN 'IMMUTABLE'
+				WHEN 's' THEN 'STABLE'
+				WHEN 'v' THEN 'VOLATILE'
+			END as volatility,
+			l.lanname as language
+		FROM pg_proc p
+		JOIN pg_namespace n ON n.oid = p.pronamespace
+		JOIN pg_language l ON l.oid = p.prolang
+		LEFT JOIN pg_depend d ON d.objid = p.oid AND d.deptype = 'e'
+		WHERE n.nspname = ANY($1)
+			AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+			AND p.prokind = 'f'
+			AND d.objid IS NULL
+		ORDER BY n.nspname, p.proname
+	`
+
+	rows, err := si.q().Query(ctx, query, schemas)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query functions: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fn FunctionInfo
+		var description *string
+
+		if err := rows.Scan(
+			&fn.Schema,
+			&fn.Name,
+			&description,
+			&fn.ReturnType,
+			&fn.IsSetOf,
+			&fn.Volatility,
+			&fn.Language,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan function: %w", err)
+		}
+
+		if description != nil {
+			fn.Description = *description
+		}
+
+		params, err := si.getFunctionParameters(ctx, fn.Schema, fn.Name)
+		if err != nil {
+			log.Warn().Err(err).Str("function", fmt.Sprintf("%s.%s", fn.Schema, fn.Name)).Msg("Failed to get function parameters")
+			continue
+		}
+		fn.Parameters = params
+
+		functions = append(functions, fn)
+	}
+
+	return functions, nil
+}
+
+func (si *SchemaInspector) getFunctionParameters(ctx context.Context, schema, function string) ([]FunctionParam, error) {
+	query := `
+		SELECT
+			COALESCE(p.parameter_name, '') as param_name,
+			p.data_type,
+			p.parameter_mode,
+			COALESCE(p.parameter_default, '') != '' as has_default,
+			p.ordinal_position
+		FROM information_schema.parameters p
+		WHERE p.specific_schema = $1
+			AND p.specific_name IN (
+				SELECT pg_proc.proname || '_' || pg_proc.oid
+				FROM pg_proc
+				JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+				WHERE pg_namespace.nspname = $1 AND pg_proc.proname = $2
+			)
+		ORDER BY p.ordinal_position
+	`
+
+	rows, err := si.q().Query(ctx, query, schema, function)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var params []FunctionParam
+	for rows.Next() {
+		var param FunctionParam
+		if err := rows.Scan(
+			&param.Name,
+			&param.Type,
+			&param.Mode,
+			&param.HasDefault,
+			&param.Position,
+		); err != nil {
+			return nil, err
+		}
+		params = append(params, param)
+	}
+
+	return params, nil
+}
+
+func (si *SchemaInspector) BuildRESTPath(table TableInfo) string {
+	tableName := table.Name
+	if !strings.HasSuffix(tableName, "s") {
+		switch {
+		case strings.HasSuffix(tableName, "x"),
+			strings.HasSuffix(tableName, "ch"),
+			strings.HasSuffix(tableName, "sh"):
+			tableName += "es"
+		case strings.HasSuffix(tableName, "y") && len(tableName) >= 2:
+			beforeY := tableName[len(tableName)-2]
+			if beforeY == 'a' || beforeY == 'e' || beforeY == 'i' || beforeY == 'o' || beforeY == 'u' {
+				tableName += "s"
+			} else {
+				tableName = strings.TrimSuffix(tableName, "y") + "ies"
+			}
+		default:
+			tableName += "s"
+		}
+	}
+
+	if table.Schema != "public" {
+		return fmt.Sprintf("/api/rest/%s/%s", table.Schema, tableName)
+	}
+	return fmt.Sprintf("/api/rest/%s", tableName)
+}
+
+type VectorColumnInfo struct {
+	SchemaName string `json:"schema_name"`
+	TableName  string `json:"table_name"`
+	ColumnName string `json:"column_name"`
+	Dimensions int    `json:"dimensions"`
+}
+
+func (si *SchemaInspector) GetVectorColumns(ctx context.Context, schema, table string) ([]VectorColumnInfo, error) {
+	if schema == "" {
+		schema = "public"
+	}
+
+	var hasVector bool
+	err := si.q().QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')").Scan(&hasVector)
+	if err != nil || !hasVector {
+		return []VectorColumnInfo{}, nil
 	}
 
 	query := `
 		SELECT
-			c.table_schema,
-			c.table_name,
-			c.column_name,
+			n.nspname as schema_name,
+			c.relname as table_name,
+			a.attname as column_name,
 			CASE
-				WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
-				ELSE c.data_type
-			END as data_type,
-			c.is_nullable,
-			c.column_default,
-			c.character_maximum_length,
-			c.ordinal_position,
-			COALESCE(pg_catalog.col_description(
-				(c.table_schema || '.' || c.table_name)::regclass::oid,
-				c.ordinal_position
-			), '') as column_comment
-		FROM information_schema.columns c
-		WHERE c.table_schema = ANY($1)
-		ORDER BY c.table_schema, c.table_name, c.ordinal_position
+				WHEN a.atttypmod = -1 THEN -1
+				ELSE a.atttypmod
+			END as dimensions
+		FROM pg_attribute a
+		JOIN pg_class c ON a.attrelid = c.oid
+		JOIN pg_namespace n ON c.relnamespace = n.oid
+		JOIN pg_type t ON a.atttypid = t.oid
+		WHERE t.typname = 'vector'
+			AND a.attnum > 0
+			AND NOT a.attisdropped
+			AND n.nspname = $1
 	`
 
-	rows, err := q.Query(ctx, query, schemas)
+	args := []interface{}{schema}
+	if table != "" {
+		query += " AND c.relname = $2"
+		args = append(args, table)
+	}
+
+	query += " ORDER BY n.nspname, c.relname, a.attnum"
+
+	rows, err := si.q().Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query vector columns: %w", err)
 	}
 	defer rows.Close()
 
+	var columns []VectorColumnInfo
 	for rows.Next() {
-		var schema, table string
-		var col ColumnInfo
-		var isNullable string
-		var maxLength *int32
-		var comment string
-
-		err := rows.Scan(&schema, &table, &col.Name, &col.DataType, &isNullable, &col.DefaultValue, &maxLength, &col.Position, &comment)
-		if err != nil {
-			return nil, err
+		var col VectorColumnInfo
+		if err := rows.Scan(&col.SchemaName, &col.TableName, &col.ColumnName, &col.Dimensions); err != nil {
+			return nil, fmt.Errorf("failed to scan vector column: %w", err)
 		}
-
-		col.IsNullable = isNullable == "YES"
-		if maxLength != nil {
-			length := int(*maxLength)
-			col.MaxLength = &length
-		}
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], col)
-	}
-
-	return result, nil
-}
-
-func (si *SchemaInspector) batchGetMaterializedViewColumnsQ(ctx context.Context, q querier, schemas []string) (map[string][]ColumnInfo, error) {
-	result := make(map[string][]ColumnInfo)
-
-	query := `
-		SELECT
-			n.nspname AS schema_name,
-			c.relname AS table_name,
-			a.attname AS column_name,
-			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
-			NOT a.attnotnull AS is_nullable,
-			pg_get_expr(d.adbin, d.adrelid) AS column_default,
-			a.attnum AS ordinal_position,
-			COALESCE(pg_catalog.col_description(c.oid, a.attnum), '') as column_comment
-		FROM pg_catalog.pg_attribute a
-		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
-		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-		WHERE n.nspname = ANY($1)
-		  AND c.relkind = 'm'
-		  AND a.attnum > 0
-		  AND NOT a.attisdropped
-		ORDER BY n.nspname, c.relname, a.attnum
-	`
-
-	rows, err := q.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table string
-		var col ColumnInfo
-		var isNullable bool
-		var comment string
-
-		err := rows.Scan(&schema, &table, &col.Name, &col.DataType, &isNullable, &col.DefaultValue, &col.Position, &comment)
-		if err != nil {
-			return nil, err
-		}
-
-		col.IsNullable = isNullable
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], col)
-	}
-
-	return result, nil
-}
-
-func (si *SchemaInspector) batchGetPrimaryKeysQ(ctx context.Context, q querier, schemas []string) (map[string][]string, error) {
-	result := make(map[string][]string)
-
-	query := `
-		SELECT
-			n.nspname AS schema_name,
-			c.relname AS table_name,
-			a.attname AS column_name,
-			array_position(i.indkey, a.attnum) AS key_position
-		FROM pg_index i
-		JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-		JOIN pg_class c ON c.oid = i.indrelid
-		JOIN pg_namespace n ON n.oid = c.relnamespace
-		WHERE n.nspname = ANY($1)
-			AND i.indisprimary
-		ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum)
-	`
-
-	rows, err := q.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table, column string
-		var position int
-
-		if err := rows.Scan(&schema, &table, &column, &position); err != nil {
-			return nil, err
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], column)
-	}
-
-	return result, nil
-}
-
-func (si *SchemaInspector) batchGetForeignKeysQ(ctx context.Context, q querier, schemas []string) (map[string][]ForeignKey, error) {
-	result := make(map[string][]ForeignKey)
-
-	query := `
-		SELECT
-			tc.table_schema,
-			tc.table_name,
-			tc.constraint_name,
-			kcu.column_name,
-			ccu.table_schema || '.' || ccu.table_name AS referenced_table,
-			ccu.column_name AS referenced_column,
-			rc.delete_rule,
-			rc.update_rule
-		FROM information_schema.table_constraints AS tc
-		JOIN information_schema.key_column_usage AS kcu
-			ON tc.constraint_name = kcu.constraint_name
-			AND tc.table_schema = kcu.table_schema
-		JOIN information_schema.referential_constraints AS rc
-			ON rc.constraint_name = tc.constraint_name
-			AND rc.constraint_schema = tc.table_schema
-		JOIN information_schema.key_column_usage AS ccu
-			ON ccu.constraint_name = rc.unique_constraint_name
-			AND ccu.table_schema = rc.unique_constraint_schema
-		WHERE tc.constraint_type = 'FOREIGN KEY'
-			AND tc.table_schema = ANY($1)
-		ORDER BY tc.table_schema, tc.table_name, tc.constraint_name
-	`
-
-	rows, err := q.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table string
-		var fk ForeignKey
-		err := rows.Scan(&schema, &table, &fk.Name, &fk.ColumnName, &fk.ReferencedTable, &fk.ReferencedColumn, &fk.OnDelete, &fk.OnUpdate)
-		if err != nil {
-			return nil, err
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], fk)
-	}
-
-	return result, nil
-}
-
-func (si *SchemaInspector) batchGetIndexesQ(ctx context.Context, q querier, schemas []string) (map[string][]IndexInfo, error) {
-	result := make(map[string][]IndexInfo)
-
-	query := `
-		SELECT
-			n.nspname AS schema_name,
-			t.relname AS table_name,
-			i.relname AS index_name,
-			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
-			ix.indisunique,
-			ix.indisprimary
-		FROM pg_index ix
-		JOIN pg_class t ON t.oid = ix.indrelid
-		JOIN pg_class i ON i.oid = ix.indexrelid
-		JOIN pg_namespace n ON n.oid = t.relnamespace
-		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
-		WHERE n.nspname = ANY($1)
-		GROUP BY n.nspname, t.relname, i.relname, ix.indisunique, ix.indisprimary
-		ORDER BY n.nspname, t.relname, i.relname
-	`
-
-	rows, err := q.Query(ctx, query, schemas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table string
-		var idx IndexInfo
-		err := rows.Scan(&schema, &table, &idx.Name, &idx.Columns, &idx.IsUnique, &idx.IsPrimary)
-		if err != nil {
-			return nil, err
-		}
-
-		key := fmt.Sprintf("%s.%s", schema, table)
-		result[key] = append(result[key], idx)
-	}
-
-	return result, nil
-}
-
-func (si *SchemaInspector) getColumnsQ(ctx context.Context, q querier, schema, table string) ([]ColumnInfo, error) {
-	query := `
-		SELECT
-			c.column_name,
-			CASE
-				WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
-				ELSE c.data_type
-			END as data_type,
-			c.is_nullable,
-			c.column_default,
-			c.character_maximum_length,
-			c.ordinal_position,
-			COALESCE(pg_catalog.col_description(
-				(c.table_schema || '.' || c.table_name)::regclass::oid,
-				c.ordinal_position
-			), '') as column_comment
-		FROM information_schema.columns c
-		WHERE c.table_schema = $1 AND c.table_name = $2
-		ORDER BY c.ordinal_position
-	`
-
-	rows, err := q.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var columns []ColumnInfo
-	for rows.Next() {
-		var col ColumnInfo
-		var isNullable string
-		var maxLength *int32
-		var comment string
-
-		err := rows.Scan(&col.Name, &col.DataType, &isNullable, &col.DefaultValue, &maxLength, &col.Position, &comment)
-		if err != nil {
-			return nil, err
-		}
-
-		col.IsNullable = isNullable == "YES"
-		if maxLength != nil {
-			length := int(*maxLength)
-			col.MaxLength = &length
-		}
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
-		columns = append(columns, col)
-	}
-
-	if len(columns) == 0 {
-		columns, err = si.getMaterializedViewColumnsQ(ctx, q, schema, table)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return columns, nil
-}
-
-func (si *SchemaInspector) getMaterializedViewColumnsQ(ctx context.Context, q querier, schema, table string) ([]ColumnInfo, error) {
-	query := `
-		SELECT
-			a.attname AS column_name,
-			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
-			NOT a.attnotnull AS is_nullable,
-			pg_get_expr(d.adbin, d.adrelid) AS column_default,
-			a.attnum AS ordinal_position,
-			COALESCE(pg_catalog.col_description(c.oid, a.attnum), '') as column_comment
-		FROM pg_catalog.pg_attribute a
-		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
-		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-		WHERE n.nspname = $1
-		  AND c.relname = $2
-		  AND c.relkind = 'm'
-		  AND a.attnum > 0
-		  AND NOT a.attisdropped
-		ORDER BY a.attnum
-	`
-
-	rows, err := q.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var columns []ColumnInfo
-	for rows.Next() {
-		var col ColumnInfo
-		var isNullable bool
-		var comment string
-
-		err := rows.Scan(&col.Name, &col.DataType, &isNullable, &col.DefaultValue, &col.Position, &comment)
-		if err != nil {
-			return nil, err
-		}
-
-		col.IsNullable = isNullable
-		col.Description, col.JSONBSchema = parseColumnComment(comment)
-
 		columns = append(columns, col)
 	}
 
 	return columns, nil
 }
 
-func (si *SchemaInspector) getPrimaryKeyQ(ctx context.Context, q querier, schema, table string) ([]string, error) {
-	query := `
-		SELECT a.attname
-		FROM pg_index i
-		JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-		JOIN pg_class c ON c.oid = i.indrelid
-		JOIN pg_namespace n ON n.oid = c.relnamespace
-		WHERE n.nspname = $1
-			AND c.relname = $2
-			AND i.indisprimary
-		ORDER BY array_position(i.indkey, a.attnum)
-	`
-
-	rows, err := q.Query(ctx, query, schema, table)
+func (si *SchemaInspector) IsPgVectorInstalled(ctx context.Context) (bool, string, error) {
+	var version *string
+	err := si.q().QueryRow(ctx, `
+		SELECT installed_version
+		FROM pg_available_extensions
+		WHERE name = 'vector'
+	`).Scan(&version)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var primaryKey []string
-	for rows.Next() {
-		var column string
-		if err := rows.Scan(&column); err != nil {
-			return nil, err
-		}
-		primaryKey = append(primaryKey, column)
+		return false, "", nil
 	}
 
-	return primaryKey, nil
-}
-
-func (si *SchemaInspector) getForeignKeysQ(ctx context.Context, q querier, schema, table string) ([]ForeignKey, error) {
-	query := `
-		SELECT
-			tc.constraint_name,
-			kcu.column_name,
-			ccu.table_schema || '.' || ccu.table_name AS referenced_table,
-			ccu.column_name AS referenced_column,
-			rc.delete_rule,
-			rc.update_rule
-		FROM information_schema.table_constraints AS tc
-		JOIN information_schema.key_column_usage AS kcu
-			ON tc.constraint_name = kcu.constraint_name
-			AND tc.table_schema = kcu.table_schema
-		JOIN information_schema.constraint_column_usage AS ccu
-			ON ccu.constraint_name = tc.constraint_name
-			AND ccu.table_schema = tc.table_schema
-		JOIN information_schema.referential_constraints AS rc
-			ON rc.constraint_name = tc.constraint_name
-			AND rc.constraint_schema = tc.table_schema
-		WHERE tc.constraint_type = 'FOREIGN KEY'
-			AND tc.table_schema = $1
-			AND tc.table_name = $2
-	`
-
-	rows, err := q.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var foreignKeys []ForeignKey
-	for rows.Next() {
-		var fk ForeignKey
-		err := rows.Scan(&fk.Name, &fk.ColumnName, &fk.ReferencedTable, &fk.ReferencedColumn, &fk.OnDelete, &fk.OnUpdate)
-		if err != nil {
-			return nil, err
-		}
-		foreignKeys = append(foreignKeys, fk)
+	if version == nil {
+		return false, "", nil
 	}
 
-	return foreignKeys, nil
-}
-
-func (si *SchemaInspector) getIndexesQ(ctx context.Context, q querier, schema, table string) ([]IndexInfo, error) {
-	query := `
-		SELECT
-			i.relname AS index_name,
-			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
-			ix.indisunique,
-			ix.indisprimary
-		FROM pg_index ix
-		JOIN pg_class t ON t.oid = ix.indrelid
-		JOIN pg_class i ON i.oid = ix.indexrelid
-		JOIN pg_namespace n ON n.oid = t.relnamespace
-		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
-		WHERE n.nspname = $1
-			AND t.relname = $2
-		GROUP BY i.relname, ix.indisunique, ix.indisprimary
-		ORDER BY i.relname
-	`
-
-	rows, err := q.Query(ctx, query, schema, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var indexes []IndexInfo
-	for rows.Next() {
-		var idx IndexInfo
-		err := rows.Scan(&idx.Name, &idx.Columns, &idx.IsUnique, &idx.IsPrimary)
-		if err != nil {
-			return nil, err
-		}
-		indexes = append(indexes, idx)
-	}
-
-	return indexes, nil
+	return true, *version, nil
 }
