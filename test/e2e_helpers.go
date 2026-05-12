@@ -2962,7 +2962,7 @@ func RandomEmail() string {
 // This ensures the LISTEN subscription is established before triggering events.
 // Returns true if ready within timeout, false otherwise.
 func (tc *TestContext) WaitForWebhookServiceReady(timeout time.Duration) bool {
-	triggerService := tc.Server.GetWebhookTriggerService()
+	triggerService := tc.Server.Webhook.Trigger
 	if triggerService == nil {
 		return false
 	}
