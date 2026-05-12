@@ -60,17 +60,6 @@ func TestService_SetTOTPRateLimiter(t *testing.T) {
 	})
 }
 
-func TestService_SetMetrics(t *testing.T) {
-	service := &Service{}
-
-	t.Run("sets metrics instance", func(t *testing.T) {
-		// We can't easily create a real Metrics instance, so we'll test with nil
-		service.SetMetrics(nil)
-
-		assert.Nil(t, service.metrics)
-	})
-}
-
 func TestService_RecordAuthAttempt(t *testing.T) {
 	service := &Service{}
 

@@ -20,11 +20,6 @@ type Service struct {
 	metrics  *observability.Metrics
 }
 
-// SetMetrics sets the metrics instance for recording storage metrics
-func (s *Service) SetMetrics(m *observability.Metrics) {
-	s.metrics = m
-}
-
 // Upload wraps the provider's Upload method with metrics
 func (s *Service) Upload(ctx context.Context, bucket, key string, data io.Reader, size int64, opts *UploadOptions) (*Object, error) {
 	start := time.Now()
@@ -72,7 +67,7 @@ func (s *Service) Delete(ctx context.Context, bucket, key string) error {
 // NewService creates a new storage service based on configuration
 // baseURL is used for generating signed URLs (e.g., "http://localhost:8080")
 // signingSecret is used for signing local storage URLs (typically the JWT secret)
-func NewService(cfg *config.StorageConfig, baseURL, signingSecret string) (*Service, error) {
+func NewService(cfg *config.StorageConfig, baseURL, signingSecret string, metrics *observability.Metrics) (*Service, error) {
 	var provider Provider
 	var err error
 
@@ -121,6 +116,7 @@ func NewService(cfg *config.StorageConfig, baseURL, signingSecret string) (*Serv
 	return &Service{
 		Provider: provider,
 		config:   cfg,
+		metrics:  metrics,
 	}, nil
 }
 

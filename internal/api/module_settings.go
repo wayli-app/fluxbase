@@ -23,7 +23,6 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	cfg := registry.Config
 	db := registry.DB
 	authService := GetService[*auth.Service](registry)
-	emailManager := GetService[*email.Manager](registry)
 	systemSettingsService := GetService[*auth.SystemSettingsService](registry)
 	captchaService := GetService[*auth.CaptchaService](registry)
 
@@ -50,6 +49,29 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 	secretsService := settings.NewSecretsService(db, cfg.EncryptionKeyBytes)
 	m.Handlers.Service = secretsService
 
+	emailManager := email.NewManager(&cfg.Email, authService.GetSettingsCache(), secretsService, cfg)
+	if err := emailManager.RefreshFromSettings(ctx); err != nil {
+		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
+	}
+	registry.Register(emailManager)
+
+	if lazyEmail := GetService[*email.LazyService](registry); lazyEmail != nil {
+		lazyEmail.SetResolver(emailManager.WrapAsService)
+	}
+
+	m.Email = &EmailHandlers{
+		Template: NewEmailTemplateHandler(db, emailManager.WrapAsService()),
+	}
+
+	m.Email.Settings = NewEmailSettingsHandler(
+		systemSettingsService,
+		authService.GetSettingsCache(),
+		emailManager,
+		secretsService,
+		cfg,
+		unifiedSettingsService,
+	)
+
 	userSettingsHandler := NewUserSettingsHandler(db, customSettingsService)
 	userSettingsHandler.SetSecretsService(secretsService)
 	m.Handlers.User = userSettingsHandler
@@ -69,12 +91,6 @@ func (m *SettingsModule) Init(ctx context.Context, registry *ServiceRegistry) er
 		cfg,
 		unifiedSettingsService,
 	)
-
-	emailManager.SetSettingsCache(authService.GetSettingsCache())
-	emailManager.SetSecretsService(secretsService)
-	if err := emailManager.RefreshFromSettings(ctx); err != nil {
-		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
-	}
 
 	m.Captcha = &CaptchaHandlers{
 		Settings: NewCaptchaSettingsHandler(

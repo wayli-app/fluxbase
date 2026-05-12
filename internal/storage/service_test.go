@@ -134,7 +134,7 @@ func TestNewService_Local(t *testing.T) {
 			MaxUploadSize: 1024 * 1024,
 		}
 
-		service, err := NewService(cfg, "http://localhost:8080", "secret")
+		service, err := NewService(cfg, "http://localhost:8080", "secret", nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, service)
@@ -150,7 +150,7 @@ func TestNewService_UnsupportedProvider(t *testing.T) {
 			Provider: "gcs",
 		}
 
-		service, err := NewService(cfg, "http://localhost:8080", "secret")
+		service, err := NewService(cfg, "http://localhost:8080", "secret", nil)
 
 		assert.Error(t, err)
 		assert.Nil(t, service)
@@ -368,21 +368,6 @@ func TestService_Delete(t *testing.T) {
 // =============================================================================
 // Service SetMetrics Tests
 // =============================================================================
-
-func TestService_SetMetrics(t *testing.T) {
-	t.Run("sets metrics instance", func(t *testing.T) {
-		service := &Service{
-			config: &config.StorageConfig{},
-		}
-
-		assert.Nil(t, service.metrics)
-
-		// Note: We can't create a real Metrics instance in tests easily
-		// due to the singleton pattern, but we can verify the setter works
-		service.SetMetrics(nil)
-		assert.Nil(t, service.metrics)
-	})
-}
 
 // =============================================================================
 // Provider Configuration Tests

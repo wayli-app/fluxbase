@@ -57,11 +57,6 @@ func (s *Service) SetTOTPRateLimiter(limiter *TOTPRateLimiter) {
 	}
 }
 
-// SetMetrics sets the metrics instance for recording auth metrics
-func (s *Service) SetMetrics(m *observability.Metrics) {
-	s.metrics = m
-}
-
 // recordAuthAttempt records an authentication attempt to metrics
 func (s *Service) recordAuthAttempt(method string, success bool, reason string) {
 	if s.metrics != nil {
@@ -82,6 +77,7 @@ func NewService(
 	cfg *config.AuthConfig,
 	emailService interface{},
 	baseURL string,
+	metrics *observability.Metrics,
 ) *Service {
 	userRepo := NewUserRepository(db)
 	sessionRepo := NewSessionRepository(db)
@@ -224,6 +220,7 @@ func NewService(
 		emailService:             emailSvc,
 		baseURL:                  baseURL,
 		emailVerificationExpiry:  emailVerificationExpiry,
+		metrics:                  metrics,
 		mfaService:               mfaService,
 		nonceService:             nonceService,
 		emailVerificationService: emailVerificationService,

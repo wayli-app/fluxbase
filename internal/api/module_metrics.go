@@ -6,11 +6,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 	"github.com/nimbleflux/fluxbase/internal/observability"
-	"github.com/nimbleflux/fluxbase/internal/realtime"
-	"github.com/nimbleflux/fluxbase/internal/storage"
 )
 
 type MetricsModule struct {
@@ -21,7 +18,6 @@ func (m *MetricsModule) Name() string { return "metrics" }
 
 func (m *MetricsModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 	cfg := registry.Config
-	db := registry.DB
 
 	if !cfg.Metrics.Enabled {
 		return nil
@@ -30,23 +26,6 @@ func (m *MetricsModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	m.Handlers.Server = observability.NewMetricsServer(cfg.Metrics.Port, cfg.Metrics.Path)
 	if err := m.Handlers.Server.Start(); err != nil {
 		log.Error().Err(err).Msg("Failed to start metrics server")
-	}
-
-	db.SetMetrics(m.Handlers.Metrics)
-
-	storageSvc := GetService[*storage.Service](registry)
-	if storageSvc != nil {
-		storageSvc.SetMetrics(m.Handlers.Metrics)
-	}
-
-	authService := GetService[*auth.Service](registry)
-	if authService != nil {
-		authService.SetMetrics(m.Handlers.Metrics)
-	}
-
-	realtimeManager := GetService[*realtime.Manager](registry)
-	if realtimeManager != nil {
-		realtimeManager.SetMetrics(m.Handlers.Metrics)
 	}
 
 	middleware.SetRateLimiterMetrics(m.Handlers.Metrics)

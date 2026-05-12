@@ -64,13 +64,6 @@ func NewClientKeyService(db *database.Connection, settingsCache *SettingsCache) 
 	}
 }
 
-// SetSettingsCache injects the settings cache after initialization
-// This is used to break the circular dependency during server startup
-func (s *ClientKeyService) SetSettingsCache(cache *SettingsCache) {
-	s.settingsCache = cache
-}
-
-// GenerateClientKey generates a new client key with format: fbk_<random_string>
 func (s *ClientKeyService) GenerateClientKey(ctx context.Context, name string, description *string, userID *uuid.UUID, scopes []string, rateLimitPerMinute int, expiresAt *time.Time) (*ClientKeyWithPlaintext, error) {
 	// Generate random bytes for the key
 	keyBytes := make([]byte, 32)

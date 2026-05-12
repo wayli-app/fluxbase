@@ -20,7 +20,7 @@ func (m *StorageModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	cfg := registry.Config
 	db := registry.DB
 
-	storageManager, err := storage.NewManager(&cfg.Storage, cfg.GetPublicBaseURL(), cfg.Auth.JWTSecret)
+	storageManager, err := storage.NewManager(&cfg.Storage, cfg.GetPublicBaseURL(), cfg.Auth.JWTSecret, registry.Metrics)
 	if err != nil {
 		return err
 	}

@@ -41,7 +41,7 @@ func setupStorageTestServer(t *testing.T) (*fiber.App, string, *database.Connect
 	}
 
 	// Initialize storage manager
-	storageManager, err := storage.NewManager(cfg, "http://localhost:8080", "test-signing-secret")
+	storageManager, err := storage.NewManager(cfg, "http://localhost:8080", "test-signing-secret", nil)
 	require.NoError(t, err)
 
 	// Get database configuration from environment variables

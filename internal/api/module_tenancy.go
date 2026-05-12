@@ -114,10 +114,10 @@ func (m *TenancyModule) Init(ctx context.Context, registry *ServiceRegistry) err
 	m.Handlers.Storage = tenantStorage
 
 	invitationService := GetService[*auth.InvitationService](registry)
-	emailService := GetService[*email.Manager](registry)
+	lazyEmail := GetService[*email.LazyService](registry)
 	var emailSvc email.Service
-	if emailService != nil {
-		emailSvc = emailService.WrapAsService()
+	if lazyEmail != nil {
+		emailSvc = lazyEmail
 	}
 	m.Handlers.Tenant = NewTenantHandler(db, tenantManager, tenantStorage, invitationService, emailSvc, cfg)
 

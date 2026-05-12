@@ -43,28 +43,6 @@ func TestManager_GetService(t *testing.T) {
 	})
 }
 
-func TestManager_SetSettingsCache(t *testing.T) {
-	manager := &Manager{}
-
-	t.Run("sets settings cache", func(t *testing.T) {
-		t.Parallel()
-		// Note: Creating a real SettingsCache requires auth.SettingsCache
-		// For this test we just verify the method exists and works
-		manager.SetSettingsCache(nil)
-		assert.Nil(t, manager.settingsCache)
-	})
-}
-
-func TestManager_SetSecretsService(t *testing.T) {
-	manager := &Manager{}
-
-	t.Run("sets secrets service", func(t *testing.T) {
-		t.Parallel()
-		manager.SetSecretsService(nil)
-		assert.Nil(t, manager.secretsService)
-	})
-}
-
 func TestManager_WrapAsService(t *testing.T) {
 	cfg := &config.EmailConfig{Enabled: false}
 	manager := NewManager(cfg, nil, nil, nil)

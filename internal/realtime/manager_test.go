@@ -750,21 +750,6 @@ func TestManager_handleGlobalMessage(t *testing.T) {
 // Metrics Tests
 // =============================================================================
 
-func TestManager_SetMetrics(t *testing.T) {
-	t.Run("sets metrics instance", func(t *testing.T) {
-		manager := NewManager(context.Background())
-
-		// Initially nil
-		assert.Nil(t, manager.metrics)
-
-		// Note: We can't create a real Metrics instance without complex setup
-		// Just verify the method exists and doesn't panic
-		manager.SetMetrics(nil)
-
-		assert.Nil(t, manager.metrics)
-	})
-}
-
 func TestManager_updateMetrics(t *testing.T) {
 	t.Run("does not panic when metrics is nil", func(t *testing.T) {
 		manager := NewManager(context.Background())

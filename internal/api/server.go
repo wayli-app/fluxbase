@@ -129,6 +129,9 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	s.registry = NewServiceRegistry(cfg, db)
 	s.registry.PubSub = s.pubSub
 	s.registry.RateLimiter = s.rateLimiter
+	s.registry.Metrics = metricsObj
+
+	db.SetMetrics(metricsObj)
 
 	emailMod := &EmailModule{}
 	secretsMod := &SecretsModule{}

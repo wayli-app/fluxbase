@@ -66,21 +66,6 @@ func (m *Manager) GetServiceForConfig(cfg *config.EmailConfig) (Service, error) 
 	return service, nil
 }
 
-// SetSettingsCache sets the settings cache for dynamic configuration
-func (m *Manager) SetSettingsCache(cache *auth.SettingsCache) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.settingsCache = cache
-}
-
-// SetSecretsService sets the secrets service for encrypted credential storage
-func (m *Manager) SetSecretsService(svc *settings.SecretsService) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.secretsService = svc
-}
-
-// RefreshFromSettings rebuilds the email service from database settings
 func (m *Manager) RefreshFromSettings(ctx context.Context) error {
 	// Build config from settings cache
 	cfg := m.buildConfigFromSettings(ctx)

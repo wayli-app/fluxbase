@@ -760,7 +760,7 @@ func createAuthService(t *testing.T, tc *testutil.IntegrationTestContext) *auth.
 	emailService := email.NewTestEmailService()
 
 	// Create auth service
-	service := auth.NewService(db, cfg, emailService, "http://localhost:8080")
+	service := auth.NewService(db, cfg, emailService, "http://localhost:8080", nil)
 	return service
 }
 
@@ -799,6 +799,6 @@ func createAuthServiceWithMailHog(t *testing.T, tc *testutil.IntegrationTestCont
 	emailService := email.NewSMTPService(emailCfg)
 
 	// Create auth service
-	service := auth.NewService(db, cfg, emailService, "http://localhost:8080")
+	service := auth.NewService(db, cfg, emailService, "http://localhost:8080", nil)
 	return service
 }
