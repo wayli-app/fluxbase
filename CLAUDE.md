@@ -74,15 +74,20 @@ Server initialization uses a module-based dependency injection system:
 
 - **`Module` interface** — `Name()` + `Init(ctx, *ServiceRegistry) error`
 - **`Shutdowner` interface** — optional `Shutdown(ctx context.Context) error`; modules with stoppable resources implement this for clean teardown
-- **`ServiceRegistry`** — stores config, DB, PubSub, RateLimiter, and registered services; modules read dependencies via `GetService[T]()`
+- **`ServiceRegistry`** — stores config, DB, PubSub, RateLimiter, Metrics, and registered services; modules read dependencies via `GetService[T]()`
 - **20 modules** in dependency order: Email → Secrets → Storage → Logging → Auth → Webhook → Extensions → Tenancy → Settings → Schema → Functions → Jobs → RPC → AI → Realtime → Branching → GraphQL → MCP → Metrics → BackgroundServices
 - Modules shut down in reverse order via `ShutdownModules()`
 - `GetService[T]()` uses `reflect.TypeOf` — only works with concrete pointer types (e.g., `*auth.Service`), not interfaces. Use `registry.PubSub` field for `pubsub.PubSub`
 - Modules register outputs via `registry.Register()` so downstream modules can find them
+- **Deferred email resolution:** `EmailModule` registers a `*email.LazyService` that `AuthModule` and `TenancyModule` use as their `email.Service`. `SettingsModule` creates the real `*email.Manager` (with all deps) and resolves the lazy service. This breaks the Email→Auth→Settings dependency cycle.
 
 **Handler group wiring:** Each module creates its handler group struct during `Init()` and stores it in `m.Handlers`. After `InitModules()`, `NewServer()` assigns `s.X = xMod.Handlers` for each module (~20 lines). Modules with cross-group outputs (Settings→Email/Captcha, AI→Quota, Realtime→Monitoring, Tenancy→Middleware) populate additional handler groups. A few modules have direct Server fields (Auth→`sqlHandler`/`requireAuth`/`optionalAuth`, Schema→`rest`).
 
-**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring + Shutdown), `server_init.go` (initCore), `server_middlewares.go` (middleware setup), `server_routes.go` (route setup)
+**Remaining sideways mutations (by design):** 4 setter calls remain for runtime concerns: `CaptchaService.ReloadFromSettings` (hot-reload), `DDLHandler.SetGraphQLInvalidator` (optional callback), `ChatHandler.SetMCPToolRegistry/SetMCPResources` (late-bound capabilities).
+
+**Legacy Server methods:** ~16 route handler methods still live on `*Server` (in `server.go`, `schema_handler.go`, `policy_handler.go`) accessing `s.db` and `s.graphCache` directly. These are wired into route deps via function pointers. Migrating them to handler groups would require passing db/graphCache as constructor args.
+
+**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring + Shutdown), `server_init.go` (initCore), `server_middlewares.go` (middleware setup), `server_routes.go` (route setup), `routes_*.go` (per-domain route deps)
 
 ## Database Schemas
 
