@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/config"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 // RequireSyncIPAllowlist creates middleware that restricts sync endpoints to allowed IPs
@@ -51,8 +52,6 @@ func RequireSyncIPAllowlist(allowedRanges []string, featureName string, serverCf
 			Str("path", c.Path()).
 			Msgf("%s sync access denied - IP not in allowlist", featureName)
 
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": fmt.Sprintf("Access denied - IP not allowlisted for %s sync", featureName),
-		})
+		return apperrors.SendErrorWithCode(c, fiber.StatusForbidden, fmt.Sprintf("Access denied - IP not allowlisted for %s sync", featureName), apperrors.ErrCodeAccessDenied)
 	}
 }

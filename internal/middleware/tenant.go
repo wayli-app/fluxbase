@@ -12,6 +12,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 var (
@@ -73,9 +74,7 @@ func TenantMiddleware(cfg TenantConfig) fiber.Handler {
 						tenantID = headerTenant
 						tenantSource = "header"
 					} else {
-						return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-							"error": "tenant not found",
-						})
+						return apperrors.SendErrorWithCode(c, fiber.StatusNotFound, "tenant not found", apperrors.ErrCodeTenantNotFound)
 					}
 				}
 			}

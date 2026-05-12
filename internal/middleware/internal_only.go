@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/config"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 // trustedProxyNets caches parsed trusted proxy networks
@@ -48,9 +49,7 @@ func RequireInternalWithExtractor(extractor IPExtractor) fiber.Handler {
 				Str("path", c.Path()).
 				Msg("Internal endpoint access denied - not from localhost")
 
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Access denied - internal endpoint",
-			})
+			return apperrors.SendErrorWithCode(c, fiber.StatusForbidden, "Access denied - internal endpoint", apperrors.ErrCodeAccessDenied)
 		}
 
 		return c.Next()

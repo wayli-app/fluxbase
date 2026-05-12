@@ -8,6 +8,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/storage/memory/v2"
+
+	"github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 // CSRFConfig holds configuration for CSRF protection
@@ -119,18 +121,12 @@ func CSRF(config ...CSRFConfig) fiber.Handler {
 		if cookieToken == "" {
 			token, err := generateCSRFToken(cfg.TokenLength)
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error":   "Internal server error",
-					"message": "Failed to generate CSRF token",
-				})
+				return errors.SendInternalError(c, "Failed to generate CSRF token")
 			}
 
 			// Store token
 			if err := cfg.Storage.Set(token, []byte("1"), cfg.Expiration); err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error":   "Internal server error",
-					"message": "Failed to store CSRF token",
-				})
+				return errors.SendInternalError(c, "Failed to store CSRF token")
 			}
 
 			// Set cookie
@@ -149,18 +145,12 @@ func CSRF(config ...CSRFConfig) fiber.Handler {
 			// The cookie is set, so the next request will include it
 			// Previously this allowed the first request through, which was a vulnerability
 			// (attacker could clear cookie and submit malicious POST)
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error":   "CSRF token required",
-				"message": "CSRF token was not present. A new token has been issued. Please retry your request.",
-			})
+			return errors.SendErrorWithCode(c, fiber.StatusForbidden, "CSRF token was not present in the request", errors.ErrCodeCsrfTokenRequired)
 		}
 
 		// Validate tokens match
 		if cookieToken != requestToken || requestToken == "" {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error":   "CSRF token validation failed",
-				"message": "Invalid or missing CSRF token. Please refresh the page and try again.",
-			})
+			return errors.SendErrorWithCode(c, fiber.StatusForbidden, "Invalid or missing CSRF token. Please refresh the page and try again.", errors.ErrCodeCsrfTokenValidationFailed)
 		}
 
 		// Check if token exists in storage
@@ -169,18 +159,12 @@ func CSRF(config ...CSRFConfig) fiber.Handler {
 			// Token expired or doesn't exist, generate new one
 			token, err := generateCSRFToken(cfg.TokenLength)
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error":   "Internal server error",
-					"message": "Failed to generate CSRF token",
-				})
+				return errors.SendInternalError(c, "Failed to generate CSRF token")
 			}
 
 			// Store new token
 			if err := cfg.Storage.Set(token, []byte("1"), cfg.Expiration); err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error":   "Internal server error",
-					"message": "Failed to store CSRF token",
-				})
+				return errors.SendInternalError(c, "Failed to store CSRF token")
 			}
 
 			// Set new cookie
@@ -195,10 +179,7 @@ func CSRF(config ...CSRFConfig) fiber.Handler {
 				SameSite: cfg.CookieSameSite,
 			})
 
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error":   "CSRF token expired",
-				"message": "CSRF token has expired. Please refresh the page and try again.",
-			})
+			return errors.SendErrorWithCode(c, fiber.StatusForbidden, "CSRF token has expired. Please refresh the page and try again.", errors.ErrCodeCsrfTokenExpired)
 		}
 
 		// Token is valid, proceed
