@@ -39,7 +39,7 @@ func refreshSchemaCache(tc *testutil.IntegrationTestContext) {
 	// Access the schema cache directly and refresh it
 	// This is more reliable than using the API endpoint which requires special authentication
 	// and avoids authentication issues with service keys in admin routes
-	schemaCache := tc.Server.SchemaCache()
+	schemaCache := tc.Server.Schema.Cache
 	if schemaCache != nil {
 		if err := schemaCache.Refresh(context.Background()); err != nil {
 			tc.T.Fatalf("Failed to refresh schema cache: %v", err)

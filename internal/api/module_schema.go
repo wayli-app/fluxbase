@@ -14,6 +14,7 @@ import (
 type SchemaModule struct {
 	Handlers    *SchemaHandlers
 	RESTHandler *RESTHandler
+	GraphCache  *schemaGraphCache
 }
 
 func (m *SchemaModule) Name() string { return "schema" }
@@ -53,7 +54,15 @@ func (m *SchemaModule) Init(ctx context.Context, registry *ServiceRegistry) erro
 	m.Handlers.InternalSchema = internalSchemaHandler
 	log.Info().Msg("Internal schema handler initialized")
 
+	if m.GraphCache != nil {
+		m.Handlers.Graph = NewSchemaGraphHandlers(db, m.GraphCache)
+	}
+
+	m.Handlers.Policy = NewPolicyHandlers(db)
+
 	m.RESTHandler = NewRESTHandler(db, NewQueryParser(cfg), schemaCache, cfg)
+
+	m.Handlers.Admin = NewSchemaAdminHandlers(db, m.RESTHandler, m.GraphCache)
 
 	registry.Register(schemaCache)
 	registry.Register(ddlHandler)

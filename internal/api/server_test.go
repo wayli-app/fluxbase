@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -424,13 +423,6 @@ func TestServer_GetStorageService(t *testing.T) {
 	})
 }
 
-func TestServer_GetWebhookTriggerService(t *testing.T) {
-	t.Run("returns nil when webhook trigger service is nil", func(t *testing.T) {
-		s := &Server{Webhook: &WebhookHandlers{Trigger: nil}}
-		assert.Nil(t, s.GetWebhookTriggerService())
-	})
-}
-
 func TestServer_GetAuthService(t *testing.T) {
 	t.Run("returns nil when auth handler is nil", func(t *testing.T) {
 		s := &Server{Auth: &AuthHandlers{Handler: nil}}
@@ -440,40 +432,6 @@ func TestServer_GetAuthService(t *testing.T) {
 	t.Run("returns nil when auth handler has nil service", func(t *testing.T) {
 		s := &Server{Auth: &AuthHandlers{Handler: &AuthHandler{authService: nil}}}
 		assert.Nil(t, s.GetAuthService())
-	})
-}
-
-func TestServer_GetLoggingService(t *testing.T) {
-	t.Run("returns nil when logging service is nil", func(t *testing.T) {
-		s := &Server{Logging: &LoggingHandlers{Service: nil}}
-		assert.Nil(t, s.GetLoggingService())
-	})
-}
-
-func TestServer_LoadFunctionsFromFilesystem(t *testing.T) {
-	t.Run("returns error when functions handler is nil", func(t *testing.T) {
-		s := &Server{Functions: &FunctionsHandlers{Handler: nil}}
-		err := s.LoadFunctionsFromFilesystem(context.TODO())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "functions handler not initialized")
-	})
-}
-
-func TestServer_LoadJobsFromFilesystem(t *testing.T) {
-	t.Run("returns error when jobs handler is nil", func(t *testing.T) {
-		s := &Server{Jobs: &JobsHandlers{Handler: nil}}
-		err := s.LoadJobsFromFilesystem(context.TODO())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "jobs handler not initialized")
-	})
-}
-
-func TestServer_LoadAIChatbotsFromFilesystem(t *testing.T) {
-	t.Run("returns error when ai handler is nil", func(t *testing.T) {
-		s := &Server{AI: &AIHandlers{Handler: nil}}
-		err := s.LoadAIChatbotsFromFilesystem(context.TODO())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "AI handler not initialized")
 	})
 }
 

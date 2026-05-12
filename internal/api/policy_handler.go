@@ -7,9 +7,8 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/nimbleflux/fluxbase/internal/middleware"
+	"github.com/nimbleflux/fluxbase/internal/database"
 )
 
 // Policy represents a PostgreSQL RLS policy
@@ -60,19 +59,19 @@ type CreatePolicyRequest struct {
 	WithCheck  string   `json:"with_check"`
 }
 
-// policyPool returns the tenant pool if available, otherwise the main pool.
-func (s *Server) policyPool(c fiber.Ctx) *pgxpool.Pool {
-	if pool := middleware.GetTenantPool(c); pool != nil {
-		return pool
-	}
-	return s.db.Pool()
+type PolicyHandlers struct {
+	db *database.Connection
+}
+
+func NewPolicyHandlers(db *database.Connection) *PolicyHandlers {
+	return &PolicyHandlers{db: db}
 }
 
 // ListPolicies returns all RLS policies
 // GET /api/v1/admin/policies
-func (s *Server) ListPolicies(c fiber.Ctx) error {
+func (h *PolicyHandlers) ListPolicies(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 	schema := c.Query("schema", "")
 
 	query := `
@@ -122,9 +121,9 @@ func (s *Server) ListPolicies(c fiber.Ctx) error {
 
 // GetTablesWithRLS returns all tables with their RLS status and policies
 // GET /api/v1/admin/tables/rls
-func (s *Server) GetTablesWithRLS(c fiber.Ctx) error {
+func (h *PolicyHandlers) GetTablesWithRLS(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 	schema := c.Query("schema", "public")
 
 	// Get tables with RLS status (excluding extension-owned tables like spatial_ref_sys)
@@ -229,9 +228,9 @@ func (s *Server) GetTablesWithRLS(c fiber.Ctx) error {
 
 // GetTableRLSStatus returns RLS status and policies for a specific table
 // GET /api/v1/admin/tables/:schema/:table/rls
-func (s *Server) GetTableRLSStatus(c fiber.Ctx) error {
+func (h *PolicyHandlers) GetTableRLSStatus(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 	schema := c.Params("schema")
 	table := c.Params("table")
 
@@ -282,9 +281,9 @@ func (s *Server) GetTableRLSStatus(c fiber.Ctx) error {
 
 // ToggleTableRLS enables or disables RLS on a table
 // POST /api/v1/admin/tables/:schema/:table/rls/toggle
-func (s *Server) ToggleTableRLS(c fiber.Ctx) error {
+func (h *PolicyHandlers) ToggleTableRLS(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 	schema := c.Params("schema")
 	table := c.Params("table")
 
@@ -357,9 +356,9 @@ func (s *Server) ToggleTableRLS(c fiber.Ctx) error {
 
 // CreatePolicy creates a new RLS policy
 // POST /api/v1/admin/policies
-func (s *Server) CreatePolicy(c fiber.Ctx) error {
+func (h *PolicyHandlers) CreatePolicy(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 
 	var req CreatePolicyRequest
 	if err := ParseBody(c, &req); err != nil {
@@ -426,9 +425,9 @@ func (s *Server) CreatePolicy(c fiber.Ctx) error {
 
 // DeletePolicy drops an RLS policy
 // DELETE /api/v1/admin/policies/:schema/:table/:policy
-func (s *Server) DeletePolicy(c fiber.Ctx) error {
+func (h *PolicyHandlers) DeletePolicy(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 	schema := c.Params("schema")
 	table := c.Params("table")
 	policy := c.Params("policy")
@@ -459,9 +458,9 @@ type UpdatePolicyRequest struct {
 // PUT /api/v1/admin/policies/:schema/:table/:policy
 // Note: PostgreSQL's ALTER POLICY can only change roles, USING, and WITH CHECK.
 // It cannot change the policy name, command type, or permissive/restrictive mode.
-func (s *Server) UpdatePolicy(c fiber.Ctx) error {
+func (h *PolicyHandlers) UpdatePolicy(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 	schema := c.Params("schema")
 	table := c.Params("table")
 	policyName := c.Params("policy")
@@ -520,9 +519,9 @@ func (s *Server) UpdatePolicy(c fiber.Ctx) error {
 
 // GetSecurityWarnings scans for security issues
 // GET /api/v1/admin/security/warnings
-func (s *Server) GetSecurityWarnings(c fiber.Ctx) error {
+func (h *PolicyHandlers) GetSecurityWarnings(c fiber.Ctx) error {
 	ctx := context.Background()
-	pool := s.policyPool(c)
+	pool := tenantPool(c, h.db)
 	warnings := []SecurityWarning{}
 
 	// Check 1: Tables in public schema without RLS (excluding extension-owned tables)
@@ -774,7 +773,7 @@ func (s *Server) GetSecurityWarnings(c fiber.Ctx) error {
 
 // GetPolicyTemplates returns pre-built policy templates
 // GET /api/v1/admin/policies/templates
-func (s *Server) GetPolicyTemplates(c fiber.Ctx) error {
+func (h *PolicyHandlers) GetPolicyTemplates(c fiber.Ctx) error {
 	templates := []fiber.Map{
 		{
 			"id":          "user-owns-row",

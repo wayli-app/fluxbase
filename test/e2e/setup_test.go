@@ -620,7 +620,7 @@ func refreshSharedTestContextSchemaCache() {
 	}
 
 	// Get the schema cache from the REST handler
-	schemaCache := tc.Server.SchemaCache()
+	schemaCache := tc.Server.Schema.Cache
 	if schemaCache == nil {
 		log.Warn().Msg("Schema cache not initialized")
 		return

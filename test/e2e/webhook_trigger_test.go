@@ -251,7 +251,7 @@ func TestWebhookTriggerRetry(t *testing.T) {
 	defer tc.Close()
 
 	// Configure webhook trigger service for faster retries in tests (3 second interval)
-	triggerService := tc.Server.GetWebhookTriggerService()
+	triggerService := tc.Server.Webhook.Trigger
 	require.NotNil(t, triggerService, "Webhook trigger service should be available")
 	triggerService.SetBacklogInterval(3 * time.Second)
 

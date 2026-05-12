@@ -1150,7 +1150,7 @@ func NewTestContextWithDebug(t *testing.T) *TestContext {
 // This is needed because httptest.NewServer() uses localhost which is blocked by default.
 func (tc *TestContext) EnablePrivateIPsForWebhooks() {
 	if tc.Server != nil {
-		triggerSvc := tc.Server.GetWebhookTriggerService()
+		triggerSvc := tc.Server.Webhook.Trigger
 		if triggerSvc != nil {
 			triggerSvc.EnablePrivateIPs()
 		}
@@ -2648,7 +2648,7 @@ func (tc *TestContext) EnsureRLSTestTables() {
 	// Invalidate the schema cache to ensure the new table schema is picked up
 	// This is critical when tests run in parallel and the tasks table is dropped/recreated
 	if tc.Server != nil {
-		schemaCache := tc.Server.SchemaCache()
+		schemaCache := tc.Server.Schema.Cache
 		if schemaCache != nil {
 			schemaCache.Invalidate()
 		}

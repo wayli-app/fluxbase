@@ -13,6 +13,6 @@ func (s *Server) buildRealtimeRouteDeps() *routes.RealtimeDeps {
 		RequireScope:           middleware.RequireScope,
 		TenantMiddleware:       s.Middleware.Tenant,
 		HandleWebSocket:        s.Realtime.Handler.HandleWebSocket,
-		HandleStats:            s.handleRealtimeStats,
+		HandleStats:            s.Realtime.HandleStats,
 	}
 }

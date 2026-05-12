@@ -85,9 +85,9 @@ Server initialization uses a module-based dependency injection system:
 
 **Remaining sideways mutations (by design):** 4 setter calls remain for runtime concerns: `CaptchaService.ReloadFromSettings` (hot-reload), `DDLHandler.SetGraphQLInvalidator` (optional callback), `ChatHandler.SetMCPToolRegistry/SetMCPResources` (late-bound capabilities).
 
-**Legacy Server methods:** ~16 route handler methods still live on `*Server` (in `server.go`, `schema_handler.go`, `policy_handler.go`) accessing `s.db` and `s.graphCache` directly. These are wired into route deps via function pointers. Migrating them to handler groups would require passing db/graphCache as constructor args.
+**Remaining Server methods (8, down from 37):** `Start`/`Shutdown`/`App` (lifecycle), `handleHealth` (uses `s.db`), `createMCPAuthMiddleware` (cross-group middleware factory), `SetTenantConfigLoader` (public API from main.go), `GetStorageService`/`GetAuthService` (unexported handler field accessors).
 
-**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring + Shutdown), `server_init.go` (initCore), `server_middlewares.go` (middleware setup), `server_routes.go` (route setup), `routes_*.go` (per-domain route deps)
+**Key files:** `module.go` (interface + registry), `module_*.go` (one per module), `server.go` (wiring + Shutdown), `server_init.go` (initCore), `server_middlewares.go` (middleware setup), `server_routes.go` (route setup), `routes_*.go` (per-domain route deps), `schema_admin_handler.go` (schema inspection), `schema_handler.go` (schema graph), `policy_handler.go` (RLS policies)
 
 ## Database Schemas
 

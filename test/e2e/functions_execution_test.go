@@ -396,7 +396,7 @@ func TestFunctionExecution_ServiceClientQueriesUserTable(t *testing.T) {
 	tc.ExecuteSQL(fmt.Sprintf(`INSERT INTO public.%s (name) VALUES ('hello'), ('world');`, tableName))
 
 	// Invalidate schema cache so the REST API discovers the new table
-	if cache := tc.Server.SchemaCache(); cache != nil {
+	if cache := tc.Server.Schema.Cache; cache != nil {
 		cache.Invalidate()
 	}
 
