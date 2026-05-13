@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/observability"
 )
 
@@ -93,12 +94,7 @@ func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
 
 			retryAfter := int(config.Expiration.Seconds())
 			c.Set("Retry-After", fmt.Sprintf("%d", retryAfter))
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"code":        "RATE_LIMIT_EXCEEDED",
-				"error":       "Rate limit exceeded",
-				"message":     config.Message,
-				"retry_after": retryAfter,
-			})
+			return apperrors.SendErrorWithDetails(c, fiber.StatusTooManyRequests, "Rate limit exceeded", apperrors.ErrCodeRateLimited, config.Message, "", fiber.Map{"retry_after": retryAfter})
 		},
 		Storage: storage,
 	})

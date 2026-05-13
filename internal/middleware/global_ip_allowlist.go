@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/config"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 // RequireGlobalIPAllowlist restricts all server access to allowed IP ranges
@@ -49,8 +50,6 @@ func RequireGlobalIPAllowlist(cfg *config.ServerConfig) fiber.Handler {
 			Str("path", c.Path()).
 			Msg("Global IP allowlist: access denied - IP not in allowlist")
 
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Access denied - IP not allowlisted",
-		})
+		return apperrors.SendErrorWithCode(c, fiber.StatusForbidden, "Access denied - IP not allowlisted", apperrors.ErrCodeAccessDenied)
 	}
 }

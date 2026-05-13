@@ -17,6 +17,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 // IdempotencyConfig configures the idempotency middleware
@@ -191,11 +193,7 @@ func (m *IdempotencyMiddleware) Middleware() fiber.Handler {
 
 		// Validate key length regardless of other checks - this is a client error
 		if key != "" && len(key) > m.config.MaxKeyLength {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":   "Invalid Idempotency-Key",
-				"code":    "IDEMPOTENCY_KEY_TOO_LONG",
-				"message": fmt.Sprintf("Idempotency key exceeds maximum length of %d characters", m.config.MaxKeyLength),
-			})
+			return apperrors.SendErrorWithDetails(c, fiber.StatusBadRequest, "Idempotency key exceeds maximum length", apperrors.ErrCodeIdempotencyKeyTooLong, fmt.Sprintf("Idempotency key exceeds maximum length of %d characters", m.config.MaxKeyLength), "", nil)
 		}
 
 		// Check if idempotency should be applied
@@ -394,37 +392,22 @@ func (m *IdempotencyMiddleware) updateRecord(ctx context.Context, key string, st
 func (m *IdempotencyMiddleware) handleExistingKey(c fiber.Ctx, record *IdempotencyRecord, requestHash string) error {
 	// Verify request matches original (same method, path, body hash)
 	if record.Method != c.Method() || record.Path != c.Path() {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"error":   "Idempotency Key Mismatch",
-			"code":    "IDEMPOTENCY_KEY_MISMATCH",
-			"message": "This idempotency key was used for a different request",
-			"details": fiber.Map{
-				"original_method": record.Method,
-				"original_path":   record.Path,
-				"current_method":  c.Method(),
-				"current_path":    c.Path(),
-			},
+		return apperrors.SendErrorWithDetails(c, fiber.StatusUnprocessableEntity, "This idempotency key was used for a different request", apperrors.ErrCodeIdempotencyKeyMismatch, "This idempotency key was used for a different request", "", fiber.Map{
+			"original_method": record.Method,
+			"original_path":   record.Path,
+			"current_method":  c.Method(),
+			"current_path":    c.Path(),
 		})
 	}
 
 	// Optionally verify request body hash
 	if record.RequestHash != "" && requestHash != "" && record.RequestHash != requestHash {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"error":   "Idempotency Key Mismatch",
-			"code":    "IDEMPOTENCY_REQUEST_BODY_MISMATCH",
-			"message": "This idempotency key was used with a different request body",
-		})
+		return apperrors.SendErrorWithDetails(c, fiber.StatusUnprocessableEntity, "This idempotency key was used with a different request body", apperrors.ErrCodeIdempotencyRequestBodyMismatch, "This idempotency key was used with a different request body", "", nil)
 	}
 
 	switch record.Status {
 	case StatusProcessing:
-		// Request is still being processed
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"error":   "Request In Progress",
-			"code":    "IDEMPOTENCY_REQUEST_IN_PROGRESS",
-			"message": "A request with this idempotency key is currently being processed",
-			"hint":    "Please wait and retry in a few seconds",
-		})
+		return apperrors.SendErrorWithHint(c, fiber.StatusConflict, "A request with this idempotency key is currently being processed", apperrors.ErrCodeIdempotencyRequestInProgress, "Please wait and retry in a few seconds")
 
 	case StatusCompleted:
 		// Return cached response

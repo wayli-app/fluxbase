@@ -263,7 +263,7 @@ func TestRequireAdmin_RegularUser(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
-	assert.Contains(t, string(body), "Admin access required")
+	assert.Contains(t, string(body), "Admin role required")
 }
 
 func TestRequireAdmin_AnonUser(t *testing.T) {

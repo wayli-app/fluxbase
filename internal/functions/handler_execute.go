@@ -37,7 +37,7 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 		fn, err = h.storage.GetFunction(middleware.CtxWithTenant(c), name)
 	}
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Function not found"})
+		return apperrors.SendResourceNotFound(c, "Function")
 	}
 
 	// Apply CORS headers to all responses (including errors)
@@ -50,7 +50,7 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 
 	// Check if enabled
 	if !fn.Enabled {
-		return c.Status(403).JSON(fiber.Map{"error": "Function is disabled"})
+		return apperrors.SendErrorWithCode(c, 403, "Function is disabled", apperrors.ErrCodeFunctionDisabled)
 	}
 
 	// Check authentication requirement
@@ -59,10 +59,7 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	if !fn.AllowUnauthenticated {
 		authType := c.Locals("auth_type")
 		if authType == nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Authentication required. Provide an anon key (Bearer token with role=anon), client key (X-Client-Key header), or service key (X-Service-Key header). " +
-					"To allow completely unauthenticated access, set allow_unauthenticated=true on the function.",
-			})
+			return apperrors.SendErrorWithCode(c, fiber.StatusUnauthorized, "Authentication required. Provide an anon key (Bearer token with role=anon), client key (X-Client-Key header), or service key (X-Service-Key header). To allow completely unauthenticated access, set allow_unauthenticated=true on the function.", apperrors.ErrCodeMissingAuth)
 		}
 	}
 
@@ -141,11 +138,7 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 					Int64("limit", result.Limit).
 					Time("reset_at", result.ResetAt).
 					Msg("SECURITY: Impersonation token rate limit exceeded - possible brute force attack")
-				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-					"error":       "Rate limit exceeded",
-					"message":     "Too many impersonation attempts. Please try again in 5 minutes.",
-					"retry_after": int(time.Until(result.ResetAt).Seconds()),
-				})
+				return apperrors.SendErrorWithDetails(c, fiber.StatusTooManyRequests, "Rate limit exceeded", apperrors.ErrCodeRateLimited, "Too many impersonation attempts. Please try again in 5 minutes.", "", fiber.Map{"retry_after": int(time.Until(result.ResetAt).Seconds())})
 			}
 		}
 
@@ -173,9 +166,7 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 				Int("token_length", len(impersonationToken)).
 				Str("ip", c.IP()).
 				Msg("SECURITY: Invalid impersonation token in function invocation")
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Invalid impersonation token",
-			})
+			return apperrors.SendBadRequest(c, "Invalid impersonation token", apperrors.ErrCodeInvalidInput)
 		}
 
 		// Override user context with impersonated user
@@ -312,11 +303,7 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 			Int64("duration_ms", result.DurationMs).
 			Msg("Edge function execution failed")
 
-		return c.Status(result.Status).JSON(fiber.Map{
-			"error":      result.Error,
-			"logs":       result.Logs,
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, result.Status, result.Error, apperrors.ErrCodeOperationFailed, "", "", fiber.Map{"logs": result.Logs})
 	}
 
 	// Log non-2xx responses even when execution succeeded
@@ -360,11 +347,7 @@ func (h *Handler) GetExecutions(c fiber.Ctx) error {
 			Int("limit", limit).
 			Msg("Failed to retrieve edge function execution history from database")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to retrieve execution history",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, 500, "Failed to retrieve execution history", apperrors.ErrCodeOperationFailed, "", "", err.Error())
 	}
 
 	return c.JSON(executions)
@@ -402,11 +385,7 @@ func (h *Handler) ListAllExecutions(c fiber.Ctx) error {
 			Interface("filters", filters).
 			Msg("Failed to list all edge function executions")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to list executions",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, 500, "Failed to list executions", apperrors.ErrCodeOperationFailed, "", "", err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -418,18 +397,14 @@ func (h *Handler) ListAllExecutions(c fiber.Ctx) error {
 // GetExecutionLogs returns logs for a specific function execution
 func (h *Handler) GetExecutionLogs(c fiber.Ctx) error {
 	if h.loggingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Logging service not available",
-		})
+		return apperrors.SendErrorWithCode(c, fiber.StatusServiceUnavailable, "Logging service not available", apperrors.ErrCodeLoggingUnavailable)
 	}
 
 	executionIDStr := c.Params("id")
 
 	_, err := uuid.Parse(executionIDStr)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Invalid execution ID",
-		})
+		return apperrors.SendInvalidID(c, "execution ID")
 	}
 
 	// Parse after_line query param for pagination
@@ -444,9 +419,7 @@ func (h *Handler) GetExecutionLogs(c fiber.Ctx) error {
 	entries, err := h.loggingService.GetExecutionLogs(middleware.CtxWithTenant(c), executionIDStr, afterLine)
 	if err != nil {
 		log.Error().Err(err).Str("execution_id", executionIDStr).Msg("Failed to get execution logs")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to get execution logs",
-		})
+		return apperrors.SendInternalError(c, "Failed to get execution logs")
 	}
 
 	return c.JSON(fiber.Map{

@@ -14,6 +14,7 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 type MigrationsTenantPoolProvider interface {
@@ -106,7 +107,7 @@ func RequireMigrationsFullSecurityWithTenantProvider(
 	return func(c fiber.Ctx) error {
 		if !cfg.Enabled {
 			log.Warn().Str("path", c.Path()).Str("ip", c.IP()).Msg("Migrations API access denied - feature disabled")
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Not Found"})
+			return apperrors.SendNotFound(c, "Not Found")
 		}
 
 		if len(allowedNets) > 0 {
@@ -120,18 +121,18 @@ func RequireMigrationsFullSecurityWithTenantProvider(
 			}
 			if !allowed {
 				log.Warn().Str("ip", clientIP.String()).Str("path", c.Path()).Msg("Migrations API access denied - IP not in allowlist")
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Access denied - IP not allowlisted for migrations"})
+				return apperrors.SendErrorWithCode(c, fiber.StatusForbidden, "Access denied - IP not allowlisted for migrations", apperrors.ErrCodeAccessDenied)
 			}
 		}
 
 		if !migrationsValidateAuthAndScope(c, db, authService, tenantPoolProvider) {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Service key or service_role JWT authentication required for migrations API"})
+			return apperrors.SendErrorWithCode(c, fiber.StatusUnauthorized, "Service key or service_role JWT authentication required for migrations API", apperrors.ErrCodeMissingAuth)
 		}
 
 		rateLimitKey := migrationsGetRateLimitKey(c)
 		if !limiter.allow(rateLimitKey) {
 			log.Warn().Str("key", rateLimitKey).Int("limit", rateLimit).Msg("Migrations API rate limit exceeded")
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "Rate limit exceeded"})
+			return apperrors.SendErrorWithCode(c, fiber.StatusTooManyRequests, "Rate limit exceeded", apperrors.ErrCodeRateLimited)
 		}
 
 		start := time.Now()

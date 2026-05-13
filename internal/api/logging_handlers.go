@@ -160,9 +160,7 @@ func (h *LoggingHandler) GetExecutionLogs(c fiber.Ctx) error {
 
 	executionID := c.Params("id")
 	if executionID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "execution_id is required",
-		})
+		return SendMissingField(c, "execution_id")
 	}
 
 	afterLine := 0

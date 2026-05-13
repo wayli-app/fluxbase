@@ -61,9 +61,7 @@ func (h *AdminSessionHandler) ListSessions(c fiber.Ctx) error {
 	sessions, total, err := h.sessionRepo.ListAllPaginated(ctx, includeExpired, limit, offset)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list sessions")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to list sessions",
-		})
+		return apperrors.SendInternalError(c, "Failed to list sessions")
 	}
 
 	return c.JSON(fiber.Map{
@@ -81,9 +79,7 @@ func (h *AdminSessionHandler) RevokeSession(c fiber.Ctx) error {
 	sessionID := c.Params("id")
 
 	if sessionID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Session ID is required",
-		})
+		return apperrors.SendMissingField(c, "session_id")
 	}
 
 	if err := h.requireService(c); err != nil {
@@ -93,14 +89,10 @@ func (h *AdminSessionHandler) RevokeSession(c fiber.Ctx) error {
 	err := h.sessionRepo.Delete(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, auth.ErrSessionNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "Session not found",
-			})
+			return apperrors.SendResourceNotFound(c, "Session")
 		}
 		log.Error().Err(err).Str("session_id", sessionID).Msg("Failed to revoke session")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to revoke session",
-		})
+		return apperrors.SendInternalError(c, "Failed to revoke session")
 	}
 
 	return apperrors.SendSuccess(c, "Session revoked successfully")
@@ -112,9 +104,7 @@ func (h *AdminSessionHandler) RevokeUserSessions(c fiber.Ctx) error {
 	userID := c.Params("user_id")
 
 	if userID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "User ID is required",
-		})
+		return apperrors.SendMissingField(c, "user_id")
 	}
 
 	if err := h.requireService(c); err != nil {
@@ -124,9 +114,7 @@ func (h *AdminSessionHandler) RevokeUserSessions(c fiber.Ctx) error {
 	err := h.sessionRepo.DeleteByUserID(ctx, userID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to revoke user sessions")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to revoke user sessions",
-		})
+		return apperrors.SendInternalError(c, "Failed to revoke user sessions")
 	}
 
 	return apperrors.SendSuccess(c, "All user sessions revoked successfully")

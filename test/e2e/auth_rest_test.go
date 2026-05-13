@@ -123,7 +123,7 @@ func TestRESTWithInvalidBearerToken(t *testing.T) {
 		Send()
 
 	resp.AssertStatus(fiber.StatusUnauthorized)
-	resp.AssertContains("Invalid or expired Bearer token")
+	resp.AssertContains("Invalid or expired token")
 }
 
 // TestRESTAuthenticationPriority verifies the authentication priority order

@@ -9,6 +9,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/rs/zerolog/log"
+
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 // BodyLimitConfig holds per-endpoint body size limit configuration
@@ -375,16 +377,10 @@ func (l *PatternBodyLimiter) sendLimitExceeded(c fiber.Ctx, limit int64, descrip
 		return l.config.ErrorHandler(c, limit)
 	}
 
-	return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
-		"error":   "Payload Too Large",
-		"code":    "PAYLOAD_TOO_LARGE",
-		"message": fmt.Sprintf("Request body exceeds maximum size of %s for %s endpoints", formatBytes(limit), description),
-		"hint":    "Reduce size of your request body or use chunked upload for large files",
-		"details": fiber.Map{
-			"max_bytes":     limit,
-			"endpoint_type": description,
-		},
-	})
+	return apperrors.SendErrorWithDetails(c, fiber.StatusRequestEntityTooLarge, "Payload Too Large", apperrors.ErrCodePayloadTooLarge,
+		fmt.Sprintf("Request body exceeds maximum size of %s for %s endpoints", formatBytes(limit), description),
+		"Reduce size of your request body or use chunked upload for large files",
+		fiber.Map{"max_bytes": limit, "endpoint_type": description})
 }
 
 // formatBytes formats bytes into human-readable format
@@ -437,12 +433,9 @@ func (l *JSONDepthLimiter) CheckDepth(c fiber.Ctx) error {
 			Str("path", c.Path()).
 			Msg("JSON depth validation failed")
 
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Invalid JSON",
-			"code":    "JSON_TOO_DEEP",
-			"message": fmt.Sprintf("JSON nesting exceeds maximum depth of %d", l.maxDepth),
-			"hint":    "Flatten your JSON structure or reduce nesting levels",
-		})
+		return apperrors.SendErrorWithDetails(c, fiber.StatusBadRequest, "Invalid JSON", apperrors.ErrCodeJsonTooDeep,
+			fmt.Sprintf("JSON nesting exceeds maximum depth of %d", l.maxDepth),
+			"Flatten your JSON structure or reduce nesting levels", nil)
 	}
 
 	return nil

@@ -48,6 +48,35 @@ const (
 	ErrCodeRateLimited     = "RATE_LIMIT_EXCEEDED"
 	ErrCodeTooManyRequests = "TOO_MANY_REQUESTS"
 
+	ErrCodePayloadTooLarge = "PAYLOAD_TOO_LARGE"
+	ErrCodeJsonTooDeep     = "JSON_TOO_DEEP"
+
+	ErrCodeBranchNotReady    = "BRANCH_NOT_READY"
+	ErrCodeBranchNotFound    = "BRANCH_NOT_FOUND"
+	ErrCodeBranchingDisabled = "BRANCHING_DISABLED"
+	ErrCodeAccessCheckFailed = "ACCESS_CHECK_FAILED"
+	ErrCodePoolError         = "POOL_ERROR"
+	ErrCodeTenantNotFound    = "TENANT_NOT_FOUND"
+
+	ErrCodeIdempotencyKeyTooLong          = "IDEMPOTENCY_KEY_TOO_LONG"
+	ErrCodeIdempotencyKeyMismatch         = "IDEMPOTENCY_KEY_MISMATCH"
+	ErrCodeIdempotencyRequestBodyMismatch = "IDEMPOTENCY_REQUEST_BODY_MISMATCH"
+	ErrCodeIdempotencyRequestInProgress   = "IDEMPOTENCY_REQUEST_IN_PROGRESS"
+
+	ErrCodeMissingClientKey   = "MISSING_CLIENT_KEY"
+	ErrCodeClientKeyRevoked   = "CLIENT_KEY_REVOKED"
+	ErrCodeClientKeyExpired   = "CLIENT_KEY_EXPIRED"
+	ErrCodeClientKeysDisabled = "CLIENT_KEYS_DISABLED"
+	ErrCodeInvalidServiceKey  = "INVALID_SERVICE_KEY"
+
+	ErrCodeFunctionNotFound   = "FUNCTION_NOT_FOUND"
+	ErrCodeFunctionDisabled   = "FUNCTION_DISABLED"
+	ErrCodeLoggingUnavailable = "LOGGING_SERVICE_UNAVAILABLE"
+
+	ErrCodeCsrfTokenRequired         = "CSRF_TOKEN_REQUIRED"
+	ErrCodeCsrfTokenExpired          = "CSRF_TOKEN_EXPIRED"
+	ErrCodeCsrfTokenValidationFailed = "CSRF_TOKEN_VALIDATION_FAILED"
+
 	ErrCodeSetupRequired     = "SETUP_REQUIRED"
 	ErrCodeSetupCompleted    = "SETUP_ALREADY_COMPLETED"
 	ErrCodeSetupDisabled     = "SETUP_DISABLED"
@@ -182,6 +211,10 @@ func SendNotInitialized(c fiber.Ctx, service string) error {
 
 func SendServiceUnavailable(c fiber.Ctx, msg string) error {
 	return SendErrorWithCode(c, fiber.StatusServiceUnavailable, msg, "SERVICE_UNAVAILABLE")
+}
+
+func SendErrorWithHint(c fiber.Ctx, statusCode int, errMsg string, code string, hint string) error {
+	return SendErrorWithDetails(c, statusCode, errMsg, code, "", hint, nil)
 }
 
 func SendSuccess(c fiber.Ctx, message string) error {

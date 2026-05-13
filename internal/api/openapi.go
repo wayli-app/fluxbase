@@ -115,9 +115,7 @@ func (h *OpenAPIHandler) GetOpenAPISpec(c fiber.Ctx) error {
 	// Get all tables (admin only)
 	tables, err := inspector.GetAllTables(ctx, "public", "auth")
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to fetch database schema",
-		})
+		return SendInternalError(c, "Failed to fetch database schema")
 	}
 
 	spec := h.generateSpec(tables, c.BaseURL())

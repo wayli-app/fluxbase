@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/branching"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 const (
@@ -75,18 +76,12 @@ func BranchContext(config BranchContextConfig) fiber.Handler {
 		if !branching.IsMainBranch(branchSlug) {
 			// Check if branching is enabled
 			if config.Router == nil {
-				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-					"error":   "branching_disabled",
-					"message": "Database branching is not enabled",
-				})
+				return apperrors.SendErrorWithCode(c, fiber.StatusServiceUnavailable, "Database branching is not enabled", apperrors.ErrCodeBranchingDisabled)
 			}
 
 			// Check authentication for non-main branches
 			if config.RequireAccess && userID == nil && !config.AllowAnonymous {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error":   "authentication_required",
-					"message": "Authentication is required to access branches",
-				})
+				return apperrors.SendErrorWithCode(c, fiber.StatusUnauthorized, "Authentication is required to access branches", apperrors.ErrCodeAuthRequired)
 			}
 
 			// Check access if required and user is authenticated
@@ -97,17 +92,11 @@ func BranchContext(config BranchContextConfig) fiber.Handler {
 						Str("branch", branchSlug).
 						Str("user_id", userID.String()).
 						Msg("Failed to check branch access")
-					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-						"error":   "access_check_failed",
-						"message": "Failed to verify branch access",
-					})
+					return apperrors.SendErrorWithCode(c, fiber.StatusInternalServerError, "Failed to verify branch access", apperrors.ErrCodeAccessCheckFailed)
 				}
 
 				if !hasAccess {
-					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-						"error":   "access_denied",
-						"message": "You do not have access to this branch",
-					})
+					return apperrors.SendErrorWithCode(c, fiber.StatusForbidden, "You do not have access to this branch", apperrors.ErrCodeAccessDenied)
 				}
 			}
 		}
@@ -120,35 +109,23 @@ func BranchContext(config BranchContextConfig) fiber.Handler {
 			pool, err = config.Router.GetPool(c.RequestCtx(), branchSlug)
 			if err != nil {
 				if errors.Is(err, branching.ErrBranchNotFound) {
-					return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-						"error":   "branch_not_found",
-						"message": "Branch not found: " + branchSlug,
-					})
+					return apperrors.SendErrorWithCode(c, fiber.StatusNotFound, "Branch not found: "+branchSlug, apperrors.ErrCodeBranchNotFound)
 				}
 				if errors.Is(err, branching.ErrBranchNotReady) {
-					return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-						"error":   "branch_not_ready",
-						"message": "Branch is not ready: " + branchSlug,
-					})
+					return apperrors.SendErrorWithCode(c, fiber.StatusServiceUnavailable, "Branch is not ready: "+branchSlug, apperrors.ErrCodeBranchNotReady)
 				}
 				if errors.Is(err, branching.ErrBranchingDisabled) {
 					// For main branch, we should still work
 					if branching.IsMainBranch(branchSlug) {
 						pool = config.Router.GetMainPool()
 					} else {
-						return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-							"error":   "branching_disabled",
-							"message": "Database branching is not enabled",
-						})
+						return apperrors.SendErrorWithCode(c, fiber.StatusServiceUnavailable, "Database branching is not enabled", apperrors.ErrCodeBranchingDisabled)
 					}
 				} else {
 					log.Error().Err(err).
 						Str("branch", branchSlug).
 						Msg("Failed to get branch pool")
-					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-						"error":   "pool_error",
-						"message": "Failed to get database connection for branch",
-					})
+					return apperrors.SendErrorWithCode(c, fiber.StatusInternalServerError, "Failed to get database connection for branch", apperrors.ErrCodePoolError)
 				}
 			}
 		}

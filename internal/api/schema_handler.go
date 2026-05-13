@@ -129,9 +129,7 @@ func NewSchemaGraphHandlers(db *database.Connection, graphCache *schemaGraphCach
 // GET /api/v1/admin/schema/graph
 func (h *SchemaGraphHandlers) GetSchemaGraph(c fiber.Ctx) error {
 	if h.db == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Database connection not initialized",
-		})
+		return SendInternalError(c, "Database connection not initialized")
 	}
 
 	ctx := middleware.CtxWithTenant(c)
@@ -535,9 +533,7 @@ func (h *SchemaGraphHandlers) GetTableRelationships(c fiber.Ctx) error {
 	}
 
 	if h.db == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Database connection not initialized",
-		})
+		return SendInternalError(c, "Database connection not initialized")
 	}
 
 	pool := tenantPool(c, h.db)

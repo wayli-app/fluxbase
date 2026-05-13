@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { userKnowledgeBasesApi } from '@/lib/api'
 
 interface QuotaConfig {
   maxDocuments: number
@@ -58,20 +60,20 @@ function CreateKnowledgeBaseDialog({ onClose }: CreateKnowledgeBaseDialogProps) 
       if (useCustomQuotas) {
         body.quota_max_documents = quotaConfig.maxDocuments
         body.quota_max_chunks = quotaConfig.maxChunks
-        body.quota_max_storage_bytes = quotaConfig.maxStorageMB * 1024 * 1024 // Convert MB to bytes
+        body.quota_max_storage_bytes = quotaConfig.maxStorageMB * 1024 * 1024
       }
 
-      const res = await fetch('/api/v1/ai/knowledge-bases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error('Failed to create knowledge base')
-      return res.json()
+      return userKnowledgeBasesApi.create(body)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-knowledge-bases'] })
+      queryClient.invalidateQueries({ queryKey: ['user-knowledge-bases'] })
+      toast.success('Knowledge base created')
       onClose()
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to create knowledge base', {
+        description: error.message,
+      })
     },
   })
 

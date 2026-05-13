@@ -314,10 +314,7 @@ func (h *Handler) checkRateLimit(c fiber.Ctx, fn *EdgeFunction) error {
 			c.Set("X-RateLimit-Remaining", "0")
 			c.Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))
 
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error":       fmt.Sprintf("Rate limit exceeded: %d requests per %s", *check.limit, check.unitName),
-				"retry_after": retryAfter,
-			})
+			return apperrors.SendErrorWithDetails(c, fiber.StatusTooManyRequests, fmt.Sprintf("Rate limit exceeded: %d requests per %s", *check.limit, check.unitName), apperrors.ErrCodeRateLimited, "", "", fiber.Map{"retry_after": retryAfter})
 		}
 	}
 
@@ -354,15 +351,15 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 	}
 
 	if err := c.Bind().Body(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return apperrors.SendInvalidBody(c)
 	}
 
 	// Validation
 	if req.Name == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Function name is required"})
+		return apperrors.SendMissingField(c, "Function name")
 	}
 	if req.Code == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Function code is required"})
+		return apperrors.SendMissingField(c, "Function code")
 	}
 
 	var createdBy *uuid.UUID
@@ -507,12 +504,8 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 			}
 
 			if bundleErr != nil {
-				// Bundling failed - return error to user
 				errMsg := fmt.Sprintf("Failed to bundle function: %v", bundleErr)
-				return c.Status(400).JSON(fiber.Map{
-					"error":   "Bundle error",
-					"details": errMsg,
-				})
+				return apperrors.SendErrorWithDetails(c, 400, "Bundle error", apperrors.ErrCodeInvalidInput, "", "", errMsg)
 			}
 
 			// Bundling succeeded
@@ -584,11 +577,7 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 			Str("user_id", util.ToString(createdBy)).
 			Msg("Failed to create edge function in database")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to create function",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, 500, "Failed to create function", apperrors.ErrCodeOperationFailed, "", "", err.Error())
 	}
 
 	return c.Status(201).JSON(fn)
@@ -599,9 +588,7 @@ func (h *Handler) CreateFunction(c fiber.Ctx) error {
 func (h *Handler) ListFunctions(c fiber.Ctx) error {
 	role := middleware.GetUserRole(c)
 	if !isAdminRole(role) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required to list functions",
-		})
+		return apperrors.SendAdminRequired(c)
 	}
 
 	// Check if namespace filter is provided
@@ -631,11 +618,7 @@ func (h *Handler) ListFunctions(c fiber.Ctx) error {
 			Str("request_id", reqID).
 			Msg("Failed to list edge functions from database")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to list functions",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, 500, "Failed to list functions", apperrors.ErrCodeOperationFailed, "", "", err.Error())
 	}
 
 	return c.JSON(functions)
@@ -651,10 +634,7 @@ func (h *Handler) ListNamespaces(c fiber.Ctx) error {
 			Str("request_id", reqID).
 			Msg("Failed to list function namespaces")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to list function namespaces",
-			"request_id": reqID,
-		})
+		return apperrors.SendOperationFailed(c, "list function namespaces")
 	}
 
 	// Ensure we always return at least "default"
@@ -678,16 +658,14 @@ func (h *Handler) ListNamespaces(c fiber.Ctx) error {
 func (h *Handler) GetFunction(c fiber.Ctx) error {
 	role := middleware.GetUserRole(c)
 	if !isAdminRole(role) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required to view function details",
-		})
+		return apperrors.SendAdminRequired(c)
 	}
 
 	name := c.Params("name")
 
 	fn, err := h.storage.GetFunction(middleware.CtxWithTenant(c), name)
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Function not found"})
+		return apperrors.SendResourceNotFound(c, "Function")
 	}
 
 	return c.JSON(fn)
@@ -699,7 +677,7 @@ func (h *Handler) UpdateFunction(c fiber.Ctx) error {
 
 	var updates map[string]interface{}
 	if err := c.Bind().Body(&updates); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return apperrors.SendInvalidBody(c)
 	}
 
 	// Remove fields that shouldn't be updated directly
@@ -742,12 +720,8 @@ func (h *Handler) UpdateFunction(c fiber.Ctx) error {
 			}
 
 			if bundleErr != nil {
-				// Bundling failed - return error to user
 				errMsg := fmt.Sprintf("Failed to bundle function: %v", bundleErr)
-				return c.Status(400).JSON(fiber.Map{
-					"error":   "Bundle error",
-					"details": errMsg,
-				})
+				return apperrors.SendErrorWithDetails(c, 400, "Bundle error", apperrors.ErrCodeInvalidInput, "", "", errMsg)
 			}
 
 			// Update with bundled code
@@ -770,11 +744,7 @@ func (h *Handler) UpdateFunction(c fiber.Ctx) error {
 			Str("request_id", reqID).
 			Msg("Failed to update edge function in database")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to update function",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, 500, "Failed to update function", apperrors.ErrCodeOperationFailed, "", "", err.Error())
 	}
 
 	// Return updated function
@@ -786,11 +756,7 @@ func (h *Handler) UpdateFunction(c fiber.Ctx) error {
 			Str("request_id", reqID).
 			Msg("Failed to retrieve updated edge function from database")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to retrieve updated function",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, 500, "Failed to retrieve updated function", apperrors.ErrCodeOperationFailed, "", "", err.Error())
 	}
 
 	return c.JSON(fn)
@@ -808,11 +774,7 @@ func (h *Handler) DeleteFunction(c fiber.Ctx) error {
 			Str("request_id", reqID).
 			Msg("Failed to delete edge function from database")
 
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to delete function",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
+		return apperrors.SendErrorWithDetails(c, 500, "Failed to delete function", apperrors.ErrCodeOperationFailed, "", "", err.Error())
 	}
 
 	return c.SendStatus(204)

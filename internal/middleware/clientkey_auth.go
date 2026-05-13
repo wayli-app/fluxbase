@@ -15,6 +15,7 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/keys"
 )
 
@@ -27,9 +28,7 @@ func ClientKeyAuth(clientKeyService *auth.ClientKeyService) fiber.Handler {
 
 		// If no client key provided, return unauthorized
 		if clientKey == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing client key. Provide via X-Client-Key header",
-			})
+			return apperrors.SendErrorWithCode(c, 401, "Missing client key. Provide via X-Client-Key header", apperrors.ErrCodeMissingClientKey)
 		}
 
 		// Validate the client key
@@ -39,24 +38,16 @@ func ClientKeyAuth(clientKeyService *auth.ClientKeyService) fiber.Handler {
 
 			// Return specific error messages using errors.Is for proper error wrapping
 			if errors.Is(err, auth.ErrClientKeyRevoked) {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Client key has been revoked",
-				})
+				return apperrors.SendErrorWithCode(c, 401, "Client key has been revoked", apperrors.ErrCodeClientKeyRevoked)
 			}
 			if errors.Is(err, auth.ErrClientKeyExpired) {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Client key has been expired",
-				})
+				return apperrors.SendErrorWithCode(c, 401, "Client key has been expired", apperrors.ErrCodeClientKeyExpired)
 			}
 			if errors.Is(err, auth.ErrUserClientKeysDisabled) {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "User client keys are disabled. Contact an administrator.",
-				})
+				return apperrors.SendErrorWithCode(c, 403, "User client keys are disabled. Contact an administrator.", apperrors.ErrCodeClientKeysDisabled)
 			}
 
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid client key",
-			})
+			return apperrors.SendErrorWithCode(c, 401, "Invalid client key", apperrors.ErrCodeInvalidCredentials)
 		}
 
 		// Store client key information in context
@@ -96,16 +87,10 @@ func OptionalClientKeyAuth(authService *auth.Service, clientKeyService *auth.Cli
 				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
-					return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-						"error":   "service_unavailable",
-						"message": "Unable to verify token status",
-					})
+					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
 				}
 				if isRevoked {
-					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"error":   "token_revoked",
-						"message": "Token has been revoked",
-					})
+					return apperrors.SendTokenRevoked(c)
 				}
 
 				// Valid JWT token
@@ -168,16 +153,10 @@ func RequireEitherAuth(authService *auth.Service, clientKeyService *auth.ClientK
 				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
-					return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-						"error":   "service_unavailable",
-						"message": "Unable to verify token status",
-					})
+					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
 				}
 				if isRevoked {
-					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"error":   "token_revoked",
-						"message": "Token has been revoked",
-					})
+					return apperrors.SendTokenRevoked(c)
 				}
 
 				// Valid JWT token
@@ -219,16 +198,12 @@ func RequireEitherAuth(authService *auth.Service, clientKeyService *auth.ClientK
 
 			// Return specific error for disabled user keys
 			if errors.Is(err, auth.ErrUserClientKeysDisabled) {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "User client keys are disabled. Contact an administrator.",
-				})
+				return apperrors.SendErrorWithCode(c, 403, "User client keys are disabled. Contact an administrator.", apperrors.ErrCodeClientKeysDisabled)
 			}
 		}
 
 		// No valid authentication provided
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required. Provide either a Bearer token or X-Client-Key header",
-		})
+		return apperrors.SendErrorWithCode(c, 401, "Authentication required. Provide either a Bearer token or X-Client-Key header", apperrors.ErrCodeMissingAuth)
 	}
 }
 
@@ -241,9 +216,7 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 		if authType == "clientkey" {
 			scopes, ok := c.Locals("client_key_scopes").([]string)
 			if !ok {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "No scopes found for client key",
-				})
+				return apperrors.SendErrorWithCode(c, 403, "No scopes found for client key", apperrors.ErrCodeInsufficientPermissions)
 			}
 
 			// Check if all required scopes are present
@@ -256,10 +229,7 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 					}
 				}
 				if !found {
-					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-						"error":          "Insufficient permissions",
-						"required_scope": required,
-					})
+					return apperrors.SendErrorWithDetails(c, 403, "Insufficient permissions", apperrors.ErrCodeInsufficientPermissions, "", "", fiber.Map{"required_scope": required})
 				}
 			}
 		}
@@ -268,9 +238,7 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 		if authType == "service_key" {
 			scopes, ok := c.Locals("service_key_scopes").([]string)
 			if !ok {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "No scopes found for service key",
-				})
+				return apperrors.SendErrorWithCode(c, 403, "No scopes found for service key", apperrors.ErrCodeInsufficientPermissions)
 			}
 
 			// Check if all required scopes are present
@@ -283,10 +251,7 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 					}
 				}
 				if !found {
-					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-						"error":          "Insufficient permissions",
-						"required_scope": required,
-					})
+					return apperrors.SendErrorWithDetails(c, 403, "Insufficient permissions", apperrors.ErrCodeInsufficientPermissions, "", "", fiber.Map{"required_scope": required})
 				}
 			}
 		}
@@ -361,17 +326,13 @@ func authOrServiceKey(
 					return c.Next()
 				}
 				log.Debug().Err(err).Msg("X-Service-Key JWT validation failed")
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Invalid service role token",
-				})
+				return apperrors.SendErrorWithCode(c, 401, "Invalid service role token", apperrors.ErrCodeInvalidToken)
 			}
 
 			if validateServiceKey(c, db, serviceKey) {
 				return c.Next()
 			}
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid service key",
-			})
+			return apperrors.SendErrorWithCode(c, 401, "Invalid service key", apperrors.ErrCodeInvalidServiceKey)
 		}
 
 		// 2. JWT authentication via Authorization Bearer header or token query param
@@ -428,16 +389,10 @@ func authOrServiceKey(
 				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
-					return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-						"error":   "service_unavailable",
-						"message": "Unable to verify token status",
-					})
+					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
 				}
 				if isRevoked {
-					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"error":   "token_revoked",
-						"message": "Token has been revoked",
-					})
+					return apperrors.SendTokenRevoked(c)
 				}
 
 				// Valid JWT token
@@ -504,19 +459,12 @@ func authOrServiceKey(
 							if err != nil {
 								log.Error().Err(err).Str("jti", claims.ID).Msg("Failed to check service_role token emergency revocation status")
 								if securityCfg == nil || !securityCfg.ServiceRoleFailOpen {
-									return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-										"error":   "service_unavailable",
-										"message": "Unable to verify token status",
-									})
+									return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
 								}
 								log.Warn().Str("jti", claims.ID).Msg("Service role revocation check failed - allowing request due to fail-open configuration")
 							} else if isRevoked {
 								log.Warn().Str("jti", claims.ID).Msg("Service role token has been emergency revoked")
-								return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-									"error":             "Service role token has been revoked",
-									"error_code":        "token_revoked",
-									"revocation_reason": "emergency_revocation",
-								})
+								return apperrors.SendErrorWithDetails(c, 401, "Service role token has been revoked", apperrors.ErrCodeRevokedToken, "", "", fiber.Map{"error_code": "emergency_revocation", "revocation_reason": "emergency_revocation"})
 							}
 						}
 
@@ -541,9 +489,7 @@ func authOrServiceKey(
 			}
 
 			// Bearer token was provided but invalid - return specific error
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid or expired Bearer token",
-			})
+			return apperrors.SendInvalidToken(c)
 		}
 
 		// 3. Check for clientkey header (lowercase)
@@ -558,16 +504,10 @@ func authOrServiceKey(
 				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
-					return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-						"error":   "service_unavailable",
-						"message": "Unable to verify token status",
-					})
+					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
 				}
 				if isRevoked {
-					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"error":   "token_revoked",
-						"message": "Token has been revoked",
-					})
+					return apperrors.SendTokenRevoked(c)
 				}
 
 				// Valid user JWT token via clientkey header
@@ -595,19 +535,12 @@ func authOrServiceKey(
 					if err != nil {
 						log.Error().Err(err).Str("jti", srClaims.ID).Msg("Failed to check service_role token emergency revocation status")
 						if securityCfg == nil || !securityCfg.ServiceRoleFailOpen {
-							return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-								"error":   "service_unavailable",
-								"message": "Unable to verify token status",
-							})
+							return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
 						}
 						log.Warn().Str("jti", srClaims.ID).Msg("Service role revocation check failed - allowing request due to fail-open configuration")
 					} else if isRevoked {
 						log.Warn().Str("jti", srClaims.ID).Msg("Service role token has been emergency revoked")
-						return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-							"error":             "Service role token has been revoked",
-							"error_code":        "token_revoked",
-							"revocation_reason": "emergency_revocation",
-						})
+						return apperrors.SendErrorWithDetails(c, 401, "Service role token has been revoked", apperrors.ErrCodeRevokedToken, "", "", fiber.Map{"error_code": "emergency_revocation", "revocation_reason": "emergency_revocation"})
 					}
 				}
 
@@ -664,20 +597,14 @@ func authOrServiceKey(
 				return c.Next()
 			}
 			if errors.Is(err, auth.ErrUserClientKeysDisabled) {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "User client keys are disabled. Contact an administrator.",
-				})
+				return apperrors.SendErrorWithCode(c, 403, "User client keys are disabled. Contact an administrator.", apperrors.ErrCodeClientKeysDisabled)
 			}
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid client key",
-			})
+			return apperrors.SendErrorWithCode(c, 401, "Invalid client key", apperrors.ErrCodeInvalidCredentials)
 		}
 
 		// 5. No authentication provided
 		if required {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Authentication required. Provide Bearer token, X-Client-Key, or X-Service-Key",
-			})
+			return apperrors.SendErrorWithCode(c, 401, "Authentication required. Provide Bearer token, X-Client-Key, or X-Service-Key", apperrors.ErrCodeMissingAuth)
 		}
 		return c.Next()
 	}
@@ -992,9 +919,7 @@ func RequireAdmin() fiber.Handler {
 			Str("path", c.Path()).
 			Msg("Admin access denied - requires service_role or instance_admin")
 
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin access required. Only service_role and instance_admin can access this endpoint.",
-		})
+		return apperrors.SendAdminRequired(c)
 	}
 }
 

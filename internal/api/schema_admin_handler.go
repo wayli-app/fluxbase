@@ -42,7 +42,7 @@ func (h *SchemaAdminHandlers) GetTables(c fiber.Ctx) error {
 		var schemas []string
 		var err error
 		if tenantPool != nil {
-			schemas, err = inspector.GetSchemasFromPool(ctx, tenantPool)
+			schemas, err = inspector.GetSchemasFromQ(ctx, database.PoolQuerier(tenantPool))
 		} else {
 			schemas, err = inspector.GetSchemas(ctx)
 		}
@@ -64,7 +64,7 @@ func (h *SchemaAdminHandlers) GetTables(c fiber.Ctx) error {
 		var err error
 
 		if tenantPool != nil {
-			tables, err = inspector.GetAllTablesFromPool(ctx, tenantPool, schema)
+			tables, err = inspector.GetAllTablesFromQ(ctx, database.PoolQuerier(tenantPool), schema)
 		} else {
 			tables, err = inspector.GetAllTables(ctx, schema)
 		}
@@ -75,7 +75,7 @@ func (h *SchemaAdminHandlers) GetTables(c fiber.Ctx) error {
 		}
 
 		if tenantPool != nil {
-			views, err = inspector.GetAllViewsFromPool(ctx, tenantPool, schema)
+			views, err = inspector.GetAllViewsFromQ(ctx, database.PoolQuerier(tenantPool), schema)
 		} else {
 			views, err = inspector.GetAllViews(ctx, schema)
 		}
@@ -86,7 +86,7 @@ func (h *SchemaAdminHandlers) GetTables(c fiber.Ctx) error {
 		}
 
 		if tenantPool != nil {
-			matviews, err = inspector.GetAllMaterializedViewsFromPool(ctx, tenantPool, schema)
+			matviews, err = inspector.GetAllMaterializedViewsFromQ(ctx, database.PoolQuerier(tenantPool), schema)
 		} else {
 			matviews, err = inspector.GetAllMaterializedViews(ctx, schema)
 		}
@@ -112,7 +112,7 @@ func (h *SchemaAdminHandlers) GetTableSchema(c fiber.Ctx) error {
 	var tableInfo *database.TableInfo
 	var err error
 	if pool := middleware.GetTenantPool(c); pool != nil {
-		tableInfo, err = h.db.Inspector().GetTableInfoFromPool(ctx, pool, schema, table)
+		tableInfo, err = h.db.Inspector().GetTableInfoFromQ(ctx, database.PoolQuerier(pool), schema, table)
 	} else {
 		tableInfo, err = h.db.Inspector().GetTableInfo(ctx, schema, table)
 	}
@@ -135,7 +135,7 @@ func (h *SchemaAdminHandlers) GetSchemas(c fiber.Ctx) error {
 	var schemas []string
 	var err error
 	if pool := middleware.GetTenantPool(c); pool != nil {
-		schemas, err = h.db.Inspector().GetSchemasFromPool(ctx, pool)
+		schemas, err = h.db.Inspector().GetSchemasFromQ(ctx, database.PoolQuerier(pool))
 	} else {
 		schemas, err = h.db.Inspector().GetSchemas(ctx)
 	}

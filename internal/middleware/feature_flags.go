@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 // RequireFeatureEnabled returns a middleware that checks if a feature flag is enabled
@@ -13,22 +14,14 @@ func RequireFeatureEnabled(settingsCache *auth.SettingsCache, featureKey string)
 	return func(c fiber.Ctx) error {
 		// If settings cache is nil, treat the feature as disabled
 		if settingsCache == nil {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"error":       "Feature not available",
-				"code":        "FEATURE_DISABLED",
-				"feature_key": featureKey,
-			})
+			return apperrors.SendErrorWithDetails(c, fiber.StatusServiceUnavailable, "Feature not available", apperrors.ErrCodeFeatureDisabled, "", "", fiber.Map{"feature_key": featureKey})
 		}
 
 		ctx := c.RequestCtx()
 		isEnabled := settingsCache.GetBool(ctx, featureKey, true)
 
 		if !isEnabled {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"error":       "Feature is not enabled",
-				"code":        "FEATURE_DISABLED",
-				"feature_key": featureKey,
-			})
+			return apperrors.SendErrorWithDetails(c, fiber.StatusServiceUnavailable, "Feature is not enabled", apperrors.ErrCodeFeatureDisabled, "", "", fiber.Map{"feature_key": featureKey})
 		}
 
 		return c.Next()

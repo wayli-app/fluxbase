@@ -885,4 +885,8 @@ export const userKnowledgeBasesApi = {
       `/api/v1/ai/knowledge-bases/${kbId}/permissions/${userId}`,
     );
   },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/v1/ai/knowledge-bases/${id}`);
+  },
 };

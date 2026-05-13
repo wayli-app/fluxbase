@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 
 	syncframework "github.com/nimbleflux/fluxbase/internal/sync"
@@ -89,16 +90,12 @@ func (h *Handler) ReloadFunctions(c fiber.Ctx) error {
 
 	functionFiles, err := ListFunctionFiles(h.functionsDir)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to scan functions directory",
-		})
+		return apperrors.SendOperationFailed(c, "scan functions directory")
 	}
 
 	allFunctions, err := h.storage.ListFunctionsForSync(syncCtx, currentTenantID)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to list existing functions",
-		})
+		return apperrors.SendOperationFailed(c, "list existing functions")
 	}
 
 	// Build set of function names on disk
@@ -245,7 +242,7 @@ func (h *Handler) SyncFunctions(c fiber.Ctx) error {
 	}
 
 	if err := c.Bind().Body(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return apperrors.SendInvalidBody(c)
 	}
 
 	namespace := req.Namespace
@@ -402,7 +399,7 @@ func (h *Handler) SyncFunctions(c fiber.Ctx) error {
 
 	result, err := syncframework.Execute[functionSyncItem](ctx, syncer, items, opts)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return apperrors.SendErrorWithCode(c, 500, err.Error(), apperrors.ErrCodeOperationFailed)
 	}
 
 	return c.JSON(result)
@@ -528,12 +525,12 @@ func (h *Handler) CreateSharedModule(c fiber.Ctx) error {
 	}
 
 	if err := c.Bind().Body(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return apperrors.SendInvalidBody(c)
 	}
 
 	// Validate module_path starts with _shared/
 	if !strings.HasPrefix(req.ModulePath, "_shared/") {
-		return c.Status(400).JSON(fiber.Map{"error": "Module path must start with '_shared/'"})
+		return apperrors.SendBadRequest(c, "Module path must start with '_shared/'", apperrors.ErrCodeInvalidInput)
 	}
 
 	// Get user ID from context (if authenticated)
@@ -553,10 +550,10 @@ func (h *Handler) CreateSharedModule(c fiber.Ctx) error {
 
 	if err := h.storage.CreateSharedModule(middleware.CtxWithTenant(c), module); err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "already exists") {
-			return c.Status(409).JSON(fiber.Map{"error": "Shared module already exists"})
+			return apperrors.SendConflict(c, "Shared module already exists", apperrors.ErrCodeDuplicateKey)
 		}
 		log.Error().Err(err).Str("module_path", req.ModulePath).Msg("Failed to create shared module")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to create shared module"})
+		return apperrors.SendOperationFailed(c, "create shared module")
 	}
 
 	log.Info().
@@ -572,7 +569,7 @@ func (h *Handler) ListSharedModules(c fiber.Ctx) error {
 	modules, err := h.storage.ListSharedModules(middleware.CtxWithTenant(c))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list shared modules")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to list shared modules"})
+		return apperrors.SendOperationFailed(c, "list shared modules")
 	}
 
 	return c.JSON(modules)
@@ -591,10 +588,10 @@ func (h *Handler) GetSharedModule(c fiber.Ctx) error {
 	module, err := h.storage.GetSharedModule(middleware.CtxWithTenant(c), modulePath)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(404).JSON(fiber.Map{"error": "Shared module not found"})
+			return apperrors.SendResourceNotFound(c, "Shared module")
 		}
 		log.Error().Err(err).Str("module_path", modulePath).Msg("Failed to get shared module")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to get shared module"})
+		return apperrors.SendOperationFailed(c, "get shared module")
 	}
 
 	return c.JSON(module)
@@ -616,21 +613,21 @@ func (h *Handler) UpdateSharedModule(c fiber.Ctx) error {
 	}
 
 	if err := c.Bind().Body(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return apperrors.SendInvalidBody(c)
 	}
 
 	if err := h.storage.UpdateSharedModule(middleware.CtxWithTenant(c), modulePath, req.Content, req.Description); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(404).JSON(fiber.Map{"error": "Shared module not found"})
+			return apperrors.SendResourceNotFound(c, "Shared module")
 		}
 		log.Error().Err(err).Str("module_path", modulePath).Msg("Failed to update shared module")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to update shared module"})
+		return apperrors.SendOperationFailed(c, "update shared module")
 	}
 
 	// Get updated module
 	module, err := h.storage.GetSharedModule(middleware.CtxWithTenant(c), modulePath)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Module updated but failed to retrieve"})
+		return apperrors.SendErrorWithCode(c, 500, "Module updated but failed to retrieve", apperrors.ErrCodeOperationFailed)
 	}
 
 	log.Info().
@@ -653,7 +650,7 @@ func (h *Handler) DeleteSharedModule(c fiber.Ctx) error {
 
 	if err := h.storage.DeleteSharedModule(middleware.CtxWithTenant(c), modulePath); err != nil {
 		log.Error().Err(err).Str("module_path", modulePath).Msg("Failed to delete shared module")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete shared module"})
+		return apperrors.SendOperationFailed(c, "delete shared module")
 	}
 
 	log.Info().Str("module_path", modulePath).Msg("Shared module deleted")

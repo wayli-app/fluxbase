@@ -338,9 +338,7 @@ func (h *EmailTemplateHandler) TestTemplate(c fiber.Ctx) error {
 	}
 
 	if h.emailService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Email service not configured",
-		})
+		return SendServiceUnavailable(c, "Email service not configured")
 	}
 
 	if err := h.requireDB(c); err != nil {

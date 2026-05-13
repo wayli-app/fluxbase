@@ -900,7 +900,7 @@ func (h *DDLHandler) ListSchemas(c fiber.Ctx) error {
 	var schemas []string
 	var err error
 	if tenantPool := middleware.GetTenantPool(c); tenantPool != nil {
-		schemas, err = inspector.GetSchemasFromPool(ctx, tenantPool)
+		schemas, err = inspector.GetSchemasFromQ(ctx, database.PoolQuerier(tenantPool))
 	} else {
 		schemas, err = inspector.GetSchemas(ctx)
 	}
@@ -966,7 +966,7 @@ func (h *DDLHandler) ListTables(c fiber.Ctx) error {
 		var schemas []string
 		var err error
 		if tenantPool != nil {
-			schemas, err = inspector.GetSchemasFromPool(ctx, tenantPool)
+			schemas, err = inspector.GetSchemasFromQ(ctx, database.PoolQuerier(tenantPool))
 		} else {
 			schemas, err = inspector.GetSchemas(ctx)
 		}
@@ -995,7 +995,7 @@ func (h *DDLHandler) ListTables(c fiber.Ctx) error {
 		var dbTables []database.TableInfo
 		var err error
 		if tenantPool != nil {
-			dbTables, err = inspector.GetAllTablesFromPool(ctx, tenantPool, schema)
+			dbTables, err = inspector.GetAllTablesFromQ(ctx, database.PoolQuerier(tenantPool), schema)
 		} else {
 			dbTables, err = inspector.GetAllTables(ctx, schema)
 		}
