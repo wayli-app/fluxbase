@@ -141,47 +141,12 @@ func (s *Service) IsEmailVerificationRequired(ctx context.Context) bool {
 	return s.emailVerificationService.IsEmailVerificationRequired(ctx)
 }
 
-// SendEmailVerification sends a verification email to the user
-func (s *Service) SendEmailVerification(ctx context.Context, userID, email string) error {
-	return s.emailVerificationService.SendEmailVerification(ctx, userID, email)
-}
-
-// VerifyEmailToken validates the verification token and marks the user's email as verified
-func (s *Service) VerifyEmailToken(ctx context.Context, token string) (*User, error) {
-	return s.emailVerificationService.VerifyEmailToken(ctx, token)
-}
-
 // SendOTP sends an OTP code via email
 func (s *Service) SendOTP(ctx context.Context, email, purpose string) error {
 	if s.otpService == nil {
 		return fmt.Errorf("OTP service not initialized")
 	}
 	return s.otpService.SendEmailOTP(ctx, email, purpose)
-}
-
-// VerifyOTP verifies an OTP code sent via email
-func (s *Service) VerifyOTP(ctx context.Context, email, code string) (*OTPCode, error) {
-	return s.otpService.VerifyEmailOTP(ctx, email, code)
-}
-
-// ResendOTP resends an OTP code to an email
-func (s *Service) ResendOTP(ctx context.Context, email, purpose string) error {
-	return s.otpService.ResendEmailOTP(ctx, email, purpose)
-}
-
-// GetUserIdentities retrieves all OAuth identities linked to a user
-func (s *Service) GetUserIdentities(ctx context.Context, userID string) ([]UserIdentity, error) {
-	return s.identityService.GetUserIdentities(ctx, userID)
-}
-
-// LinkIdentity initiates OAuth flow to link a new provider
-func (s *Service) LinkIdentity(ctx context.Context, userID, provider string) (string, string, error) {
-	return s.identityService.LinkIdentityProvider(ctx, userID, provider)
-}
-
-// UnlinkIdentity removes an OAuth identity from a user
-func (s *Service) UnlinkIdentity(ctx context.Context, userID, identityID string) error {
-	return s.identityService.UnlinkIdentity(ctx, userID, identityID)
 }
 
 // SignInWithIDToken signs in a user with an OAuth ID token (Google, Apple, Microsoft, or custom OIDC)
@@ -389,10 +354,4 @@ func (s *Service) LinkSAMLIdentity(ctx context.Context, userID, provider, nameID
 	// Provider format: "saml:{provider_name}"
 	_, err := s.identityService.LinkIdentity(ctx, userID, "saml:"+provider, nameID, email, identityData)
 	return err
-}
-
-// GenerateTokensForSAMLUser generates tokens for a SAML-authenticated user
-// This is a wrapper around GenerateTokensForUser that takes a User object
-func (s *Service) GenerateTokensForSAMLUser(ctx context.Context, user *User) (*SignInResponse, error) {
-	return s.GenerateTokensForUser(ctx, user.ID)
 }

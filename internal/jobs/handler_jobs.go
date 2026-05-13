@@ -87,7 +87,7 @@ func (h *Handler) SubmitJob(c fiber.Ctx) error {
 			Msg("Job submitted on behalf of user")
 	} else if impersonationToken := c.Get("X-Impersonation-Token"); impersonationToken != "" && h.authService != nil {
 		// Check for impersonation token - allows admin to submit jobs as another user
-		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		impersonationClaims, err := h.authService.JWTManager().ValidateToken(impersonationToken)
 		if err != nil {
 			log.Warn().Err(err).Msg("Invalid impersonation token in job submission")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

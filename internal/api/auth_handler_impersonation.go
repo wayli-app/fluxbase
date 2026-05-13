@@ -26,7 +26,7 @@ func (h *AuthHandler) StartImpersonation(c fiber.Ctx) error {
 
 	tenantID := c.Get("X-FB-Tenant")
 
-	resp, err := h.authService.StartImpersonation(middleware.CtxWithTenant(c), adminUserID, tenantID, req)
+	resp, err := h.authService.ImpersonationService().StartImpersonation(middleware.CtxWithTenant(c), adminUserID, tenantID, req)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotAdmin) || errors.Is(err, auth.ErrNotTenantAdmin) {
 			return SendForbidden(c, "Insufficient permissions", ErrCodeAccessDenied)
@@ -48,7 +48,7 @@ func (h *AuthHandler) StopImpersonation(c fiber.Ctx) error {
 		return SendMissingAuth(c)
 	}
 
-	err := h.authService.StopImpersonation(middleware.CtxWithTenant(c), adminUserID)
+	err := h.authService.ImpersonationService().StopImpersonation(middleware.CtxWithTenant(c), adminUserID)
 	if err != nil {
 		if errors.Is(err, auth.ErrNoActiveImpersonation) {
 			return SendNotFound(c, "No active impersonation session found")
@@ -68,7 +68,7 @@ func (h *AuthHandler) GetActiveImpersonation(c fiber.Ctx) error {
 		return SendMissingAuth(c)
 	}
 
-	session, err := h.authService.GetActiveImpersonation(middleware.CtxWithTenant(c), adminUserID)
+	session, err := h.authService.ImpersonationService().GetActiveSession(middleware.CtxWithTenant(c), adminUserID)
 	if err != nil {
 		if errors.Is(err, auth.ErrNoActiveImpersonation) {
 			return SendNotFound(c, "No active impersonation session found")
@@ -89,7 +89,7 @@ func (h *AuthHandler) ListImpersonationSessions(c fiber.Ctx) error {
 	limit := fiber.Query[int](c, "limit", 50)
 	offset := fiber.Query[int](c, "offset", 0)
 
-	sessions, err := h.authService.ListImpersonationSessions(middleware.CtxWithTenant(c), adminUserID, limit, offset)
+	sessions, err := h.authService.ImpersonationService().ListSessions(middleware.CtxWithTenant(c), adminUserID, limit, offset)
 	if err != nil {
 		return SendInternalError(c, "Failed to list impersonation sessions")
 	}
@@ -119,7 +119,7 @@ func (h *AuthHandler) StartAnonImpersonation(c fiber.Ctx) error {
 	userAgent := c.Get("User-Agent")
 	tenantID := c.Get("X-FB-Tenant")
 
-	resp, err := h.authService.StartAnonImpersonation(middleware.CtxWithTenant(c), adminUserID, tenantID, req.Reason, ipAddress, userAgent)
+	resp, err := h.authService.ImpersonationService().StartAnonImpersonation(middleware.CtxWithTenant(c), adminUserID, tenantID, req.Reason, ipAddress, userAgent)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotAdmin) || errors.Is(err, auth.ErrNotTenantAdmin) {
 			return SendForbidden(c, "Insufficient permissions", ErrCodeAccessDenied)
@@ -151,7 +151,7 @@ func (h *AuthHandler) StartServiceImpersonation(c fiber.Ctx) error {
 	userAgent := c.Get("User-Agent")
 	tenantID := c.Get("X-FB-Tenant")
 
-	resp, err := h.authService.StartServiceImpersonation(middleware.CtxWithTenant(c), adminUserID, tenantID, req.Reason, ipAddress, userAgent)
+	resp, err := h.authService.ImpersonationService().StartServiceImpersonation(middleware.CtxWithTenant(c), adminUserID, tenantID, req.Reason, ipAddress, userAgent)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotAdmin) || errors.Is(err, auth.ErrNotTenantAdmin) {
 			return SendForbidden(c, "Insufficient permissions", ErrCodeAccessDenied)

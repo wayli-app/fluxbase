@@ -40,7 +40,7 @@ func (h *AuthHandler) RequestPasswordReset(c fiber.Ctx) error {
 	}
 
 	// Request password reset (this won't reveal if user exists)
-	if err := h.authService.RequestPasswordReset(middleware.CtxWithTenant(c), req.Email, req.RedirectTo); err != nil {
+	if err := h.authService.PasswordResetService().RequestPasswordReset(middleware.CtxWithTenant(c), req.Email, req.RedirectTo); err != nil {
 		// Check for SMTP not configured error - this should be returned to the user
 		if errors.Is(err, auth.ErrSMTPNotConfigured) {
 			return SendBadRequest(c, "SMTP is not configured. Please configure an email provider to enable password reset.", "SMTP_NOT_CONFIGURED")
@@ -90,7 +90,7 @@ func (h *AuthHandler) ResetPassword(c fiber.Ctx) error {
 	}
 
 	// Reset password and get user ID
-	userID, err := h.authService.ResetPassword(middleware.CtxWithTenant(c), req.Token, req.NewPassword)
+	userID, err := h.authService.PasswordResetService().ResetPassword(middleware.CtxWithTenant(c), req.Token, req.NewPassword)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to reset password")
 		return SendBadRequest(c, "Invalid or expired reset token", ErrCodeInvalidInput)
@@ -123,7 +123,7 @@ func (h *AuthHandler) VerifyPasswordResetToken(c fiber.Ctx) error {
 	}
 
 	// Verify token
-	if err := h.authService.VerifyPasswordResetToken(middleware.CtxWithTenant(c), req.Token); err != nil {
+	if err := h.authService.PasswordResetService().VerifyPasswordResetToken(middleware.CtxWithTenant(c), req.Token); err != nil {
 		log.Error().Err(err).Msg("Failed to verify password reset token")
 		return SendBadRequest(c, "Invalid or expired reset token", ErrCodeInvalidInput)
 	}

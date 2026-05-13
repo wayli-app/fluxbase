@@ -158,7 +158,7 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 			Bool("starts_with_ey", strings.HasPrefix(impersonationToken, "ey")).
 			Msg("Validating impersonation token")
 
-		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		impersonationClaims, err := h.authService.JWTManager().ValidateToken(impersonationToken)
 		if err != nil {
 			log.Warn().
 				Err(err).

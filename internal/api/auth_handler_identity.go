@@ -15,7 +15,7 @@ func (h *AuthHandler) GetUserIdentities(c fiber.Ctx) error {
 		return SendMissingAuth(c)
 	}
 
-	identities, err := h.authService.GetUserIdentities(middleware.CtxWithTenant(c), userID)
+	identities, err := h.authService.IdentityService().GetUserIdentities(middleware.CtxWithTenant(c), userID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to get user identities")
 		return SendInternalError(c, "Failed to retrieve identities")
@@ -46,7 +46,7 @@ func (h *AuthHandler) LinkIdentity(c fiber.Ctx) error {
 		return SendMissingField(c, "Provider")
 	}
 
-	authURL, state, err := h.authService.LinkIdentity(middleware.CtxWithTenant(c), userID, req.Provider)
+	authURL, state, err := h.authService.IdentityService().LinkIdentityProvider(middleware.CtxWithTenant(c), userID, req.Provider)
 	if err != nil {
 		log.Error().Err(err).Str("provider", req.Provider).Msg("Failed to initiate identity linking")
 		return SendBadRequest(c, "Failed to link identity", ErrCodeInvalidInput)
@@ -72,7 +72,7 @@ func (h *AuthHandler) UnlinkIdentity(c fiber.Ctx) error {
 		return SendMissingField(c, "Identity ID")
 	}
 
-	err := h.authService.UnlinkIdentity(middleware.CtxWithTenant(c), userID, identityID)
+	err := h.authService.IdentityService().UnlinkIdentity(middleware.CtxWithTenant(c), userID, identityID)
 	if err != nil {
 		log.Error().Err(err).Str("identity_id", identityID).Msg("Failed to unlink identity")
 		return SendBadRequest(c, "Failed to unlink identity", ErrCodeInvalidInput)
@@ -91,7 +91,7 @@ func (h *AuthHandler) Reauthenticate(c fiber.Ctx) error {
 		return SendMissingAuth(c)
 	}
 
-	nonce, err := h.authService.Reauthenticate(middleware.CtxWithTenant(c), userID)
+	nonce, err := h.authService.NonceService().Reauthenticate(middleware.CtxWithTenant(c), userID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to reauthenticate")
 		return SendInternalError(c, "Failed to generate security nonce")

@@ -85,7 +85,7 @@ func (h *AuthHandler) VerifyOTP(c fiber.Ctx) error {
 	}
 
 	if req.Email != nil {
-		otpCode, err = h.authService.VerifyOTP(middleware.CtxWithTenant(c), *req.Email, req.Token)
+		otpCode, err = h.authService.OTPService().VerifyEmailOTP(middleware.CtxWithTenant(c), *req.Email, req.Token)
 	} else if req.Phone != nil {
 		// Phone OTP not yet fully implemented
 		return SendErrorWithCode(c, 501, "Phone-based OTP authentication not yet implemented", "NOT_IMPLEMENTED")
@@ -146,7 +146,7 @@ func (h *AuthHandler) ResendOTP(c fiber.Ctx) error {
 	// Resend OTP
 	var err error
 	if req.Email != nil {
-		err = h.authService.ResendOTP(middleware.CtxWithTenant(c), *req.Email, purpose)
+		err = h.authService.OTPService().ResendEmailOTP(middleware.CtxWithTenant(c), *req.Email, purpose)
 	} else if req.Phone != nil {
 		// SMS OTP not yet fully implemented
 		err = fmt.Errorf("SMS OTP not yet implemented")

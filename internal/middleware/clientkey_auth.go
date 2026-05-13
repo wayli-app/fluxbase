@@ -81,11 +81,11 @@ func OptionalClientKeyAuth(authService *auth.Service, clientKeyService *auth.Cli
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 
 			// Validate JWT token
-			claims, err := authService.ValidateToken(token)
+			claims, err := authService.JWTManager().ValidateToken(token)
 			if err == nil {
 				// Check if token has been revoked
 				// SECURITY: Fail-closed behavior - reject if we can't verify revocation status
-				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
+				isRevoked, err := authService.TokenBlacklistService().IsTokenRevoked(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
 					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
@@ -147,11 +147,11 @@ func RequireEitherAuth(authService *auth.Service, clientKeyService *auth.ClientK
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 
 			// Validate JWT token
-			claims, err := authService.ValidateToken(token)
+			claims, err := authService.JWTManager().ValidateToken(token)
 			if err == nil {
 				// Check if token has been revoked
 				// SECURITY: Fail-closed behavior - reject if we can't verify revocation status
-				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
+				isRevoked, err := authService.TokenBlacklistService().IsTokenRevoked(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
 					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
@@ -311,7 +311,7 @@ func authOrServiceKey(
 
 		if serviceKey != "" {
 			if strings.HasPrefix(serviceKey, "eyJ") {
-				claims, err := authService.ValidateServiceRoleToken(serviceKey)
+				claims, err := authService.JWTManager().ValidateServiceRoleToken(serviceKey)
 				if err == nil {
 					c.Locals("user_role", claims.Role)
 					c.Locals("auth_type", "service_role_jwt")
@@ -347,11 +347,11 @@ func authOrServiceKey(
 
 		if token != "" {
 			// First, try to validate as auth.users token (app users)
-			claims, err := authService.ValidateToken(token)
+			claims, err := authService.JWTManager().ValidateToken(token)
 			if err != nil {
 				log.Debug().
 					Err(err).
-					Msg("authOrServiceKey: authService.ValidateToken failed")
+					Msg("authOrServiceKey: authService.JWTManager().ValidateToken failed")
 			}
 			if err == nil {
 				log.Debug().
@@ -387,7 +387,7 @@ func authOrServiceKey(
 
 				// Check if token has been revoked
 				// SECURITY: Fail-closed behavior - reject if we can't verify revocation status
-				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
+				isRevoked, err := authService.TokenBlacklistService().IsTokenRevoked(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
 					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
@@ -450,7 +450,7 @@ func authOrServiceKey(
 			// User JWT and platform JWT validation failed, try service role JWT (anon/service_role)
 			// JWTs with role claims instead of user claims
 			if strings.HasPrefix(token, "eyJ") {
-				claims, err := authService.ValidateServiceRoleToken(token)
+				claims, err := authService.JWTManager().ValidateServiceRoleToken(token)
 				if err == nil {
 					if claims.Role == "service_role" || claims.Role == "anon" {
 						// SECURITY: Check emergency revocation for service_role tokens
@@ -498,11 +498,11 @@ func authOrServiceKey(
 		fluxbaseClientKey := c.Get("clientkey")
 		if fluxbaseClientKey != "" && strings.HasPrefix(fluxbaseClientKey, "eyJ") {
 			// Looks like a JWT - first try user JWT (most common), then service role
-			claims, err := authService.ValidateToken(fluxbaseClientKey)
+			claims, err := authService.JWTManager().ValidateToken(fluxbaseClientKey)
 			if err == nil {
 				// Check if token has been revoked
 				// SECURITY: Fail-closed behavior - reject if we can't verify revocation status
-				isRevoked, err := authService.IsTokenRevokedWithClaims(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
+				isRevoked, err := authService.TokenBlacklistService().IsTokenRevoked(c.RequestCtx(), claims.ID, claims.UserID, claims.IssuedAt.Time)
 				if err != nil {
 					log.Error().Err(err).Str("jti", claims.ID).Msg("Token revocation check failed")
 					return apperrors.SendServiceUnavailable(c, "Unable to verify token status")
@@ -527,7 +527,7 @@ func authOrServiceKey(
 			}
 
 			// User JWT failed, try service role JWT
-			srClaims, err := authService.ValidateServiceRoleToken(fluxbaseClientKey)
+			srClaims, err := authService.JWTManager().ValidateServiceRoleToken(fluxbaseClientKey)
 			if err == nil {
 				// SECURITY: Check emergency revocation for service_role tokens
 				// This provides a mechanism to revoke compromised service_role tokens immediately

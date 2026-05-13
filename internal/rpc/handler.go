@@ -678,7 +678,7 @@ func (h *Handler) Invoke(c fiber.Ctx) error {
 	// Check for impersonation token - allows admin to invoke RPC as another user
 	impersonationToken := c.Get("X-Impersonation-Token")
 	if impersonationToken != "" && h.authService != nil {
-		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		impersonationClaims, err := h.authService.JWTManager().ValidateToken(impersonationToken)
 		if err != nil {
 			log.Warn().Err(err).Msg("Invalid impersonation token in RPC invocation")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

@@ -287,7 +287,7 @@ func (s *Service) SignUp(ctx context.Context, req SignUpRequest) (*SignUpRespons
 	// Check if email verification is required
 	if s.IsEmailVerificationRequired(ctx) {
 		// Send verification email (don't fail signup if email fails)
-		if err := s.SendEmailVerification(ctx, user.ID, user.Email); err != nil {
+		if err := s.emailVerificationService.SendEmailVerification(ctx, user.ID, user.Email); err != nil {
 			// Log error but don't fail the signup - user was created successfully
 			LogSecurityEvent(ctx, SecurityEvent{
 				Type:   SecurityEventLoginFailed,

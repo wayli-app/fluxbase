@@ -94,7 +94,7 @@ func (h *SQLHandler) ExecuteSQL(c fiber.Ctx) error {
 	if impersonationToken != "" {
 		impersonationToken = strings.TrimSpace(impersonationToken)
 
-		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		impersonationClaims, err := h.authService.JWTManager().ValidateToken(impersonationToken)
 		if err != nil {
 			log.Warn().
 				Err(err).

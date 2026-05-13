@@ -518,27 +518,6 @@ func (s *TestableService) CreateSAMLUser(ctx context.Context, email, name, provi
 	return nil, errors.New("not implemented")
 }
 
-// GenerateTokensForSAMLUser generates tokens for SAML user for testing
-func (s *TestableService) GenerateTokensForSAMLUser(ctx context.Context, user *User) (*SignInResponse, error) {
-	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(
-		user.ID,
-		user.Email,
-		user.Role,
-		user.UserMetadata,
-		user.AppMetadata,
-	)
-	if err != nil {
-		return nil, errors.New("failed to generate tokens: " + err.Error())
-	}
-
-	return &SignInResponse{
-		User:         user,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    int64(s.config.JWTExpiry.Seconds()),
-	}, nil
-}
-
 // =============================================================================
 // Test Cases
 // =============================================================================
@@ -2064,10 +2043,9 @@ func TestService_GenerateTokensForSAMLUser_Success(t *testing.T) {
 		Role:  "authenticated",
 	}
 
-	resp, err := service.GenerateTokensForSAMLUser(ctx, user)
+	resp, err := service.GenerateTokensForUser(ctx, user.ID)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Equal(t, user, resp.User)
 	assert.NotEmpty(t, resp.AccessToken)
 	assert.NotEmpty(t, resp.RefreshToken)
 }

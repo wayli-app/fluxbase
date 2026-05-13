@@ -18,7 +18,7 @@ func NewAuthServiceAdapter(service *auth.Service) *AuthServiceAdapter {
 
 // ValidateToken validates a JWT token and returns claims
 func (a *AuthServiceAdapter) ValidateToken(token string) (*TokenClaims, error) {
-	claims, err := a.service.ValidateToken(token)
+	claims, err := a.service.JWTManager().ValidateToken(token)
 	if err != nil {
 		return nil, err
 	}

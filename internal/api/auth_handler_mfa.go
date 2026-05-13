@@ -20,7 +20,7 @@ func (h *AuthHandler) SetupTOTP(c fiber.Ctx) error {
 	}
 	_ = c.Bind().Body(&req)
 
-	response, err := h.authService.SetupTOTP(middleware.CtxWithTenant(c), userID, req.Issuer)
+	response, err := h.authService.MFAService().SetupTOTP(middleware.CtxWithTenant(c), userID, req.Issuer)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to setup TOTP")
 		return SendInternalError(c, "Failed to setup 2FA")
@@ -48,7 +48,7 @@ func (h *AuthHandler) EnableTOTP(c fiber.Ctx) error {
 		return SendMissingField(c, "Code")
 	}
 
-	backupCodes, err := h.authService.EnableTOTP(middleware.CtxWithTenant(c), userID, req.Code)
+	backupCodes, err := h.authService.MFAService().EnableTOTP(middleware.CtxWithTenant(c), userID, req.Code)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to enable TOTP")
 		return SendBadRequest(c, "Invalid 2FA code", ErrCodeInvalidInput)
@@ -77,7 +77,7 @@ func (h *AuthHandler) VerifyTOTP(c fiber.Ctx) error {
 	}
 
 	// Verify the 2FA code
-	err := h.authService.VerifyTOTP(middleware.CtxWithTenant(c), req.UserID, req.Code)
+	err := h.authService.MFAService().VerifyTOTP(middleware.CtxWithTenant(c), req.UserID, req.Code)
 	if err != nil {
 		log.Warn().Err(err).Str("user_id", req.UserID).Msg("Failed to verify TOTP")
 		return SendBadRequest(c, "Invalid 2FA code", ErrCodeInvalidCredentials)
@@ -112,7 +112,7 @@ func (h *AuthHandler) DisableTOTP(c fiber.Ctx) error {
 		return SendMissingField(c, "Password")
 	}
 
-	err := h.authService.DisableTOTP(middleware.CtxWithTenant(c), userID, req.Password)
+	err := h.authService.MFAService().DisableTOTP(middleware.CtxWithTenant(c), userID, req.Password)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to disable TOTP")
 		return SendBadRequest(c, "Failed to disable 2FA", ErrCodeInvalidCredentials)
@@ -132,7 +132,7 @@ func (h *AuthHandler) GetTOTPStatus(c fiber.Ctx) error {
 		return SendMissingAuth(c)
 	}
 
-	enabled, err := h.authService.IsTOTPEnabled(middleware.CtxWithTenant(c), userID)
+	enabled, err := h.authService.MFAService().IsTOTPEnabled(middleware.CtxWithTenant(c), userID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to check TOTP status")
 		return SendInternalError(c, "Failed to check 2FA status")

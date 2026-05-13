@@ -24,7 +24,7 @@ func (h *AuthHandler) VerifyEmail(c fiber.Ctx) error {
 		return SendMissingField(c, "Token")
 	}
 
-	user, err := h.authService.VerifyEmailToken(middleware.CtxWithTenant(c), req.Token)
+	user, err := h.authService.EmailVerificationService().VerifyEmailToken(middleware.CtxWithTenant(c), req.Token)
 	if err != nil {
 		// Check for specific token errors
 		if errors.Is(err, auth.ErrEmailVerificationTokenNotFound) {
@@ -77,7 +77,7 @@ func (h *AuthHandler) ResendVerificationEmail(c fiber.Ctx) error {
 	}
 
 	// Send verification email
-	if err := h.authService.SendEmailVerification(middleware.CtxWithTenant(c), user.ID, user.Email); err != nil {
+	if err := h.authService.EmailVerificationService().SendEmailVerification(middleware.CtxWithTenant(c), user.ID, user.Email); err != nil {
 		log.Error().Err(err).Str("email", req.Email).Msg("Failed to resend verification email")
 		return SendInternalError(c, "Failed to send verification email. Please try again later.")
 	}

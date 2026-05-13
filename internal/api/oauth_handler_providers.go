@@ -563,7 +563,7 @@ func (h *OAuthHandler) Logout(c fiber.Ctx) error {
 	}
 
 	// Revoke local JWT tokens
-	if err := h.authSvc.RevokeAllUserTokens(ctx, userIDStr, "OAuth logout"); err != nil {
+	if err := h.authSvc.TokenBlacklistService().RevokeAllUserTokens(ctx, userIDStr, "OAuth logout"); err != nil {
 		log.Error().Err(err).Str("user_id", userIDStr).Msg("Failed to revoke local tokens")
 	} else {
 		result.LocalLogoutComplete = true

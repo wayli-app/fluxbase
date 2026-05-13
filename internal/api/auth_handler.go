@@ -365,7 +365,7 @@ func (h *AuthHandler) SignIn(c fiber.Ctx) error {
 	}
 
 	// Check if user has 2FA enabled
-	twoFAEnabled, err := h.authService.IsTOTPEnabled(middleware.CtxWithTenant(c), resp.User.ID)
+	twoFAEnabled, err := h.authService.MFAService().IsTOTPEnabled(middleware.CtxWithTenant(c), resp.User.ID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", resp.User.ID).Msg("Failed to check 2FA status")
 		// Continue with login - don't block if 2FA check fails
@@ -426,7 +426,7 @@ func (h *AuthHandler) SignOut(c fiber.Ctx) error {
 
 	// Get user ID from token before signing out
 	var userID string
-	if claims, err := h.authService.ValidateToken(token); err == nil {
+	if claims, err := h.authService.JWTManager().ValidateToken(token); err == nil {
 		userID = claims.UserID
 	}
 
