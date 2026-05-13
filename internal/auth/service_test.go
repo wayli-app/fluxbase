@@ -2036,7 +2036,6 @@ func TestService_CreateSAMLUser_InvalidEmail(t *testing.T) {
 func TestService_GenerateTokensForSAMLUser_Success(t *testing.T) {
 	service := NewTestableService()
 
-	ctx := context.Background()
 	user := &User{
 		ID:    "saml-user-id",
 		Email: "saml@example.com",
