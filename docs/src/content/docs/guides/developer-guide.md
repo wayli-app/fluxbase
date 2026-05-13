@@ -29,22 +29,30 @@ graph TD
 
 ### ① Entry Point — How the server starts
 
-Before any request arrives, the server boots up and wires everything together. Read these files to understand what happens at startup:
+Before any request arrives, the server boots up and wires everything together using a module-based dependency injection system:
 
-Open [`cmd/fluxbase/main.go`](https://github.com/nimbleflux/fluxbase/blob/main/cmd/fluxbase/main.go) and follow the `main()` function. You'll see config loading, database pool creation, service initialization, and the API server start — this is where every subsystem is wired together. Next, open [`internal/config/config.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/config/config.go) and scan the `Config` struct. The field names map directly to YAML keys and `FLUXBASE_*` env vars, so this file is a complete map of everything that's configurable. For the defaults, flip through [`internal/config/config_defaults.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/config/config_defaults.go).
+1. Open [`cmd/fluxbase/main.go`](https://github.com/nimbleflux/fluxbase/blob/main/cmd/fluxbase/main.go) and follow the `main()` function. You'll see config loading, database pool creation, and the call to `NewServer()` which triggers the full module initialization pipeline.
+2. [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server.go) — `NewServer()` creates a `ServiceRegistry`, instantiates 20 modules in dependency order, calls `InitModules()`, and then wires each module's handler group to the `Server` struct (~20 lines of assignment).
+3. [`internal/api/module.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/module.go) — The `Module` interface (`Name()` + `Init(ctx, *ServiceRegistry) error`), the optional `Shutdowner` interface for clean teardown, and the `ServiceRegistry` which stores config, DB, pub/sub, rate limiter, metrics, and registered services. Modules read dependencies via `GetService[T]()` and register outputs via `registry.Register()`.
+4. [`internal/api/module_*.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/) — 20 module files, one per domain. Each module's `Init()` creates its services and writes directly to its handler group struct (`m.Handlers`). Modules run in order: Email → Secrets → Storage → Logging → Auth → Webhook → Extensions → Tenancy → Settings → Schema → Functions → Jobs → RPC → AI → Realtime → Branching → GraphQL → MCP → Metrics → BackgroundServices.
+5. [`internal/api/handler_groups.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/handler_groups.go) — 22 handler group structs (e.g., `AuthHandlers`, `StorageHandlers`, `AIHandlers`). Each module populates its own group during `Init()`.
+
+For configuration, open [`internal/config/config.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/config/config.go) for the root `Config` struct. Domain-specific config types (Auth, Database, Storage, etc.) are split into [`config_auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/config/config_auth.go), [`config_database.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/config/config_database.go), and a dozen more files in the same package. Field names map directly to YAML keys and `FLUXBASE_*` env vars. For defaults, see [`internal/config/config_defaults.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/config/config_defaults.go).
 
 ### ② Routing — Where requests land
 
-Open [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server.go) for the server setup. The actual route registration happens in two stages:
+Open [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server.go) for the server struct (8 methods: lifecycle, health, and a few cross-group accessors). The actual route registration happens in [`internal/api/server_routes.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server_routes.go):
 
-1. [`internal/api/server_init.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server_init.go) — `setupRoutes()` calls `registerRoutesViaRegistry()` which delegates to `routes.RegisterAllRoutes()`
+1. `setupRoutes()` calls `registerRoutesViaRegistry()` which delegates to `routes.RegisterAllRoutes()`
 2. [`internal/api/routes/registry.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/registry.go) — The centralized route registry. Every route is registered with explicit auth requirements (`AuthRequirement`), and middleware is auto-injected based on those declarations. The registry also validates consistency (e.g., no route with `Auth: AuthNone` and `Public: false`)
+
+Route dependencies (handler references, middleware) are organized in per-domain files: [`routes_auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/routes_auth.go), [`routes_ai.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/routes_ai.go), etc.
 
 ### ③ Middleware — CORS and rate limiting
 
 The global middleware chain runs before any route-specific middleware:
 
-1. [`internal/api/server_init.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server_init.go) — CORS header handling (configured inline in server setup)
+1. [`internal/api/server_middlewares.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server_middlewares.go) — Structured logger, CORS, recover, and other global middleware setup
 2. [`internal/middleware/rate_limiter.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/rate_limiter.go) — Rate limiting per route
 
 ### ④ Tenant & Branch Context — Which database to talk to
@@ -67,9 +75,9 @@ With tenant context established, authentication validates the user:
 This is the three-layer architecture every feature follows. Trace it with the REST CRUD (the most-used feature):
 
 1. [`internal/api/rest_crud.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/rest_crud.go) — The CRUD handler. See how `SELECT`, `INSERT`, `UPDATE`, `DELETE` are built from URL path and query params. Handles all `/api/v1/tables/{table}` requests
-2. [`internal/api/query_parser.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_parser.go) — URL query parsing: `?select=`, `?order=`, `?col.eq=` become structured filter conditions
+2. [`internal/api/query_parser.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_parser.go) + [`query_parser_select.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_parser_select.go) + [`query_parser_filter.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_parser_filter.go) + [`query_parser_order.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_parser_order.go) + [`query_parser_sql.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_parser_sql.go) — URL query parsing split by concern: `?select=` → select fields, `?order=` → ordering, `?col.eq=` → filters, all composed into SQL
 3. [`internal/api/query_builder.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_builder.go) — Filters → SQL `WHERE`, `ORDER BY`, `LIMIT`
-4. [`internal/database/connection.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/connection.go) — The connection pool, transaction helpers, and the `sync.RWMutex` safety pattern
+4. [`internal/database/connection.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/connection.go) — The connection pool, transaction helpers, and the `sync.RWMutex` safety pattern. Migration-related methods are in [`connection_migrations.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/connection_migrations.go)
 5. [`internal/database/schema_inspector.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema_inspector.go) — Schema introspection: how Fluxbase discovers tables, columns, types, and relationships to power the auto-generated API
 
 ### Digging deeper — Multi-tenancy internals
@@ -99,10 +107,9 @@ To see how a full feature fits together end-to-end, trace the edge functions sys
 
 1. [`internal/api/routes/functions.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/functions.go) — Route definitions and middleware
 2. [`internal/functions/handler.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/handler.go) — HTTP handlers for CRUD and invocation
-3. [`internal/functions/handler.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/handler.go) — Proxying to the Deno runtime
-4. [`internal/functions/loader.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/loader.go) — Loading functions from disk at startup
-5. [`internal/functions/storage.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/storage.go) — Database storage for function metadata
-6. [`internal/runtime/runtime.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/runtime/runtime.go) — The Deno runtime wrapper
+3. [`internal/functions/loader.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/loader.go) — Loading functions from disk at startup
+4. [`internal/functions/storage.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/storage.go) + [`storage_sync.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/storage_sync.go) + [`storage_executions.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/storage_executions.go) + [`storage_files.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/storage_files.go) — Database storage for function metadata, sync, executions, and files
+5. [`internal/runtime/runtime.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/runtime/runtime.go) — The Deno runtime wrapper
 
 ### Tests — How to test
 
@@ -111,6 +118,33 @@ To see how a full feature fits together end-to-end, trace the edge functions sys
 - [`internal/testutil/`](https://github.com/nimbleflux/fluxbase/blob/main/internal/testutil/) — Shared helpers, mocks, and assertions
 
 ## How to Add a New Feature
+
+### Add a Module
+
+Fluxbase uses a module-based dependency injection system. To add a new feature:
+
+1. Create a handler group struct in [`internal/api/handler_groups.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/handler_groups.go)
+2. Create a module file `internal/api/module_myfeature.go` implementing the `Module` interface:
+   ```go
+   type MyFeatureModule struct{ Handlers *MyFeatureHandlers }
+
+   func (m *MyFeatureModule) Name() string { return "myfeature" }
+   func (m *MyFeatureModule) Init(ctx context.Context, registry *api.ServiceRegistry) error {
+       // Read dependencies: db := registry.DB; config := registry.Config
+       // Create services, handlers, and populate m.Handlers
+       // Register outputs: registry.Register(myService)
+       return nil
+   }
+   ```
+3. If the module has resources to clean up (goroutines, connections), implement `Shutdowner`:
+   ```go
+   func (m *MyFeatureModule) Shutdown(ctx context.Context) error {
+       // Stop goroutines, close connections
+       return nil
+   }
+   ```
+4. Wire the module in `NewServer()` in [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server.go): add it to the `mods` slice in the correct dependency order, then assign `m.Handlers` to the server after `InitModules()` returns
+5. Add routes in [`internal/api/routes/`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/)
 
 ### Tenant Scoping
 
