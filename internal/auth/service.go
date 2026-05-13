@@ -648,3 +648,25 @@ func (s *Service) GetSettingsCache() *SettingsCache {
 func (s *Service) GetAccessTokenExpirySeconds() int64 {
 	return int64(s.config.JWTExpiry.Seconds())
 }
+
+func (s *Service) JWTManager() *JWTManager                       { return s.jwtManager }
+func (s *Service) TokenBlacklistService() *TokenBlacklistService { return s.tokenBlacklistService }
+func (s *Service) ImpersonationService() *ImpersonationService   { return s.impersonationService }
+func (s *Service) MFAService() *MFAService                       { return s.mfaService }
+func (s *Service) OTPService() *OTPService                       { return s.otpService }
+func (s *Service) IdentityService() *IdentityService             { return s.identityService }
+func (s *Service) EmailVerificationService() *EmailVerificationService {
+	return s.emailVerificationService
+}
+func (s *Service) NonceService() *NonceService                 { return s.nonceService }
+func (s *Service) PasswordResetService() *PasswordResetService { return s.passwordResetService }
+func (s *Service) MagicLinkService() *MagicLinkService         { return s.magicLinkService }
+func (s *Service) OAuthManager() *OAuthManager                 { return s.oauthManager }
+func (s *Service) UserRepository() *UserRepository             { return s.userRepo }
+func (s *Service) SessionRepository() *SessionRepository       { return s.sessionRepo }
+func (s *Service) PasswordHasher() *PasswordHasher             { return s.passwordHasher }
+func (s *Service) OIDCVerifier() *OIDCVerifier                 { return s.oidcVerifier }
+func (s *Service) Config() *config.AuthConfig                  { return s.config }
+func (s *Service) EmailService() EmailService                  { return s.emailService }
+func (s *Service) BaseURL() string                             { return s.baseURL }
+func (s *Service) Metrics() *observability.Metrics             { return s.metrics }

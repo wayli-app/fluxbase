@@ -136,6 +136,13 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	registry.Register(m.SystemSettingsService)
 	registry.Register(m.UserMgmtService)
 	registry.Register(m.InvitationService)
+	registry.Register(authService.JWTManager())
+	registry.Register(authService.TokenBlacklistService())
+	registry.Register(authService.MFAService())
+	registry.Register(authService.IdentityService())
+	registry.Register(authService.NonceService())
+	registry.Register(authService.PasswordResetService())
+	registry.Register(authService.MagicLinkService())
 
 	return nil
 }
