@@ -9,17 +9,16 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
-// AppSettingsHandler handles application settings operations
 type AppSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
-	settingsCache   *auth.SettingsCache
+	settingsCache   *settings.SettingsCache
 	config          *config.Config
 }
 
-// NewAppSettingsHandler creates a new app settings handler
-func NewAppSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *auth.SettingsCache, cfg *config.Config) *AppSettingsHandler {
+func NewAppSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *settings.SettingsCache, cfg *config.Config) *AppSettingsHandler {
 	return &AppSettingsHandler{
 		settingsService: settingsService,
 		settingsCache:   settingsCache,

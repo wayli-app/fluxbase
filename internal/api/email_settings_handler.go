@@ -15,20 +15,18 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
-// EmailSettingsHandler handles email configuration management
 type EmailSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
-	settingsCache   *auth.SettingsCache
+	settingsCache   *settings.SettingsCache
 	emailManager    *email.Manager
 	secretsService  *settings.SecretsService
-	config          *config.Config // Full config for tenant resolution
+	config          *config.Config
 	unifiedService  *settings.UnifiedService
 }
 
-// NewEmailSettingsHandler creates a new email settings handler
 func NewEmailSettingsHandler(
 	settingsService *auth.SystemSettingsService,
-	settingsCache *auth.SettingsCache,
+	settingsCache *settings.SettingsCache,
 	emailManager *email.Manager,
 	secretsService *settings.SecretsService,
 	cfg *config.Config,

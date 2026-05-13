@@ -169,7 +169,7 @@ func migrationsValidateAuthAndScope(c fiber.Ctx, db *pgxpool.Pool, authService *
 	}
 
 	if jwtToken != "" {
-		claims, err := authService.ValidateToken(jwtToken)
+		claims, err := authService.JWTManager().ValidateToken(jwtToken)
 		if err == nil {
 			c.Locals("auth_type", "jwt")
 			c.Locals("user_role", claims.Role)

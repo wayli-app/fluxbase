@@ -6,23 +6,20 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
-// Manager manages the email service with support for dynamic configuration refresh
 type Manager struct {
 	mu             sync.RWMutex
 	service        Service
-	settingsCache  *auth.SettingsCache
+	settingsCache  *settings.SettingsCache
 	secretsService *settings.SecretsService
-	envConfig      *config.EmailConfig // Fallback to env config
-	baseConfig     *config.Config      // Full base config for tenant resolution
+	envConfig      *config.EmailConfig
+	baseConfig     *config.Config
 }
 
-// NewManager creates a new email service manager
-func NewManager(envConfig *config.EmailConfig, settingsCache *auth.SettingsCache, secretsService *settings.SecretsService, baseConfig *config.Config) *Manager {
+func NewManager(envConfig *config.EmailConfig, settingsCache *settings.SettingsCache, secretsService *settings.SecretsService, baseConfig *config.Config) *Manager {
 	m := &Manager{
 		settingsCache:  settingsCache,
 		secretsService: secretsService,

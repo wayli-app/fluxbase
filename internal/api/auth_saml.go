@@ -384,7 +384,7 @@ func (h *SAMLHandler) handleIdPInitiatedLogout(c fiber.Ctx, samlRequest, relaySt
 		// Still send success response - IdP expects confirmation even if we don't have the session
 	} else {
 		// Invalidate the user's JWT sessions
-		if err := h.authService.RevokeAllUserTokens(ctx, samlSession.UserID, "SAML IdP-initiated logout"); err != nil {
+		if err := h.authService.TokenBlacklistService().RevokeAllUserTokens(ctx, samlSession.UserID, "SAML IdP-initiated logout"); err != nil {
 			log.Warn().Err(err).Str("user_id", samlSession.UserID).Msg("Failed to revoke user tokens during SAML logout")
 		}
 
@@ -507,7 +507,7 @@ func (h *SAMLHandler) InitiateSAMLLogout(c fiber.Ctx) error {
 		if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
 			log.Warn().Err(err).Msg("Failed to delete SAML session")
 		}
-		if err := h.authService.RevokeAllUserTokens(ctx, userID, "SAML logout (no SLO support)"); err != nil {
+		if err := h.authService.TokenBlacklistService().RevokeAllUserTokens(ctx, userID, "SAML logout (no SLO support)"); err != nil {
 			log.Warn().Err(err).Msg("Failed to revoke user tokens")
 		}
 		return c.JSON(fiber.Map{
@@ -522,7 +522,7 @@ func (h *SAMLHandler) InitiateSAMLLogout(c fiber.Ctx) error {
 		if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
 			log.Warn().Err(err).Msg("Failed to delete SAML session")
 		}
-		if err := h.authService.RevokeAllUserTokens(ctx, userID, "SAML logout (no signing key)"); err != nil {
+		if err := h.authService.TokenBlacklistService().RevokeAllUserTokens(ctx, userID, "SAML logout (no signing key)"); err != nil {
 			log.Warn().Err(err).Msg("Failed to revoke user tokens")
 		}
 		return c.JSON(fiber.Map{
@@ -562,7 +562,7 @@ func (h *SAMLHandler) InitiateSAMLLogout(c fiber.Ctx) error {
 	}
 
 	// Revoke JWT tokens
-	if err := h.authService.RevokeAllUserTokens(ctx, userID, "SAML SP-initiated logout"); err != nil {
+	if err := h.authService.TokenBlacklistService().RevokeAllUserTokens(ctx, userID, "SAML SP-initiated logout"); err != nil {
 		log.Warn().Err(err).Msg("Failed to revoke user tokens")
 	}
 

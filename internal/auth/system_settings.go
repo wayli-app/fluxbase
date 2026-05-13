@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 // ErrSettingNotFound is returned when a system setting is not found
@@ -38,7 +39,7 @@ type SetupCompleteValue struct {
 // SystemSettingsService handles system-wide settings
 type SystemSettingsService struct {
 	db    *database.Connection
-	cache *SettingsCache
+	cache *settings.SettingsCache
 }
 
 // NewSystemSettingsService creates a new system settings service
@@ -47,8 +48,36 @@ func NewSystemSettingsService(db *database.Connection) *SystemSettingsService {
 }
 
 // SetCache sets the settings cache for invalidation on updates
-func (s *SystemSettingsService) SetCache(cache *SettingsCache) {
+func (s *SystemSettingsService) SetCache(cache *settings.SettingsCache) {
 	s.cache = cache
+}
+
+type systemSettingsProvider struct {
+	svc *SystemSettingsService
+}
+
+func (p *systemSettingsProvider) GetSetting(ctx context.Context, key string) (*settings.SettingEntry, error) {
+	s, err := p.svc.GetSetting(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return &settings.SettingEntry{Value: s.Value}, nil
+}
+
+func (p *systemSettingsProvider) GetSettings(ctx context.Context, keys []string) (map[string]*settings.SettingEntry, error) {
+	m, err := p.svc.GetSettings(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]*settings.SettingEntry, len(m))
+	for k, v := range m {
+		result[k] = &settings.SettingEntry{Value: v.Value}
+	}
+	return result, nil
+}
+
+func (s *SystemSettingsService) AsProvider() settings.SettingProvider {
+	return &systemSettingsProvider{svc: s}
 }
 
 // IsSetupComplete checks if the initial setup has been completed

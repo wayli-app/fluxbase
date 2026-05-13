@@ -617,9 +617,9 @@ func (h *MCPOAuthHandler) extractUserFromRequest(c fiber.Ctx) *string {
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 
 		if !strings.HasPrefix(token, "mcp_at_") && h.authService != nil {
-			claims, err := h.authService.ValidateToken(token)
+			claims, err := h.authService.JWTManager().ValidateToken(token)
 			if err == nil {
-				isRevoked, err := h.authService.IsTokenRevoked(c.RequestCtx(), claims.ID)
+				isRevoked, err := h.authService.TokenBlacklistService().IsTokenRevoked(c.RequestCtx(), claims.ID, "", time.Time{})
 				if err == nil && !isRevoked {
 					return &claims.UserID
 				}
@@ -629,9 +629,9 @@ func (h *MCPOAuthHandler) extractUserFromRequest(c fiber.Ctx) *string {
 
 	accessToken := c.Cookies(AccessTokenCookieName)
 	if accessToken != "" && h.authService != nil {
-		claims, err := h.authService.ValidateToken(accessToken)
+		claims, err := h.authService.JWTManager().ValidateToken(accessToken)
 		if err == nil {
-			isRevoked, err := h.authService.IsTokenRevoked(c.RequestCtx(), claims.ID)
+			isRevoked, err := h.authService.TokenBlacklistService().IsTokenRevoked(c.RequestCtx(), claims.ID, "", time.Time{})
 			if err == nil && !isRevoked {
 				return &claims.UserID
 			}
@@ -644,9 +644,9 @@ func (h *MCPOAuthHandler) extractUserFromRequest(c fiber.Ctx) *string {
 		if len(token) >= 2 && token[0] == '"' && token[len(token)-1] == '"' {
 			token = token[1 : len(token)-1]
 		}
-		claims, err := h.authService.ValidateToken(token)
+		claims, err := h.authService.JWTManager().ValidateToken(token)
 		if err == nil {
-			isRevoked, err := h.authService.IsTokenRevoked(c.RequestCtx(), claims.ID)
+			isRevoked, err := h.authService.TokenBlacklistService().IsTokenRevoked(c.RequestCtx(), claims.ID, "", time.Time{})
 			if err == nil && !isRevoked {
 				return &claims.UserID
 			}

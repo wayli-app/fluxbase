@@ -119,7 +119,7 @@ func (s *Server) setupMiddlewares() {
 		log.Debug().Msg("Global IP allowlist disabled (no ranges configured)")
 	}
 
-	s.app.Use(middleware.DynamicGlobalAPILimiter(s.Auth.Handler.authService.GetSettingsCache(), s.sharedMiddlewareStorage))
+	s.app.Use(middleware.DynamicGlobalAPILimiter(s.Auth.SettingsCache, s.sharedMiddlewareStorage))
 
 	if s.config.Server.BodyLimits.Enabled {
 		bodyLimitConfig := middleware.BodyLimitsFromConfig(

@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 var (
@@ -53,11 +54,10 @@ type ClientKeyWithPlaintext struct {
 // ClientKeyService handles client key operations
 type ClientKeyService struct {
 	db            *database.Connection
-	settingsCache *SettingsCache
+	settingsCache *settings.SettingsCache
 }
 
-// NewClientKeyService creates a new client key service
-func NewClientKeyService(db *database.Connection, settingsCache *SettingsCache) *ClientKeyService {
+func NewClientKeyService(db *database.Connection, settingsCache *settings.SettingsCache) *ClientKeyService {
 	return &ClientKeyService{
 		db:            db,
 		settingsCache: settingsCache,

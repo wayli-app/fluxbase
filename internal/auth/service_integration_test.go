@@ -311,7 +311,7 @@ func TestAuthService_RequestPasswordReset_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Request password reset
-	err = service.RequestPasswordReset(ctx, email, "http://localhost:3000/reset-password")
+	err = service.PasswordResetService().RequestPasswordReset(ctx, email, "http://localhost:3000/reset-password")
 	require.NoError(t, err)
 
 	// Wait for email and verify it was sent
@@ -349,7 +349,7 @@ func TestAuthService_ResetPassword_ValidToken_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Request password reset
-	err = service.RequestPasswordReset(ctx, email, "http://localhost:3000/reset-password")
+	err = service.PasswordResetService().RequestPasswordReset(ctx, email, "http://localhost:3000/reset-password")
 	require.NoError(t, err)
 
 	// Wait for password reset email and extract token
@@ -364,7 +364,7 @@ func TestAuthService_ResetPassword_ValidToken_Integration(t *testing.T) {
 
 	// Reset password
 	newPassword := "NewPassword456!"
-	userID, err := service.ResetPassword(ctx, token, newPassword)
+	userID, err := service.PasswordResetService().ResetPassword(ctx, token, newPassword)
 	require.NoError(t, err)
 	assert.Equal(t, signupResp.User.ID, userID)
 
@@ -413,7 +413,7 @@ func TestAuthService_ResetPassword_ExpiredToken_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Request password reset
-	err = service.RequestPasswordReset(ctx, email, "http://localhost:3000/reset-password")
+	err = service.PasswordResetService().RequestPasswordReset(ctx, email, "http://localhost:3000/reset-password")
 	require.NoError(t, err)
 
 	// Get the reset token from email
@@ -429,7 +429,7 @@ func TestAuthService_ResetPassword_ExpiredToken_Integration(t *testing.T) {
 	tc.ExecuteSQL(`UPDATE auth.password_reset_tokens SET expires_at = NOW() - INTERVAL '1 hour' WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`, email)
 
 	// Try to reset password with expired token
-	_, err = service.ResetPassword(ctx, token, "NewPassword456!")
+	_, err = service.PasswordResetService().ResetPassword(ctx, token, "NewPassword456!")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "expired")
 }
@@ -444,7 +444,7 @@ func TestAuthService_ResetPassword_InvalidToken_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	// Try to reset password with invalid token
-	_, err := service.ResetPassword(ctx, "invalid-token", "NewPassword456!")
+	_, err := service.PasswordResetService().ResetPassword(ctx, "invalid-token", "NewPassword456!")
 	assert.Error(t, err)
 }
 
@@ -578,7 +578,7 @@ func TestAuthService_SetupTOTP_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup TOTP
-	totpResp, err := service.SetupTOTP(ctx, signupResp.User.ID, "Fluxbase")
+	totpResp, err := service.MFAService().SetupTOTP(ctx, signupResp.User.ID, "Fluxbase")
 	require.NoError(t, err)
 	assert.NotEmpty(t, totpResp.TOTP.Secret, "TOTP secret should be generated")
 	assert.NotEmpty(t, totpResp.TOTP.QRCode, "QR code should be generated")
@@ -603,7 +603,7 @@ func TestAuthService_EnableTOTP_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup TOTP
-	_, err = service.SetupTOTP(ctx, signupResp.User.ID, "Fluxbase")
+	_, err = service.MFAService().SetupTOTP(ctx, signupResp.User.ID, "Fluxbase")
 	require.NoError(t, err)
 
 	// Generate a valid TOTP code for the current time
@@ -611,7 +611,7 @@ func TestAuthService_EnableTOTP_Integration(t *testing.T) {
 	// For now, we'll just verify the flow works with any code
 
 	// Enable TOTP with a code (this will likely fail with invalid code, but tests the flow)
-	_, err = service.EnableTOTP(ctx, signupResp.User.ID, "123456")
+	_, err = service.MFAService().EnableTOTP(ctx, signupResp.User.ID, "123456")
 	// We expect this to fail with invalid code, but it tests the database interaction
 	_ = err
 }
@@ -634,7 +634,7 @@ func TestAuthService_IsTOTPEnabled_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initially TOTP should not be enabled
-	enabled, err := service.IsTOTPEnabled(ctx, signupResp.User.ID)
+	enabled, err := service.MFAService().IsTOTPEnabled(ctx, signupResp.User.ID)
 	require.NoError(t, err)
 	assert.False(t, enabled, "TOTP should not be enabled initially")
 }
@@ -657,11 +657,11 @@ func TestAuthService_DisableTOTP_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to disable TOTP (should work even if not enabled)
-	err = service.DisableTOTP(ctx, signupResp.User.ID, password)
+	err = service.MFAService().DisableTOTP(ctx, signupResp.User.ID, password)
 	require.NoError(t, err)
 
 	// Verify TOTP is disabled
-	enabled, err := service.IsTOTPEnabled(ctx, signupResp.User.ID)
+	enabled, err := service.MFAService().IsTOTPEnabled(ctx, signupResp.User.ID)
 	require.NoError(t, err)
 	assert.False(t, enabled)
 }
@@ -688,7 +688,7 @@ func TestAuthService_ValidateToken_Valid_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate token
-	claims, err := service.ValidateToken(signupResp.AccessToken)
+	claims, err := service.JWTManager().ValidateToken(signupResp.AccessToken)
 	require.NoError(t, err)
 	assert.Equal(t, signupResp.User.ID, claims.UserID)
 	assert.Equal(t, email, claims.Email)
@@ -703,7 +703,7 @@ func TestAuthService_ValidateToken_Invalid_Integration(t *testing.T) {
 	service := createAuthService(t, tc)
 
 	// Validate invalid token
-	_, err := service.ValidateToken("invalid-token")
+	_, err := service.JWTManager().ValidateToken("invalid-token")
 	assert.Error(t, err)
 }
 
@@ -730,7 +730,7 @@ func TestAuthService_ValidateToken_Revoked_Integration(t *testing.T) {
 
 	// Try to validate revoked token
 	// Note: ValidateToken may succeed for revoked tokens depending on implementation
-	claims, err := service.ValidateToken(signupResp.AccessToken)
+	claims, err := service.JWTManager().ValidateToken(signupResp.AccessToken)
 	_ = claims
 	_ = err
 	// The behavior is implementation-defined - some systems cache token validity
