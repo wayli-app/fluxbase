@@ -4,7 +4,7 @@ test.describe("Auth flow pages", () => {
   test("forgot password page renders", async ({ page }) => {
     await page.goto("forgot-password", { waitUntil: "networkidle" });
     await expect(page.locator("form")).toBeVisible();
-    await expect(page.getByText(/forgot.*password|reset.*password/i)).toBeVisible();
+    await expect(page.getByText(/forgot.*password|reset.*password/i).first()).toBeVisible();
   });
 
   test("reset password page renders without token", async ({ page }) => {
@@ -20,11 +20,11 @@ test.describe("Auth flow pages", () => {
   });
 
   const errorPages = [
-    { path: "errors/401", status: 401, label: "Unauthorized" },
-    { path: "errors/403", status: 403, label: "Forbidden" },
-    { path: "errors/404", status: 404, label: "Not Found" },
-    { path: "errors/500", status: 500, label: "Internal Server Error" },
-    { path: "errors/503", status: 503, label: "Service Unavailable" },
+    { path: "401", status: 401, label: "Unauthorized" },
+    { path: "403", status: 403, label: "Forbidden" },
+    { path: "404", status: 404, label: "Not Found" },
+    { path: "500", status: 500, label: "Internal Server Error" },
+    { path: "503", status: 503, label: "Service Unavailable" },
   ];
 
   for (const { path, status, label } of errorPages) {

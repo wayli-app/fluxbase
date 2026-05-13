@@ -6,10 +6,10 @@ test.describe("Knowledge Base detail pages", () => {
     adminPage,
     adminToken,
   }) => {
-    const kb = await rawCreateKnowledgeBase(adminToken, {
-      name: "E2E KB Detail Test",
-      description: "Test KB for page smoke",
-    });
+    const kb = await rawCreateKnowledgeBase(
+      { name: "E2E KB Detail Test", description: "Test KB for page smoke" },
+      adminToken,
+    );
     const kbId = (kb.body as Record<string, unknown>).id as string;
 
     const subPages = [

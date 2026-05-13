@@ -47,19 +47,24 @@ test.describe("SQL Editor page", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
-  test("can run a simple query", async ({ adminPage }) => {
+  test("can interact with SQL Editor page", async ({ adminPage }) => {
     await adminPage.goto("sql-editor", { waitUntil: "networkidle" });
 
     const editor = adminPage.locator("textarea, [contenteditable='true'], .cm-content, .monaco-editor textarea").first();
     if (await editor.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await editor.click();
       await adminPage.keyboard.type("SELECT 1");
-    }
 
-    const runButton = adminPage.getByRole("button", { name: /run|execute/i });
-    if (await runButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await runButton.click();
-      await adminPage.waitForTimeout(2_000);
+      const runButton = adminPage.getByRole("button", { name: /run|execute/i });
+      if (await runButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        const [response] = await Promise.all([
+          adminPage.waitForResponse((r) => r.url().includes("/rpc") || r.url().includes("/sql"), { timeout: 10_000 }).catch(() => null),
+          runButton.click(),
+        ]);
+        if (response) {
+          expect(response.status()).toBeLessThan(500);
+        }
+      }
     }
   });
 });

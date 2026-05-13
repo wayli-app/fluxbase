@@ -133,11 +133,12 @@ test.describe("Page smoke tests (tenant admin)", () => {
       tenantAdminPage,
     }) => {
       await tenantAdminPage.goto(path);
+      await tenantAdminPage.waitForLoadState("networkidle");
       const url = tenantAdminPage.url();
       expect(
         url,
         `${name}: tenant admin should be redirected away`,
-      ).not.toContain(path);
+      ).not.toMatch(new RegExp(path.replace("/", "\\/") + "(\\/|$|\\?)"));
     });
   }
 });
