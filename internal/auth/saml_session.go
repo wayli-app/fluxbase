@@ -2,11 +2,26 @@ package auth
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
 )
+
+// SAMLSession represents an active SAML authentication session
+type SAMLSession struct {
+	ID           string                 `json:"id"`
+	UserID       string                 `json:"user_id"`
+	ProviderID   string                 `json:"provider_id,omitempty"`
+	ProviderName string                 `json:"provider_name"`
+	NameID       string                 `json:"name_id"`
+	NameIDFormat string                 `json:"name_id_format,omitempty"`
+	SessionIndex string                 `json:"session_index,omitempty"`
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`
+	ExpiresAt    *time.Time             `json:"expires_at,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+}
 
 type SAMLSessionStore struct {
 	db *database.Connection
@@ -148,4 +163,65 @@ func (ss *SAMLSessionStore) CleanupExpiredAssertions(ctx context.Context) error 
 		_, err := tx.Exec(ctx, `DELETE FROM auth.saml_assertion_ids WHERE expires_at < NOW()`)
 		return err
 	})
+}
+
+// CheckAssertionReplay checks if an assertion ID has been used before (replay attack prevention)
+func (s *SAMLService) CheckAssertionReplay(ctx context.Context, assertionID string, expiresAt time.Time) (bool, error) {
+	// Try to insert the assertion ID
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO auth.saml_assertion_ids (assertion_id, expires_at)
+			VALUES ($1, $2)
+			ON CONFLICT (assertion_id) DO NOTHING
+		`, assertionID, expiresAt)
+		return err
+	})
+	if err != nil {
+		return false, err
+	}
+
+	// Check if it was inserted (new) or already existed (replay)
+	var exists bool
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM auth.saml_assertion_ids
+				WHERE assertion_id = $1 AND created_at < NOW() - INTERVAL '1 second'
+			)
+		`, assertionID).Scan(&exists)
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil // true = replay, false = new
+}
+
+// CreateSAMLSession creates a new SAML session for tracking
+func (s *SAMLService) CreateSAMLSession(ctx context.Context, session *SAMLSession) error {
+	return s.sessionStore.CreateSAMLSession(ctx, session)
+}
+
+func (s *SAMLService) DeleteSAMLSession(ctx context.Context, sessionID string) error {
+	return s.sessionStore.DeleteSAMLSession(ctx, sessionID)
+}
+
+func (s *SAMLService) GetSAMLSessionByUserID(ctx context.Context, userID string) (*SAMLSession, error) {
+	return s.sessionStore.GetSAMLSessionByUserID(ctx, userID)
+}
+
+func (s *SAMLService) GetSAMLSessionByNameID(ctx context.Context, providerName, nameID string) (*SAMLSession, error) {
+	return s.sessionStore.GetSAMLSessionByNameID(ctx, providerName, nameID)
+}
+
+func (s *SAMLService) GetSAMLSessionBySessionIndex(ctx context.Context, providerName, sessionIndex string) (*SAMLSession, error) {
+	return s.sessionStore.GetSAMLSessionBySessionIndex(ctx, providerName, sessionIndex)
+}
+
+func (s *SAMLService) DeleteSAMLSessionsByUserID(ctx context.Context, userID string) error {
+	return s.sessionStore.DeleteSAMLSessionsByUserID(ctx, userID)
+}
+
+func (s *SAMLService) DeleteSAMLSessionByNameID(ctx context.Context, providerName, nameID string) error {
+	return s.sessionStore.DeleteSAMLSessionByNameID(ctx, providerName, nameID)
 }
