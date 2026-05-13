@@ -10,7 +10,7 @@ func (s *Server) buildRPCRouteDeps() *routes.RPCDeps {
 		return nil
 	}
 	return &routes.RPCDeps{
-		RequireRPCEnabled: middleware.RequireRPCEnabled(s.Auth.Handler.authService.GetSettingsCache()),
+		RequireRPCEnabled: middleware.RequireRPCEnabled(s.Auth.SettingsCache),
 		OptionalAuth:      s.optionalAuth,
 		RequireScope:      middleware.RequireScope,
 		ListProcedures:    s.RPC.Handler.ListPublicProcedures,

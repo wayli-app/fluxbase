@@ -7,7 +7,7 @@ import (
 
 func (s *Server) buildRealtimeRouteDeps() *routes.RealtimeDeps {
 	return &routes.RealtimeDeps{
-		RequireRealtimeEnabled: middleware.RequireRealtimeEnabled(s.Auth.Handler.authService.GetSettingsCache()),
+		RequireRealtimeEnabled: middleware.RequireRealtimeEnabled(s.Auth.SettingsCache),
 		OptionalAuth:           s.optionalAuth,
 		RequireAuth:            s.requireAuth,
 		RequireScope:           middleware.RequireScope,

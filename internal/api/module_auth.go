@@ -126,6 +126,7 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 		AdminSession:     adminSessionHandler,
 		UserManagement:   userMgmtHandler,
 		Invitation:       invitationHandler,
+		SettingsCache:    authService.GetSettingsCache(),
 	}
 
 	m.RequireAuth = middleware.RequireAuthOrServiceKey(authService, clientKeyService, db.Pool(), &cfg.Security, dashboardJWTManager)

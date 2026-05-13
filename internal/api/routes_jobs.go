@@ -10,7 +10,7 @@ func (s *Server) buildJobsRouteDeps() *routes.JobsDeps {
 		return nil
 	}
 	return &routes.JobsDeps{
-		RequireJobsEnabled: middleware.RequireJobsEnabled(s.Auth.Handler.authService.GetSettingsCache()),
+		RequireJobsEnabled: middleware.RequireJobsEnabled(s.Auth.SettingsCache),
 		RequireAuth:        s.requireAuth,
 		SubmitJob:          s.Jobs.Handler.SubmitJob,
 		GetJob:             s.Jobs.Handler.GetJob,

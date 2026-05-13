@@ -10,7 +10,7 @@ func (s *Server) buildFunctionsRouteDeps() *routes.FunctionsDeps {
 		return nil
 	}
 	return &routes.FunctionsDeps{
-		RequireFunctionsEnabled: middleware.RequireFunctionsEnabled(s.Auth.Handler.authService.GetSettingsCache()),
+		RequireFunctionsEnabled: middleware.RequireFunctionsEnabled(s.Auth.SettingsCache),
 		RequireAuth:             s.requireAuth,
 		OptionalAuth:            s.optionalAuth,
 		RequireScope:            middleware.RequireScope,

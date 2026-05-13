@@ -13,7 +13,7 @@ func (s *Server) buildAIRouteDeps() *routes.AIDeps {
 		return nil
 	}
 	return &routes.AIDeps{
-		RequireAIEnabled:       middleware.RequireAIEnabled(s.Auth.Handler.authService.GetSettingsCache()),
+		RequireAIEnabled:       middleware.RequireAIEnabled(s.Auth.SettingsCache),
 		OptionalAuth:           s.optionalAuth,
 		RequireAuth:            s.requireAuth,
 		TenantMiddleware:       s.Middleware.Tenant,
@@ -47,7 +47,7 @@ func knowledgeBaseDisabledHandler(c fiber.Ctx) error {
 
 func (s *Server) buildKnowledgeBaseRouteDeps() *routes.KnowledgeBaseDeps {
 	deps := &routes.KnowledgeBaseDeps{
-		RequireAIEnabled: middleware.RequireAIEnabled(s.Auth.Handler.authService.GetSettingsCache()),
+		RequireAIEnabled: middleware.RequireAIEnabled(s.Auth.SettingsCache),
 		RequireAuth:      s.requireAuth,
 		TenantMiddleware: s.Middleware.Tenant,
 	}

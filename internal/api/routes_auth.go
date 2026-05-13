@@ -93,7 +93,7 @@ func (s *Server) buildAuthRouteDeps() *routes.AuthDeps {
 func (s *Server) buildClientKeysRouteDeps() *routes.ClientKeysDeps {
 	return &routes.ClientKeysDeps{
 		RequireAuth:                      s.requireAuth,
-		RequireAdminIfClientKeysDisabled: middleware.RequireAdminIfClientKeysDisabled(s.Auth.Handler.authService.GetSettingsCache()),
+		RequireAdminIfClientKeysDisabled: middleware.RequireAdminIfClientKeysDisabled(s.Auth.SettingsCache),
 		RequireScope:                     middleware.RequireScope,
 		TenantMiddleware:                 s.Middleware.Tenant,
 		ListClientKeys:                   s.Auth.ClientKeyHandler.ListClientKeys,

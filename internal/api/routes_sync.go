@@ -23,13 +23,13 @@ func (s *Server) buildSyncRouteDeps() *routes.SyncDeps {
 	}
 
 	if s.AI.Handler != nil {
-		deps.RequireAIEnabled = middleware.RequireAIEnabled(s.Auth.Handler.authService.GetSettingsCache())
+		deps.RequireAIEnabled = middleware.RequireAIEnabled(s.Auth.SettingsCache)
 		deps.RequireAISyncIPAllowlist = middleware.RequireSyncIPAllowlist(s.config.AI.SyncAllowedIPRanges, "ai", &s.config.Server)
 		deps.SyncChatbots = s.AI.Handler.SyncChatbots
 	}
 
 	if s.RPC.Handler != nil {
-		deps.RequireRPCEnabled = middleware.RequireRPCEnabled(s.Auth.Handler.authService.GetSettingsCache())
+		deps.RequireRPCEnabled = middleware.RequireRPCEnabled(s.Auth.SettingsCache)
 		deps.RequireRPCSyncIPAllowlist = middleware.RequireSyncIPAllowlist(s.config.RPC.SyncAllowedIPRanges, "rpc", &s.config.Server)
 		deps.SyncProcedures = s.RPC.Handler.SyncProcedures
 	}

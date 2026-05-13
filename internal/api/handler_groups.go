@@ -42,6 +42,7 @@ type AuthHandlers struct {
 	AdminSession     *AdminSessionHandler
 	UserManagement   *UserManagementHandler
 	Invitation       *InvitationHandler
+	SettingsCache    *auth.SettingsCache
 }
 
 // StorageHandlers groups storage-related handlers.
