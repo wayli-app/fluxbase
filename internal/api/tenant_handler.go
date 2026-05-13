@@ -47,13 +47,6 @@ type TenantResponse struct {
 	DeletedAt  *time.Time             `json:"deleted_at,omitempty"`
 }
 
-type TenantAdminAssignment struct {
-	ID         string    `json:"id"`
-	TenantID   string    `json:"tenant_id"`
-	UserID     string    `json:"user_id"`
-	AssignedAt time.Time `json:"assigned_at"`
-}
-
 type CreateTenantRequest struct {
 	// Basic info
 	Slug     string                 `json:"slug"`
@@ -89,8 +82,16 @@ type UpdateTenantRequest struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
-type AssignAdminRequest struct {
-	UserID string `json:"user_id"`
+// CreateServiceKeyInternalRequest represents an internal request to create a service key
+type CreateServiceKeyInternalRequest struct {
+	Name              string
+	Description       string
+	KeyType           string
+	TenantID          *uuid.UUID
+	Scopes            []string
+	AllowedNamespaces []string
+	RateLimitPerMin   *int
+	CreatedBy         *uuid.UUID
 }
 
 func NewTenantHandler(db *database.Connection, manager *tenantdb.Manager, storage *tenantdb.Repository, invitationService *auth.InvitationService, emailService email.Service, cfg *config.Config) *TenantHandler {
@@ -426,139 +427,29 @@ func (h *TenantHandler) MigrateTenant(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "migrated"})
 }
 
-func (h *TenantHandler) ListAdmins(c fiber.Ctx) error {
-	ctx := c.Context()
+// RepairTenant re-runs schema application and FDW setup for an existing tenant.
+func (h *TenantHandler) RepairTenant(c fiber.Ctx) error {
 	tenantID := c.Params("id")
-	userID := middleware.GetUserID(c)
-	isInstanceAdmin, _ := c.Locals("is_instance_admin").(bool)
-
-	if !isInstanceAdmin {
-		hasAccess, err := h.Storage.IsUserAssignedToTenant(ctx, userID, tenantID)
-		if err != nil || !hasAccess {
-			return SendForbidden(c, "Access denied to this tenant", ErrCodeAccessDenied)
-		}
+	if tenantID == "" {
+		return SendBadRequest(c, "Tenant ID is required", ErrCodeMissingField)
 	}
 
-	rows, err := h.DB.Pool().Query(ctx, `
-		SELECT ta.id, ta.tenant_id, ta.user_id, ta.assigned_at,
-		       du.email, du.role as dashboard_role
-		FROM platform.tenant_admin_assignments ta
-		INNER JOIN platform.users du ON du.id = ta.user_id
-		WHERE ta.tenant_id = $1::uuid
-		ORDER BY ta.assigned_at ASC
-	`, tenantID)
+	t, err := h.Storage.GetTenant(c.Context(), tenantID)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to list admins")
-		return SendInternalError(c, "Failed to list admins")
-	}
-	defer rows.Close()
-
-	type AdminWithUser struct {
-		TenantAdminAssignment
-		Email         string `json:"email"`
-		DashboardRole string `json:"dashboard_role"`
+		return SendNotFound(c, "Tenant not found")
 	}
 
-	var admins []AdminWithUser
-	for rows.Next() {
-		var m AdminWithUser
-		err := rows.Scan(
-			&m.ID, &m.TenantID, &m.UserID, &m.AssignedAt,
-			&m.Email, &m.DashboardRole,
-		)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to scan admin")
-			continue
-		}
-		admins = append(admins, m)
+	if t.UsesMainDatabase() {
+		return SendBadRequest(c, "Cannot repair default tenant (uses main database)", ErrCodeInvalidInput)
 	}
 
-	if admins == nil {
-		admins = []AdminWithUser{}
+	if err := h.Manager.RepairTenant(c.Context(), t); err != nil {
+		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to repair tenant")
+		return SendInternalError(c, "Failed to repair tenant")
 	}
 
-	return c.JSON(admins)
-}
-
-func (h *TenantHandler) AssignAdmin(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-
-	var req AssignAdminRequest
-	if err := ParseBody(c, &req); err != nil {
-		return err
-	}
-
-	var userExists bool
-	err := h.DB.Pool().QueryRow(
-		ctx,
-		`SELECT EXISTS(SELECT 1 FROM platform.users WHERE id = $1::uuid AND deleted_at IS NULL)`,
-		req.UserID,
-	).Scan(&userExists)
-	if err != nil || !userExists {
-		return SendBadRequest(c, "User not found", ErrCodeNotFound)
-	}
-
-	var assignment TenantAdminAssignment
-	err = h.DB.Pool().QueryRow(ctx, `
-		INSERT INTO platform.tenant_admin_assignments (tenant_id, user_id)
-		VALUES ($1::uuid, $2::uuid)
-		ON CONFLICT (tenant_id, user_id) DO NOTHING
-		RETURNING id, tenant_id, user_id, assigned_at
-	`, tenantID, req.UserID).Scan(
-		&assignment.ID, &assignment.TenantID, &assignment.UserID, &assignment.AssignedAt,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			err := h.DB.Pool().QueryRow(ctx, `
-				SELECT id, tenant_id, user_id, assigned_at
-				FROM platform.tenant_admin_assignments
-				WHERE tenant_id = $1::uuid AND user_id = $2::uuid
-			`, tenantID, req.UserID).Scan(
-				&assignment.ID, &assignment.TenantID, &assignment.UserID, &assignment.AssignedAt,
-			)
-			if err != nil {
-				log.Error().Err(err).Msg("Failed to get existing assignment")
-				return SendInternalError(c, "Failed to assign admin")
-			}
-		} else {
-			log.Error().Err(err).Msg("Failed to assign admin")
-			return SendInternalError(c, "Failed to assign admin")
-		}
-	}
-
-	log.Info().
-		Str("tenant_id", tenantID).
-		Str("user_id", req.UserID).
-		Msg("Admin assigned to tenant")
-
-	return c.Status(fiber.StatusCreated).JSON(assignment)
-}
-
-func (h *TenantHandler) RemoveAdmin(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-	userID := c.Params("user_id")
-
-	result, err := h.DB.Pool().Exec(ctx, `
-		DELETE FROM platform.tenant_admin_assignments
-		WHERE tenant_id = $1::uuid AND user_id = $2::uuid
-	`, tenantID, userID)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to remove admin")
-		return SendInternalError(c, "Failed to remove admin")
-	}
-
-	if result.RowsAffected() == 0 {
-		return SendNotFound(c, "Admin assignment not found")
-	}
-
-	log.Info().
-		Str("tenant_id", tenantID).
-		Str("user_id", userID).
-		Msg("Admin removed from tenant")
-
-	return c.SendStatus(fiber.StatusNoContent)
+	log.Info().Str("tenant_id", tenantID).Msg("Tenant repaired successfully")
+	return apperrors.SendSuccess(c, "Tenant repaired successfully")
 }
 
 // generateDefaultKeys creates anon and service keys for a new tenant
@@ -595,18 +486,6 @@ func (h *TenantHandler) generateDefaultKeys(ctx context.Context, tenantID string
 	}
 
 	return &anon, &service, nil
-}
-
-// CreateServiceKeyInternalRequest represents an internal request to create a service key
-type CreateServiceKeyInternalRequest struct {
-	Name              string
-	Description       string
-	KeyType           string
-	TenantID          *uuid.UUID
-	Scopes            []string
-	AllowedNamespaces []string
-	RateLimitPerMin   *int
-	CreatedBy         *uuid.UUID
 }
 
 // createServiceKey creates a service key programmatically (internal use)
@@ -766,303 +645,4 @@ func isValidSlug(s string) bool {
 		}
 	}
 	return true
-}
-
-// GetTenantSchemaStatus returns the status of a tenant's declarative schema
-func (h *TenantHandler) GetTenantSchemaStatus(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-
-	// Check if tenant exists
-	t, err := h.Storage.GetTenant(ctx, tenantID)
-	if err != nil {
-		if errors.Is(err, tenantdb.ErrTenantNotFound) {
-			return SendNotFound(c, "Tenant not found")
-		}
-		log.Error().Err(err).Msg("Failed to get tenant")
-		return SendInternalError(c, "Failed to get tenant")
-	}
-
-	// Check if declarative service is configured
-	declarativeSvc := h.Manager.GetDeclarativeService()
-	if declarativeSvc == nil {
-		return c.JSON(fiber.Map{
-			"enabled":             false,
-			"message":             "Tenant declarative schemas are not enabled",
-			"has_schema_file":     false,
-			"has_pending_changes": false,
-		})
-	}
-
-	// Get schema status
-	status, err := h.Manager.GetTenantSchemaStatus(ctx, tenantID)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to get tenant schema status")
-		return SendInternalError(c, "Failed to get tenant schema status")
-	}
-
-	return c.JSON(fiber.Map{
-		"enabled":                  true,
-		"tenant_id":                tenantID,
-		"tenant_slug":              t.Slug,
-		"schema_file":              status.SchemaFile,
-		"has_schema_file":          status.SchemaFingerprint != "",
-		"schema_fingerprint":       status.SchemaFingerprint,
-		"last_applied_fingerprint": status.LastAppliedFingerprint,
-		"last_applied_at":          status.LastAppliedAt,
-		"has_pending_changes":      status.HasPendingChanges,
-		"uses_main_database":       t.UsesMainDatabase(),
-	})
-}
-
-// ApplyTenantSchema applies the declarative schema for a tenant
-func (h *TenantHandler) ApplyTenantSchema(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-
-	// Check if tenant exists
-	t, err := h.Storage.GetTenant(ctx, tenantID)
-	if err != nil {
-		if errors.Is(err, tenantdb.ErrTenantNotFound) {
-			return SendNotFound(c, "Tenant not found")
-		}
-		log.Error().Err(err).Msg("Failed to get tenant")
-		return SendInternalError(c, "Failed to get tenant")
-	}
-
-	// Check if tenant uses main database
-	if t.UsesMainDatabase() {
-		return SendBadRequest(c, "Cannot apply declarative schema to tenant using main database", ErrCodeInvalidInput)
-	}
-
-	// Check if declarative service is configured
-	declarativeSvc := h.Manager.GetDeclarativeService()
-	if declarativeSvc == nil {
-		return SendBadRequest(c, "Tenant declarative schemas are not enabled", ErrCodeFeatureDisabled)
-	}
-
-	// Apply the schema
-	if err := h.Manager.ApplyTenantDeclarativeSchema(ctx, tenantID); err != nil {
-		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to apply tenant schema")
-		return SendInternalError(c, "Failed to apply schema")
-	}
-
-	log.Info().Str("tenant_id", tenantID).Str("tenant_slug", t.Slug).Msg("Tenant schema applied")
-
-	return c.JSON(fiber.Map{
-		"status":      "applied",
-		"tenant_id":   tenantID,
-		"tenant_slug": t.Slug,
-	})
-}
-
-// UploadTenantSchemaRequest represents the request body for uploading a tenant schema
-type UploadTenantSchemaRequest struct {
-	Schema string `json:"schema"`
-}
-
-// GetStoredSchema retrieves the stored schema content for a tenant
-func (h *TenantHandler) GetStoredSchema(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-
-	// Check if tenant exists
-	t, err := h.Storage.GetTenant(ctx, tenantID)
-	if err != nil {
-		if errors.Is(err, tenantdb.ErrTenantNotFound) {
-			return SendNotFound(c, "Tenant not found")
-		}
-		log.Error().Err(err).Msg("Failed to get tenant")
-		return SendInternalError(c, "Failed to get tenant")
-	}
-
-	// Check if declarative service is configured
-	declarativeSvc := h.Manager.GetDeclarativeService()
-	if declarativeSvc == nil {
-		return SendBadRequest(c, "Tenant declarative schemas are not enabled", ErrCodeFeatureDisabled)
-	}
-
-	// Get stored schema content
-	content, fingerprint, updatedAt, err := declarativeSvc.GetStoredSchemaContent(ctx, t.Slug)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to get stored schema")
-		return SendInternalError(c, "Failed to get stored schema")
-	}
-
-	if content == "" {
-		return c.JSON(fiber.Map{
-			"has_schema":  false,
-			"tenant_id":   tenantID,
-			"tenant_slug": t.Slug,
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"has_schema":  true,
-		"tenant_id":   tenantID,
-		"tenant_slug": t.Slug,
-		"schema":      content,
-		"fingerprint": fingerprint,
-		"updated_at":  updatedAt,
-	})
-}
-
-// UploadTenantSchema uploads and stores schema content for a tenant
-func (h *TenantHandler) UploadTenantSchema(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-
-	// Check if tenant exists
-	t, err := h.Storage.GetTenant(ctx, tenantID)
-	if err != nil {
-		if errors.Is(err, tenantdb.ErrTenantNotFound) {
-			return SendNotFound(c, "Tenant not found")
-		}
-		log.Error().Err(err).Msg("Failed to get tenant")
-		return SendInternalError(c, "Failed to get tenant")
-	}
-
-	// Check if declarative service is configured
-	declarativeSvc := h.Manager.GetDeclarativeService()
-	if declarativeSvc == nil {
-		return SendBadRequest(c, "Tenant declarative schemas are not enabled", ErrCodeFeatureDisabled)
-	}
-
-	// Parse request body
-	var req UploadTenantSchemaRequest
-	if err := ParseBody(c, &req); err != nil {
-		return err
-	}
-
-	if req.Schema == "" {
-		return SendBadRequest(c, "Schema content cannot be empty", ErrCodeInvalidInput)
-	}
-
-	// Store the schema content
-	if err := declarativeSvc.StoreSchemaContent(ctx, t.Slug, req.Schema); err != nil {
-		log.Error().Err(err).Msg("Failed to store schema")
-		return SendInternalError(c, "Failed to store schema")
-	}
-
-	// Calculate fingerprint for response
-	_, fingerprint, _, _ := declarativeSvc.GetStoredSchemaContent(ctx, t.Slug)
-
-	log.Info().Str("tenant_id", tenantID).Str("tenant_slug", t.Slug).Msg("Tenant schema uploaded")
-
-	return c.JSON(fiber.Map{
-		"status":      "uploaded",
-		"tenant_id":   tenantID,
-		"tenant_slug": t.Slug,
-		"fingerprint": fingerprint,
-	})
-}
-
-// ApplyUploadedTenantSchema applies the previously uploaded schema for a tenant
-func (h *TenantHandler) ApplyUploadedTenantSchema(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-
-	// Check if tenant exists
-	t, err := h.Storage.GetTenant(ctx, tenantID)
-	if err != nil {
-		if errors.Is(err, tenantdb.ErrTenantNotFound) {
-			return SendNotFound(c, "Tenant not found")
-		}
-		log.Error().Err(err).Msg("Failed to get tenant")
-		return SendInternalError(c, "Failed to get tenant")
-	}
-
-	// Check if tenant uses main database
-	if t.UsesMainDatabase() {
-		return SendBadRequest(c, "Cannot apply declarative schema to tenant using main database", ErrCodeInvalidInput)
-	}
-
-	// Check if declarative service is configured
-	declarativeSvc := h.Manager.GetDeclarativeService()
-	if declarativeSvc == nil {
-		return SendBadRequest(c, "Tenant declarative schemas are not enabled", ErrCodeFeatureDisabled)
-	}
-
-	// Get stored schema content
-	content, fingerprint, _, err := declarativeSvc.GetStoredSchemaContent(ctx, t.Slug)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to get stored schema")
-		return SendInternalError(c, "Failed to get stored schema")
-	}
-
-	if content == "" {
-		return SendNotFound(c, "No stored schema found for this tenant. Upload a schema first.")
-	}
-
-	// Apply the schema from stored content
-	if err := declarativeSvc.ApplyTenantSchemaFromContent(ctx, t, content); err != nil {
-		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to apply tenant schema")
-		return SendInternalError(c, "Failed to apply schema")
-	}
-
-	log.Info().Str("tenant_id", tenantID).Str("tenant_slug", t.Slug).Msg("Tenant stored schema applied")
-
-	return c.JSON(fiber.Map{
-		"status":      "applied",
-		"tenant_id":   tenantID,
-		"tenant_slug": t.Slug,
-		"fingerprint": fingerprint,
-	})
-}
-
-// DeleteStoredSchema deletes the stored schema content for a tenant
-func (h *TenantHandler) DeleteStoredSchema(c fiber.Ctx) error {
-	ctx := c.Context()
-	tenantID := c.Params("id")
-
-	// Check if tenant exists
-	t, err := h.Storage.GetTenant(ctx, tenantID)
-	if err != nil {
-		if errors.Is(err, tenantdb.ErrTenantNotFound) {
-			return SendNotFound(c, "Tenant not found")
-		}
-		log.Error().Err(err).Msg("Failed to get tenant")
-		return SendInternalError(c, "Failed to get tenant")
-	}
-
-	// Check if declarative service is configured
-	declarativeSvc := h.Manager.GetDeclarativeService()
-	if declarativeSvc == nil {
-		return SendBadRequest(c, "Tenant declarative schemas are not enabled", ErrCodeFeatureDisabled)
-	}
-
-	// Delete the stored schema
-	if err := declarativeSvc.DeleteStoredSchema(ctx, t.Slug); err != nil {
-		log.Error().Err(err).Msg("Failed to delete stored schema")
-		return SendInternalError(c, "Failed to delete stored schema")
-	}
-
-	log.Info().Str("tenant_id", tenantID).Str("tenant_slug", t.Slug).Msg("Tenant stored schema deleted")
-
-	return c.SendStatus(fiber.StatusNoContent)
-}
-
-// RepairTenant re-runs schema application and FDW setup for an existing tenant.
-func (h *TenantHandler) RepairTenant(c fiber.Ctx) error {
-	tenantID := c.Params("id")
-	if tenantID == "" {
-		return SendBadRequest(c, "Tenant ID is required", ErrCodeMissingField)
-	}
-
-	t, err := h.Storage.GetTenant(c.Context(), tenantID)
-	if err != nil {
-		return SendNotFound(c, "Tenant not found")
-	}
-
-	if t.UsesMainDatabase() {
-		return SendBadRequest(c, "Cannot repair default tenant (uses main database)", ErrCodeInvalidInput)
-	}
-
-	if err := h.Manager.RepairTenant(c.Context(), t); err != nil {
-		log.Error().Err(err).Str("tenant_id", tenantID).Msg("Failed to repair tenant")
-		return SendInternalError(c, "Failed to repair tenant")
-	}
-
-	log.Info().Str("tenant_id", tenantID).Msg("Tenant repaired successfully")
-	return apperrors.SendSuccess(c, "Tenant repaired successfully")
 }
