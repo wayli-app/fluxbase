@@ -99,7 +99,7 @@ const slowQueryTruncationLimit = 500
 
 // SetMetrics sets the metrics instance for recording database metrics
 func (c *Connection) SetMetrics(m *observability.Metrics) {
-	c.metrics = m
+	c.metrics.Store(m)
 }
 
 func (c *Connection) logSlowQuery(ctx context.Context, sql string, duration time.Duration, opType string) {

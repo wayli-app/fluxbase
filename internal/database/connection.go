@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -48,7 +49,7 @@ type Connection struct {
 	poolMu             sync.RWMutex
 	config             *config.DatabaseConfig
 	inspector          *SchemaInspector
-	metrics            *observability.Metrics
+	metrics            atomic.Pointer[observability.Metrics]
 	slowQueryTracker   *slowQueryTracker
 	slowQueryThreshold time.Duration
 }
@@ -363,10 +364,10 @@ func (c *Connection) Query(ctx context.Context, sql string, args ...interface{})
 	duration := time.Since(start)
 
 	// Record metrics
-	if c.metrics != nil {
+	if m := c.metrics.Load(); m != nil {
 		operation := ExtractOperation(sql)
 		table := ExtractTableName(sql)
-		c.metrics.RecordDBQuery(operation, table, duration, err)
+		m.RecordDBQuery(operation, table, duration, err)
 	}
 
 	// Log slow queries
@@ -387,10 +388,10 @@ func (c *Connection) QueryRow(ctx context.Context, sql string, args ...interface
 	duration := time.Since(start)
 
 	// Record metrics
-	if c.metrics != nil {
+	if m := c.metrics.Load(); m != nil {
 		operation := ExtractOperation(sql)
 		table := ExtractTableName(sql)
-		c.metrics.RecordDBQuery(operation, table, duration, nil)
+		m.RecordDBQuery(operation, table, duration, nil)
 	}
 
 	// Log slow queries
@@ -412,10 +413,10 @@ func (c *Connection) Exec(ctx context.Context, sql string, args ...interface{}) 
 	duration := time.Since(start)
 
 	// Record metrics
-	if c.metrics != nil {
+	if m := c.metrics.Load(); m != nil {
 		operation := ExtractOperation(sql)
 		table := ExtractTableName(sql)
-		c.metrics.RecordDBQuery(operation, table, duration, err)
+		m.RecordDBQuery(operation, table, duration, err)
 	}
 
 	// Log slow queries
