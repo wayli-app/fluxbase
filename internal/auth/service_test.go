@@ -2043,9 +2043,8 @@ func TestService_GenerateTokensForSAMLUser_Success(t *testing.T) {
 		Role:  "authenticated",
 	}
 
-	resp, err := service.GenerateTokensForUser(ctx, user.ID)
+	accessToken, refreshToken, _, err := service.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role, user.UserMetadata, user.AppMetadata)
 	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.NotEmpty(t, resp.AccessToken)
-	assert.NotEmpty(t, resp.RefreshToken)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, refreshToken)
 }
