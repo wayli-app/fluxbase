@@ -10,14 +10,15 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 type SystemSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
-	settingsCache   *auth.SettingsCache
+	settingsCache   *settings.SettingsCache
 }
 
-func NewSystemSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *auth.SettingsCache) *SystemSettingsHandler {
+func NewSystemSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *settings.SettingsCache) *SystemSettingsHandler {
 	return &SystemSettingsHandler{
 		settingsService: settingsService,
 		settingsCache:   settingsCache,

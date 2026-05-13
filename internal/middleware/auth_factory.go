@@ -7,6 +7,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 // AuthMiddlewareFactory creates auth middlewares with consistent configuration.
@@ -24,7 +25,7 @@ type AuthMiddlewareFactory struct {
 	db               *database.Connection
 	pool             *pgxpool.Pool
 	jwtManager       *auth.JWTManager
-	settingsCache    *auth.SettingsCache
+	settingsCache    *settings.SettingsCache
 	serverConfig     *config.ServerConfig
 	securityCfg      *config.SecurityConfig
 }
@@ -64,7 +65,7 @@ func WithSecurityConfig(cfg *config.SecurityConfig) AuthMiddlewareFactoryOption 
 func NewAuthMiddlewareFactory(
 	authService *auth.Service,
 	clientKeyService *auth.ClientKeyService,
-	settingsCache *auth.SettingsCache,
+	settingsCache *settings.SettingsCache,
 	jwtManager *auth.JWTManager,
 	opts ...AuthMiddlewareFactoryOption,
 ) *AuthMiddlewareFactory {

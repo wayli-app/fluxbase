@@ -15,25 +15,23 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 
-	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/crypto"
 	"github.com/nimbleflux/fluxbase/internal/database"
 	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
-// OAuthProviderHandler handles OAuth provider configuration management
 type OAuthProviderHandler struct {
 	db              *database.Connection
-	settingsCache   *auth.SettingsCache
+	settingsCache   *settings.SettingsCache
 	encryptionKey   []byte
 	configProviders []config.OAuthProviderConfig
 	baseURL         string
 }
 
-// NewOAuthProviderHandler creates a new OAuth provider handler
-func NewOAuthProviderHandler(db *database.Connection, settingsCache *auth.SettingsCache, encryptionKey []byte, baseURL string, configProviders []config.OAuthProviderConfig) *OAuthProviderHandler {
+func NewOAuthProviderHandler(db *database.Connection, settingsCache *settings.SettingsCache, encryptionKey []byte, baseURL string, configProviders []config.OAuthProviderConfig) *OAuthProviderHandler {
 	return &OAuthProviderHandler{
 		db:              db,
 		settingsCache:   settingsCache,

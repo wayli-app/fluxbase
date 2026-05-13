@@ -12,6 +12,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
 	"github.com/nimbleflux/fluxbase/internal/observability"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 // Service provides a high-level authentication API
@@ -30,7 +31,7 @@ type Service struct {
 	otpService               *OTPService
 	identityService          *IdentityService
 	systemSettings           *SystemSettingsService
-	settingsCache            *SettingsCache
+	settingsCache            *settings.SettingsCache
 	nonceRepo                *NonceRepository
 	oidcVerifier             *OIDCVerifier
 	config                   *config.AuthConfig
@@ -640,7 +641,7 @@ func (s *Service) IsSignupEnabled() bool {
 }
 
 // GetSettingsCache returns the settings cache
-func (s *Service) GetSettingsCache() *SettingsCache {
+func (s *Service) GetSettingsCache() *settings.SettingsCache {
 	return s.settingsCache
 }
 

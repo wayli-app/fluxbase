@@ -17,6 +17,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/config"
 	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/keys"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 // ClientKeyAuth creates middleware that authenticates requests using client keys
@@ -927,7 +928,7 @@ func RequireAdmin() fiber.Handler {
 // when the 'app.auth.allow_user_client_keys' setting is disabled.
 // If the setting is enabled (default), allows regular users through.
 // If the setting is disabled, requires admin access (service_role or instance_admin).
-func RequireAdminIfClientKeysDisabled(settingsCache *auth.SettingsCache) fiber.Handler {
+func RequireAdminIfClientKeysDisabled(settingsCache *settings.SettingsCache) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// Check if user client keys are allowed
 		allowUserKeys := settingsCache.GetBool(c.RequestCtx(), "app.auth.allow_user_client_keys", true)

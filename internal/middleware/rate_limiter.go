@@ -12,9 +12,9 @@ import (
 	"github.com/gofiber/storage/memory/v2"
 	"github.com/rs/zerolog/log"
 
-	"github.com/nimbleflux/fluxbase/internal/auth"
 	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/observability"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 var rateLimiterMetrics *observability.Metrics
@@ -299,7 +299,7 @@ func GlobalAPILimiter(storage ...fiber.Storage) fiber.Handler {
 // without server restart
 // Admin users (admin, instance_admin) are exempt from rate limiting
 // service_role users can be rate-limited if service_role_rate_limit > 0
-func DynamicGlobalAPILimiter(settingsCache *auth.SettingsCache, storage ...fiber.Storage) fiber.Handler {
+func DynamicGlobalAPILimiter(settingsCache *settings.SettingsCache, storage ...fiber.Storage) fiber.Handler {
 	// Create the actual rate limiter once with optional shared storage
 	rateLimiter := GlobalAPILimiter(storage...)
 

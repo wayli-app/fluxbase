@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nimbleflux/fluxbase/internal/config"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 // Common CAPTCHA errors
@@ -209,7 +210,7 @@ func (s *CaptchaService) GetConfig() CaptchaConfigResponse {
 
 // ReloadFromSettings reloads the captcha configuration from database settings
 // Priority order: Config/Env → Database
-func (s *CaptchaService) ReloadFromSettings(ctx context.Context, settingsCache *SettingsCache, envConfig *config.SecurityConfig) error {
+func (s *CaptchaService) ReloadFromSettings(ctx context.Context, settingsCache *settings.SettingsCache, envConfig *config.SecurityConfig) error {
 	// Create a new config to load settings into
 	newConfig := &config.CaptchaConfig{}
 

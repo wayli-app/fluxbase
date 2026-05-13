@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/nimbleflux/fluxbase/internal/config"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 // =============================================================================
@@ -107,20 +108,10 @@ func NewTestAuthServiceWithSettings(signupEnabled, passwordLoginEnabled bool) *S
 	}
 
 	// Create a settings cache that returns our configured values
-	cache := &SettingsCache{
-		cache: make(map[string]cacheEntry),
-		ttl:   time.Hour,
-	}
+	cache := settings.NewSettingsCache(nil, time.Hour)
 
-	// Pre-populate the cache with our test values
-	cache.cache["app.auth.signup_enabled"] = cacheEntry{
-		value:      signupEnabled,
-		expiration: time.Now().Add(time.Hour),
-	}
-	cache.cache["app.auth.disable_app_password_login"] = cacheEntry{
-		value:      !passwordLoginEnabled,
-		expiration: time.Now().Add(time.Hour),
-	}
+	cache.SetCachedValue("app.auth.signup_enabled", signupEnabled)
+	cache.SetCachedValue("app.auth.disable_app_password_login", !passwordLoginEnabled)
 
 	// Create a password hasher with minimal requirements for testing
 	passwordHasher := NewPasswordHasherWithConfig(PasswordHasherConfig{

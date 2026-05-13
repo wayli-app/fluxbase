@@ -288,7 +288,7 @@ func (m *MockPubSub) GetPublishedMessages() []PublishedMessage {
 	return append([]PublishedMessage{}, m.published...)
 }
 
-// MockSettingsCache provides a mock for auth.SettingsCache
+// MockSettingsCache provides a mock for settings.SettingsCache
 type MockSettingsCache struct {
 	mu       sync.RWMutex
 	boolVals map[string]bool

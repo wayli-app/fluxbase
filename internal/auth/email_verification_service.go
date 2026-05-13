@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 type EmailVerificationService struct {
 	repo                    *EmailVerificationRepository
 	userRepo                *UserRepository
-	settingsCache           *SettingsCache
+	settingsCache           *settings.SettingsCache
 	emailService            EmailService
 	baseURL                 string
 	emailVerificationExpiry time.Duration
@@ -18,7 +20,7 @@ type EmailVerificationService struct {
 func NewEmailVerificationService(
 	repo *EmailVerificationRepository,
 	userRepo *UserRepository,
-	settingsCache *SettingsCache,
+	settingsCache *settings.SettingsCache,
 	emailService EmailService,
 	baseURL string,
 	emailVerificationExpiry time.Duration,

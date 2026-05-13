@@ -14,7 +14,7 @@ import (
 
 type CaptchaSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
-	settingsCache   *auth.SettingsCache
+	settingsCache   *settings.SettingsCache
 	secretsService  *settings.SecretsService
 	envConfig       *config.SecurityConfig
 	captchaService  *auth.CaptchaService
@@ -22,7 +22,7 @@ type CaptchaSettingsHandler struct {
 
 func NewCaptchaSettingsHandler(
 	settingsService *auth.SystemSettingsService,
-	settingsCache *auth.SettingsCache,
+	settingsCache *settings.SettingsCache,
 	secretsService *settings.SecretsService,
 	envConfig *config.SecurityConfig,
 	captchaService *auth.CaptchaService,

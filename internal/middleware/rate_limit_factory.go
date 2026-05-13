@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
+	"github.com/nimbleflux/fluxbase/internal/settings"
 )
 
 // RateLimitFactory creates rate limiters with consistent configuration.
@@ -23,7 +23,7 @@ import (
 type RateLimitFactory struct {
 	registry   map[string]RateLimitDefinition
 	security   *config.SecurityConfig
-	settings   *auth.SettingsCache
+	settings   *settings.SettingsCache
 	storage    fiber.Storage
 	configOpts rateLimitConfigOptions
 }
@@ -37,7 +37,7 @@ type rateLimitConfigOptions struct {
 type RateLimitFactoryOption func(*RateLimitFactory)
 
 // WithRateLimitSettingsCache sets the settings cache for dynamic rate limit configuration.
-func WithRateLimitSettingsCache(cache *auth.SettingsCache) RateLimitFactoryOption {
+func WithRateLimitSettingsCache(cache *settings.SettingsCache) RateLimitFactoryOption {
 	return func(f *RateLimitFactory) {
 		f.settings = cache
 	}
@@ -95,7 +95,7 @@ func (f *RateLimitFactory) CreateWithOverride(name string, max int, window time.
 
 // CreateFromConfig creates a rate limiter using values from the settings cache.
 // This enables dynamic rate limit configuration at runtime.
-func (f *RateLimitFactory) CreateFromConfig(name string, settingsCache *auth.SettingsCache) (fiber.Handler, error) {
+func (f *RateLimitFactory) CreateFromConfig(name string, settingsCache *settings.SettingsCache) (fiber.Handler, error) {
 	def, ok := f.registry[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown rate limiter: %s", name)
