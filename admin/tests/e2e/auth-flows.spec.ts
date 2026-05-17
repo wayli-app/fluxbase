@@ -27,7 +27,7 @@ test.describe("Auth flow pages", () => {
     { path: "503", status: 503, label: "Service Unavailable" },
   ];
 
-  for (const { path, status, label } of errorPages) {
+  for (const { path, status } of errorPages) {
     test(`${status} error page renders`, async ({ adminPage }) => {
       await adminPage.goto(path);
       await expect(
