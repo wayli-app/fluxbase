@@ -248,10 +248,10 @@ func SendPaginated(c fiber.Ctx, key string, data interface{}, total, limit, offs
 
 func SendPaginatedWithMore(c fiber.Ctx, key string, data interface{}, total, limit, offset int, hasMore bool) error {
 	return c.JSON(fiber.Map{
-		key:      data,
-		"total":  total,
-		"limit":  limit,
-		"offset": offset,
+		key:       data,
+		"total":   total,
+		"limit":   limit,
+		"offset":  offset,
 		"hasMore": hasMore,
 	})
 }

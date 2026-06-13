@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/branching"
-	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/config"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 )
 
