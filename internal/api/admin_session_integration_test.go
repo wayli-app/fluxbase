@@ -38,17 +38,16 @@ func TestAdminSession_ListSessions_Integration(t *testing.T) {
 
 	// Verify response structure
 	assert.Contains(t, result, "sessions")
-	assert.Contains(t, result, "count")
-	assert.Contains(t, result, "total_count")
+	assert.Contains(t, result, "total")
 	assert.Contains(t, result, "limit")
 	assert.Contains(t, result, "offset")
 
 	sessions := result["sessions"].([]interface{})
-	count := int(result["count"].(float64))
+	total := int(result["total"].(float64))
 
 	// Should have at least 1 session (admin)
 	// Note: User signup may not create an auth session in the same way as dashboard login
-	assert.GreaterOrEqual(t, count, 1, "Should have at least admin session")
+	assert.GreaterOrEqual(t, total, 1, "Should have at least admin session")
 	assert.GreaterOrEqual(t, len(sessions), 1, "Sessions array should have at least 1 entry")
 }
 
