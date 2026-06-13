@@ -144,6 +144,23 @@ export { useSubmitJob, useJobStatus } from "./use-jobs";
 // Branching hooks
 export { useBranches } from "./use-branches";
 
+// RPC hooks
+export { useRPCList, useInvokeRPC } from "./use-rpc";
+
+// Vector hooks
+export { useVectorEmbed, useVectorSearch } from "./use-vector";
+
+// Secrets hooks
+export { useSecrets, useCreateSecret, useUpdateSecret, useDeleteSecret } from "./use-secrets";
+
+// Service Keys hooks
+export {
+  useServiceKeys,
+  useCreateServiceKey,
+  useRotateServiceKey,
+  useRevokeServiceKey,
+} from "./use-service-keys";
+
 // AI hooks
 export {
   useChatbots,

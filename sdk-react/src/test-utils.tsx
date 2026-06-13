@@ -91,6 +91,33 @@ export function createMockClient(
       }),
       ...overrides.realtime,
     },
+    jobs: {
+      submit: vi.fn().mockResolvedValue({ data: { id: "job-1", status: "pending" }, error: null }),
+      get: vi.fn().mockResolvedValue({ data: { id: "job-1", status: "completed" }, error: null }),
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      cancel: vi.fn().mockResolvedValue({ data: null, error: null }),
+      retry: vi.fn().mockResolvedValue({ data: { id: "job-2", status: "pending" }, error: null }),
+      getLogs: vi.fn().mockResolvedValue({ data: [], error: null }),
+      ...overrides.jobs,
+    },
+    functions: {
+      invoke: vi.fn().mockResolvedValue({ data: null, error: null }),
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      get: vi.fn().mockResolvedValue({ data: null, error: null }),
+      ...overrides.functions,
+    },
+    branching: {
+      list: vi.fn().mockResolvedValue({ data: { branches: [], total: 0, limit: 50, offset: 0 }, error: null }),
+      get: vi.fn().mockResolvedValue({ data: null, error: null }),
+      create: vi.fn().mockResolvedValue({ data: { id: "b1", slug: "test-branch", status: "creating" }, error: null }),
+      delete: vi.fn().mockResolvedValue({ error: null }),
+      reset: vi.fn().mockResolvedValue({ data: { id: "b1", slug: "test-branch", status: "creating" }, error: null }),
+      getActivity: vi.fn().mockResolvedValue({ data: [], error: null }),
+      getPoolStats: vi.fn().mockResolvedValue({ data: [], error: null }),
+      exists: vi.fn().mockResolvedValue(false),
+      waitForReady: vi.fn().mockResolvedValue({ data: null, error: null }),
+      ...overrides.branching,
+    },
     graphql: {
       execute: vi.fn().mockResolvedValue({ data: null, errors: null }),
       query: vi.fn().mockResolvedValue({ data: null, errors: null }),
@@ -142,7 +169,96 @@ export function createMockClient(
           test: vi.fn().mockResolvedValue({}),
         },
       },
+      serviceKeys: {
+        list: vi.fn().mockResolvedValue({ data: [], error: null }),
+        get: vi.fn().mockResolvedValue({ data: null, error: null }),
+        create: vi.fn().mockResolvedValue({ data: null, error: null }),
+        update: vi.fn().mockResolvedValue({ data: null, error: null }),
+        delete: vi.fn().mockResolvedValue({ error: null }),
+        disable: vi.fn().mockResolvedValue({ error: null }),
+        enable: vi.fn().mockResolvedValue({ error: null }),
+        revoke: vi.fn().mockResolvedValue({ error: null }),
+        deprecate: vi.fn().mockResolvedValue({ data: null, error: null }),
+        rotate: vi.fn().mockResolvedValue({ data: null, error: null }),
+        getRevocationHistory: vi.fn().mockResolvedValue({ data: null, error: null }),
+      },
+      migrations: {
+        list: vi.fn().mockResolvedValue({ data: [], error: null }),
+        apply: vi
+          .fn()
+          .mockResolvedValue({ data: { message: "Migration applied" }, error: null }),
+        rollback: vi
+          .fn()
+          .mockResolvedValue({ data: { message: "Migration rolled back" }, error: null }),
+        sync: vi.fn().mockResolvedValue({ data: null, error: null }),
+      },
+      impersonation: {
+        impersonateUser: vi
+          .fn()
+          .mockResolvedValue({
+            session: null,
+            target_user: null,
+            access_token: "",
+            refresh_token: "",
+            expires_in: 0,
+          }),
+        impersonateAnon: vi
+          .fn()
+          .mockResolvedValue({
+            session: null,
+            target_user: null,
+            access_token: "",
+            refresh_token: "",
+            expires_in: 0,
+          }),
+        stop: vi
+          .fn()
+          .mockResolvedValue({ success: true, message: "Impersonation stopped" }),
+        getCurrent: vi.fn().mockResolvedValue({ session: null, target_user: null }),
+        listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
+      },
+      ddl: {
+        listSchemas: vi.fn().mockResolvedValue({ schemas: [] }),
+        createSchema: vi
+          .fn()
+          .mockResolvedValue({ message: "Schema created", schema: "" }),
+        listTables: vi.fn().mockResolvedValue({ tables: [] }),
+        deleteTable: vi
+          .fn()
+          .mockResolvedValue({ message: "Table deleted" }),
+      },
       ...overrides.admin,
+    },
+    rpc: Object.assign(
+      vi.fn().mockResolvedValue({ data: null, error: null }),
+      {
+        list: vi.fn().mockResolvedValue({ data: [], error: null }),
+        invoke: vi.fn().mockResolvedValue({ data: null, error: null }),
+        getStatus: vi.fn().mockResolvedValue({ data: null, error: null }),
+        getLogs: vi.fn().mockResolvedValue({ data: [], error: null }),
+        waitForCompletion: vi.fn().mockResolvedValue({ data: null, error: null }),
+      },
+    ),
+    secrets: {
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: "1", name: "test", scope: "global", version: 1, created_at: "", updated_at: "" }),
+      get: vi.fn().mockResolvedValue({ id: "1", name: "test", scope: "global", version: 1, created_at: "", updated_at: "" }),
+      update: vi.fn().mockResolvedValue({ id: "1", name: "test", scope: "global", version: 2, created_at: "", updated_at: "" }),
+      delete: vi.fn().mockResolvedValue(undefined),
+      getVersions: vi.fn().mockResolvedValue([]),
+      rollback: vi.fn().mockResolvedValue({ id: "1", name: "test", scope: "global", version: 3, created_at: "", updated_at: "" }),
+      stats: vi.fn().mockResolvedValue({ total: 0, expiring_soon: 0, expired: 0 }),
+      getById: vi.fn().mockResolvedValue({ id: "1", name: "test", scope: "global", version: 1, created_at: "", updated_at: "" }),
+      updateById: vi.fn().mockResolvedValue({ id: "1", name: "test", scope: "global", version: 2, created_at: "", updated_at: "" }),
+      deleteById: vi.fn().mockResolvedValue(undefined),
+      getVersionsById: vi.fn().mockResolvedValue([]),
+      rollbackById: vi.fn().mockResolvedValue({ id: "1", name: "test", scope: "global", version: 3, created_at: "", updated_at: "" }),
+      ...overrides.secrets,
+    },
+    vector: {
+      embed: vi.fn().mockResolvedValue({ data: null, error: null }),
+      search: vi.fn().mockResolvedValue({ data: null, error: null }),
+      ...overrides.vector,
     },
     ...overrides,
   } as unknown as FluxbaseClient;
