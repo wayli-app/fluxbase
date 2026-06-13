@@ -4,7 +4,6 @@
 profile: coverage.out
 
 threshold:
-  file: -1      # Individual files (not enforced)
   package: 0    # Per-package minimum (enforced via overrides below)
   total: 25     # Overall project target
 
