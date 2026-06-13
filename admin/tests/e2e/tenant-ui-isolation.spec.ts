@@ -398,7 +398,7 @@ export default function handler(req: Request): Response {
     await adminPage.goto("./", { waitUntil: "networkidle" });
     await switchTenantAndWait(adminPage, tenantAName, tenantAId);
 
-    await adminPage.goto("ai/knowledge-bases", {
+    await adminPage.goto("knowledge-bases", {
       waitUntil: "load",
     });
 
@@ -408,7 +408,7 @@ export default function handler(req: Request): Response {
 
     // Switch to tenant B
     await switchTenantAndWait(adminPage, tenantBName, tenantBId);
-    await adminPage.goto("ai/knowledge-bases", {
+    await adminPage.goto("knowledge-bases", {
       waitUntil: "load",
     });
 
