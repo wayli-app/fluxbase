@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { secretsApi, type Secret, type SecretVersion, type CreateSecretRequest, type UpdateSecretRequest, type SecretsStats } from "@/lib/api";
 import { useTenantStore } from "@/stores/tenant-store";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   Card,
   CardContent,
@@ -175,20 +176,11 @@ function SecretsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Lock className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Secrets</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage encrypted secrets that are injected into edge functions and
-              background jobs
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Lock />}
+        title="Secrets"
+        description="Manage encrypted secrets that are injected into edge functions and background jobs"
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <SecretsStatsCards

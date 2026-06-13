@@ -21,6 +21,7 @@ import {
   Trash2,
   Settings,
   MessageSquare,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { chatbotsApi, type AIChatbotSummary } from "@/lib/api";
@@ -55,6 +56,8 @@ import {
 } from "@/components/ui/tooltip";
 import { ChatbotSettingsDialog } from "@/components/chatbots/chatbot-settings-dialog";
 import { ChatbotTestDialog } from "@/components/chatbots/chatbot-test-dialog";
+import { ChatbotConversationsDialog } from "@/components/chatbots/chatbot-conversations-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   DataTablePagination,
   DataTableToolbar,
@@ -69,6 +72,8 @@ const ChatbotsPage = () => {
   const [settingsChatbot, setSettingsChatbot] =
     useState<AIChatbotSummary | null>(null);
   const [testChatbot, setTestChatbot] = useState<AIChatbotSummary | null>(null);
+  const [conversationsChatbot, setConversationsChatbot] =
+    useState<AIChatbotSummary | null>(null);
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -248,6 +253,19 @@ const ChatbotsPage = () => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  onClick={() => setConversationsChatbot(row.original)}
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                >
+                  <History className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View conversations</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
                   onClick={() => setSettingsChatbot(row.original)}
                   size="sm"
                   variant="ghost"
@@ -312,20 +330,11 @@ const ChatbotsPage = () => {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Bot className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">AI Chatbots</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage AI-powered chatbots for database interactions
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Bot />}
+        title="AI Chatbots"
+        description="Manage AI-powered chatbots for database interactions"
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <div className="flex flex-col gap-6">
@@ -505,6 +514,16 @@ const ChatbotsPage = () => {
               chatbot={testChatbot}
               open={testChatbot !== null}
               onOpenChange={(open) => !open && setTestChatbot(null)}
+            />
+          )}
+
+          {/* Conversations Dialog */}
+          {conversationsChatbot && (
+            <ChatbotConversationsDialog
+              open={conversationsChatbot !== null}
+              onOpenChange={(open) => !open && setConversationsChatbot(null)}
+              chatbotId={conversationsChatbot.id}
+              chatbotName={conversationsChatbot.name}
             />
           )}
         </div>

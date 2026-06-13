@@ -763,12 +763,9 @@ function KnowledgeBaseDetailPage() {
                   key={link.id}
                   className='flex items-center justify-between rounded-lg border p-3'
                 >
-                  <a
-                    href={`/chatbots/${link.chatbot_id}`}
-                    className='font-medium hover:underline'
-                  >
+                  <span className='font-medium'>
                     {link.chatbot_name || link.chatbot_id}
-                  </a>
+                  </span>
                   <div className='flex items-center gap-2'>
                     <Badge variant='outline'>Priority: {link.priority}</Badge>
                     {link.max_chunks && (

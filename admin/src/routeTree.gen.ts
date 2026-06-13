@@ -55,10 +55,10 @@ import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_
 import { Route as AuthenticatedAiProvidersIndexRouteImport } from './routes/_authenticated/ai-providers/index'
 import { Route as AuthenticatedTenantsTenantIdRouteImport } from './routes/_authenticated/tenants/$tenantId'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
+import { Route as AuthenticatedMonitoringAiAuditRouteImport } from './routes/_authenticated/monitoring/ai-audit'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedApiRestRouteImport } from './routes/_authenticated/api/rest'
 import { Route as AuthenticatedKnowledgeBasesIdIndexRouteImport } from './routes/_authenticated/knowledge-bases/$id/index'
-import { Route as AuthenticatedAiKnowledgeBasesIndexRouteImport } from './routes/_authenticated/ai/knowledge-bases/index'
 import { Route as AuthenticatedKnowledgeBasesIdTablesRouteImport } from './routes/_authenticated/knowledge-bases/$id/tables'
 import { Route as AuthenticatedKnowledgeBasesIdSettingsRouteImport } from './routes/_authenticated/knowledge-bases/$id/settings'
 import { Route as AuthenticatedKnowledgeBasesIdSearchRouteImport } from './routes/_authenticated/knowledge-bases/$id/search'
@@ -322,6 +322,12 @@ const AuthenticatedSettingsAppearanceRoute =
     path: '/settings/appearance',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMonitoringAiAuditRoute =
+  AuthenticatedMonitoringAiAuditRouteImport.update({
+    id: '/monitoring/ai-audit',
+    path: '/monitoring/ai-audit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedErrorsErrorRoute =
   AuthenticatedErrorsErrorRouteImport.update({
     id: '/errors/$error',
@@ -337,12 +343,6 @@ const AuthenticatedKnowledgeBasesIdIndexRoute =
   AuthenticatedKnowledgeBasesIdIndexRouteImport.update({
     id: '/knowledge-bases/$id/',
     path: '/knowledge-bases/$id/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAiKnowledgeBasesIndexRoute =
-  AuthenticatedAiKnowledgeBasesIndexRouteImport.update({
-    id: '/ai/knowledge-bases/',
-    path: '/ai/knowledge-bases/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedKnowledgeBasesIdTablesRoute =
@@ -385,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/login/': typeof LoginIndexRoute
   '/api/rest': typeof AuthenticatedApiRestRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/monitoring/ai-audit': typeof AuthenticatedMonitoringAiAuditRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/tenants/$tenantId': typeof AuthenticatedTenantsTenantIdRoute
   '/ai-providers/': typeof AuthenticatedAiProvidersIndexRoute
@@ -422,7 +423,6 @@ export interface FileRoutesByFullPath {
   '/knowledge-bases/$id/search': typeof AuthenticatedKnowledgeBasesIdSearchRoute
   '/knowledge-bases/$id/settings': typeof AuthenticatedKnowledgeBasesIdSettingsRoute
   '/knowledge-bases/$id/tables': typeof AuthenticatedKnowledgeBasesIdTablesRoute
-  '/ai/knowledge-bases/': typeof AuthenticatedAiKnowledgeBasesIndexRoute
   '/knowledge-bases/$id/': typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -440,6 +440,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginIndexRoute
   '/api/rest': typeof AuthenticatedApiRestRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/monitoring/ai-audit': typeof AuthenticatedMonitoringAiAuditRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/tenants/$tenantId': typeof AuthenticatedTenantsTenantIdRoute
   '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
@@ -477,7 +478,6 @@ export interface FileRoutesByTo {
   '/knowledge-bases/$id/search': typeof AuthenticatedKnowledgeBasesIdSearchRoute
   '/knowledge-bases/$id/settings': typeof AuthenticatedKnowledgeBasesIdSettingsRoute
   '/knowledge-bases/$id/tables': typeof AuthenticatedKnowledgeBasesIdTablesRoute
-  '/ai/knowledge-bases': typeof AuthenticatedAiKnowledgeBasesIndexRoute
   '/knowledge-bases/$id': typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 export interface FileRoutesById {
@@ -497,6 +497,7 @@ export interface FileRoutesById {
   '/login/': typeof LoginIndexRoute
   '/_authenticated/api/rest': typeof AuthenticatedApiRestRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/_authenticated/monitoring/ai-audit': typeof AuthenticatedMonitoringAiAuditRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/tenants/$tenantId': typeof AuthenticatedTenantsTenantIdRoute
   '/_authenticated/ai-providers/': typeof AuthenticatedAiProvidersIndexRoute
@@ -534,7 +535,6 @@ export interface FileRoutesById {
   '/_authenticated/knowledge-bases/$id/search': typeof AuthenticatedKnowledgeBasesIdSearchRoute
   '/_authenticated/knowledge-bases/$id/settings': typeof AuthenticatedKnowledgeBasesIdSettingsRoute
   '/_authenticated/knowledge-bases/$id/tables': typeof AuthenticatedKnowledgeBasesIdTablesRoute
-  '/_authenticated/ai/knowledge-bases/': typeof AuthenticatedAiKnowledgeBasesIndexRoute
   '/_authenticated/knowledge-bases/$id/': typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -554,6 +554,7 @@ export interface FileRouteTypes {
     | '/login/'
     | '/api/rest'
     | '/errors/$error'
+    | '/monitoring/ai-audit'
     | '/settings/appearance'
     | '/tenants/$tenantId'
     | '/ai-providers/'
@@ -591,7 +592,6 @@ export interface FileRouteTypes {
     | '/knowledge-bases/$id/search'
     | '/knowledge-bases/$id/settings'
     | '/knowledge-bases/$id/tables'
-    | '/ai/knowledge-bases/'
     | '/knowledge-bases/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -609,6 +609,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/api/rest'
     | '/errors/$error'
+    | '/monitoring/ai-audit'
     | '/settings/appearance'
     | '/tenants/$tenantId'
     | '/ai-providers'
@@ -646,7 +647,6 @@ export interface FileRouteTypes {
     | '/knowledge-bases/$id/search'
     | '/knowledge-bases/$id/settings'
     | '/knowledge-bases/$id/tables'
-    | '/ai/knowledge-bases'
     | '/knowledge-bases/$id'
   id:
     | '__root__'
@@ -665,6 +665,7 @@ export interface FileRouteTypes {
     | '/login/'
     | '/_authenticated/api/rest'
     | '/_authenticated/errors/$error'
+    | '/_authenticated/monitoring/ai-audit'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/tenants/$tenantId'
     | '/_authenticated/ai-providers/'
@@ -702,7 +703,6 @@ export interface FileRouteTypes {
     | '/_authenticated/knowledge-bases/$id/search'
     | '/_authenticated/knowledge-bases/$id/settings'
     | '/_authenticated/knowledge-bases/$id/tables'
-    | '/_authenticated/ai/knowledge-bases/'
     | '/_authenticated/knowledge-bases/$id/'
   fileRoutesById: FileRoutesById
 }
@@ -1045,6 +1045,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/monitoring/ai-audit': {
+      id: '/_authenticated/monitoring/ai-audit'
+      path: '/monitoring/ai-audit'
+      fullPath: '/monitoring/ai-audit'
+      preLoaderRoute: typeof AuthenticatedMonitoringAiAuditRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/errors/$error': {
       id: '/_authenticated/errors/$error'
       path: '/errors/$error'
@@ -1064,13 +1071,6 @@ declare module '@tanstack/react-router' {
       path: '/knowledge-bases/$id'
       fullPath: '/knowledge-bases/$id/'
       preLoaderRoute: typeof AuthenticatedKnowledgeBasesIdIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/ai/knowledge-bases/': {
-      id: '/_authenticated/ai/knowledge-bases/'
-      path: '/ai/knowledge-bases'
-      fullPath: '/ai/knowledge-bases/'
-      preLoaderRoute: typeof AuthenticatedAiKnowledgeBasesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/knowledge-bases/$id/tables': {
@@ -1108,6 +1108,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedApiRestRoute: typeof AuthenticatedApiRestRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
+  AuthenticatedMonitoringAiAuditRoute: typeof AuthenticatedMonitoringAiAuditRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedTenantsTenantIdRoute: typeof AuthenticatedTenantsTenantIdRoute
   AuthenticatedAiProvidersIndexRoute: typeof AuthenticatedAiProvidersIndexRoute
@@ -1145,7 +1146,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedKnowledgeBasesIdSearchRoute: typeof AuthenticatedKnowledgeBasesIdSearchRoute
   AuthenticatedKnowledgeBasesIdSettingsRoute: typeof AuthenticatedKnowledgeBasesIdSettingsRoute
   AuthenticatedKnowledgeBasesIdTablesRoute: typeof AuthenticatedKnowledgeBasesIdTablesRoute
-  AuthenticatedAiKnowledgeBasesIndexRoute: typeof AuthenticatedAiKnowledgeBasesIndexRoute
   AuthenticatedKnowledgeBasesIdIndexRoute: typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 
@@ -1153,6 +1153,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedApiRestRoute: AuthenticatedApiRestRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
+  AuthenticatedMonitoringAiAuditRoute: AuthenticatedMonitoringAiAuditRoute,
   AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
   AuthenticatedTenantsTenantIdRoute: AuthenticatedTenantsTenantIdRoute,
   AuthenticatedAiProvidersIndexRoute: AuthenticatedAiProvidersIndexRoute,
@@ -1196,8 +1197,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedKnowledgeBasesIdSettingsRoute,
   AuthenticatedKnowledgeBasesIdTablesRoute:
     AuthenticatedKnowledgeBasesIdTablesRoute,
-  AuthenticatedAiKnowledgeBasesIndexRoute:
-    AuthenticatedAiKnowledgeBasesIndexRoute,
   AuthenticatedKnowledgeBasesIdIndexRoute:
     AuthenticatedKnowledgeBasesIdIndexRoute,
 }

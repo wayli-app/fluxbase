@@ -424,6 +424,53 @@ func (kg *KnowledgeGraph) GetDocumentEntities(ctx context.Context, documentID st
 	return docEntities, nil
 }
 
+// GetDocumentsByEntity retrieves all document-entity associations for a given entity.
+// This is used to find which documents mention a specific entity, along with salience scores.
+func (kg *KnowledgeGraph) GetDocumentsByEntity(ctx context.Context, entityID string) ([]DocumentEntity, error) {
+	query := `
+		SELECT de.id, de.document_id, de.entity_id, de.mention_count,
+			de.first_mention_offset, de.salience, de.context, de.created_at,
+			e.id, e.entity_type, e.name, e.canonical_name
+		FROM ai.document_entities de
+		JOIN ai.entities e ON e.id = de.entity_id
+		WHERE de.entity_id = $1
+		ORDER BY de.salience DESC
+	`
+
+	docEntities := make([]DocumentEntity, 0)
+	err := kg.WithTenant(ctx, func(tx pgx.Tx) error {
+		rows, queryErr := tx.Query(ctx, query, entityID)
+		if queryErr != nil {
+			return fmt.Errorf("failed to get documents by entity: %w", queryErr)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var de DocumentEntity
+			var entity Entity
+
+			if scanErr := rows.Scan(
+				&de.ID, &de.DocumentID, &de.EntityID, &de.MentionCount,
+				&de.FirstMentionOffset, &de.Salience, &de.Context, &de.CreatedAt,
+				&entity.ID, &entity.EntityType, &entity.Name, &entity.CanonicalName,
+			); scanErr != nil {
+				log.Warn().Err(scanErr).Msg("Failed to scan document entity")
+				continue
+			}
+
+			de.Entity = &entity
+			docEntities = append(docEntities, de)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return docEntities, nil
+}
+
 // GetEntitiesByDocument retrieves all entities mentioned in a document
 func (kg *KnowledgeGraph) GetEntitiesByDocument(ctx context.Context, documentID string) ([]Entity, error) {
 	query := `

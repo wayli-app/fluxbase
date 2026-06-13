@@ -96,6 +96,9 @@ export { FluxbaseAdminRPC } from "./admin-rpc";
 export { FluxbaseAI, FluxbaseAIChat } from "./ai";
 export type { AIChatOptions, AIChatEvent, AIChatEventType } from "./ai";
 
+// Knowledge Base module
+export { FluxbaseKnowledgeBase } from "./knowledge-base";
+
 // Vector search module
 export { FluxbaseVector } from "./vector";
 
@@ -516,6 +519,30 @@ export type {
   EmbedResponse,
   VectorSearchOptions,
   VectorSearchResult,
+
+  // Knowledge Base types
+  KnowledgeBaseSummary,
+  KnowledgeBase,
+  CreateKnowledgeBaseRequest,
+  UpdateKnowledgeBaseRequest,
+  DocumentStatus,
+  KnowledgeBaseDocument,
+  AddDocumentRequest,
+  AddDocumentResponse,
+  UploadDocumentResponse,
+  UpdateDocumentRequest,
+  DeleteDocumentsByFilterRequest,
+  DeleteDocumentsByFilterResponse,
+  KnowledgeBaseSearchResult,
+  SearchKnowledgeBaseRequest,
+  SearchKnowledgeBaseResponse,
+  ChatbotKnowledgeBaseLink,
+  LinkKnowledgeBaseRequest,
+  UpdateChatbotKnowledgeBaseRequest,
+  EntityType as AIEntityType,
+  Entity as AIEntity,
+  EntityRelationship as AIEntityRelationship,
+  KnowledgeGraphData,
 
   // Multi-tenancy types
   Tenant,

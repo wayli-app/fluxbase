@@ -144,6 +144,32 @@ export { useSubmitJob, useJobStatus } from "./use-jobs";
 // Branching hooks
 export { useBranches } from "./use-branches";
 
+// AI hooks
+export {
+  useChatbots,
+  useConversations,
+  useConversation,
+  useDeleteConversation,
+  useAIChat,
+  type ChatMessage,
+} from "./use-ai";
+
+// Knowledge Base hooks
+export {
+  useKnowledgeBases,
+  useKnowledgeBase,
+  useCreateKnowledgeBase,
+  useUpdateKnowledgeBase,
+  useDeleteKnowledgeBase,
+  useKBDocuments,
+  useAddDocument,
+  useUploadDocument,
+  useDeleteDocument,
+  useKBSearch,
+  useKBEntities,
+  useKnowledgeGraph,
+} from "./use-knowledge-base";
+
 // Re-export types from SDK
 export type {
   FluxbaseClient,

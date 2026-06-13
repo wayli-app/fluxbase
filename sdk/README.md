@@ -74,17 +74,18 @@ await client.storage.from("avatars").upload("user-123.png", file);
 
 ## Documentation
 
-📚 **[Complete Documentation](../../docs/docs/sdks/getting-started.md)**
+📚 **[SDK Documentation](../../docs/src/content/docs/sdk/)**
 
 ### Core Guides
 
-- **[Getting Started](../../docs/docs/sdks/getting-started.md)** - Installation, configuration, and basic usage
-- **[Database Operations](../../docs/docs/sdks/database.md)** - Queries, filters, aggregations, batch operations, and RPC
-- **[React Hooks](../../docs/docs/sdks/react-hooks.md)** - React integration with `@fluxbase/sdk-react`
+- **[SDK Reference](../../docs/src/content/docs/sdk/)** - Installation, configuration, and usage
+- **[Vector Search](../../docs/src/content/docs/guides/vector-search.md)** - Semantic search with pgvector
+- **[AI Chatbots](../../docs/src/content/docs/guides/ai-chatbots.md)** - Build AI-powered chatbots
+- **[Knowledge Bases](../../docs/src/content/docs/guides/knowledge-bases.md)** - RAG with document ingestion
 
 ### API Reference
 
-- **[TypeScript API Docs](../../docs/static/api/sdk/)** - Auto-generated from source code
+- **[TypeScript API Docs](../../docs/src/content/docs/api/sdk/)** - Auto-generated from source code
 
 ## Browser & Node.js Support
 
@@ -109,12 +110,7 @@ const { data } = await client.from<Product>("products").select("*").execute();
 
 ## Examples
 
-Check out working examples in the [`/example`](../example/) directory:
-
-- Vanilla JavaScript/TypeScript
-- React with hooks
-- Next.js integration
-- Vue 3 integration
+See `sdk-react/examples/` for a working example app.
 
 ## React Integration
 
@@ -128,11 +124,11 @@ npm install @nimbleflux/fluxbase-sdk @nimbleflux/fluxbase-sdk-react @tanstack/re
 pnpm add @nimbleflux/fluxbase-sdk @nimbleflux/fluxbase-sdk-react @tanstack/react-query
 ```
 
-See the **[React Hooks Guide](../../docs/docs/sdks/react-hooks.md)** for details.
+See the **[React SDK README](../sdk-react/README.md)** for details.
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](../../CONTRIBUTING.md) for details.
+Contributions are welcome! Please see the project repository for contribution guidelines.
 
 ## License
 
@@ -140,7 +136,7 @@ MIT © Fluxbase
 
 ## Links
 
-- [Documentation](../../docs/docs/sdks/getting-started.md)
-- [API Reference](../../docs/static/api/sdk/)
+- [Documentation](../../docs/src/content/docs/sdk/)
+- [API Reference](../../docs/src/content/docs/api/sdk/)
 - [GitHub](https://github.com/nimbleflux/fluxbase)
 - [Issues](https://github.com/nimbleflux/fluxbase/issues)
