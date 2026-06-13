@@ -349,6 +349,12 @@ export const sidebarData: SidebarDataWithVisibility = {
           icon: Activity,
           visibility: "all",
         },
+        {
+          title: "AI Audit Log",
+          url: "/monitoring/ai-audit",
+          icon: Shield,
+          visibility: "all",
+        },
       ],
     },
     {

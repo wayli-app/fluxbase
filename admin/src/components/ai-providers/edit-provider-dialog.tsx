@@ -65,7 +65,7 @@ export function EditProviderDialog({
         const { error: embError } = await client.admin.ai.updateProvider(
           provider.id,
           {
-            config: Object.keys(config).length > 0 ? config : undefined,
+            embedding_model: embeddingModel || undefined,
           },
         );
         if (embError) throw embError;

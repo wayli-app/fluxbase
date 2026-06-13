@@ -135,18 +135,18 @@ function YourApp() {
 
 ## Documentation
 
-📚 **[Complete React Hooks Guide](../../docs/docs/sdks/react-hooks.md)**
+📚 **[React SDK Reference](../../docs/src/content/docs/api/sdk-react/)**
 
 ### Core Guides
 
-- **[Getting Started](../../docs/docs/sdks/getting-started.md)** - Installation and setup
-- **[React Hooks](../../docs/docs/sdks/react-hooks.md)** - Comprehensive hooks documentation with examples
-- **[Database Operations](../../docs/docs/sdks/database.md)** - Query building and data operations
+- **[SDK Reference](../../docs/src/content/docs/sdk/)** - Core SDK usage and configuration
+- **[Admin Hooks Guide](./README-ADMIN.md)** - Comprehensive admin dashboard documentation
+- **[Vector Search](../../docs/src/content/docs/guides/vector-search.md)** - Semantic search
 
 ### API Reference
 
-- **[React Hooks API](../../docs/static/api/sdk-react/)** - Auto-generated from source code
-- **[Core SDK API](../../docs/static/api/sdk/)** - Core TypeScript SDK reference
+- **[React Hooks API](../../docs/src/content/docs/api/sdk-react/)** - Auto-generated from source code
+- **[Core SDK API](../../docs/src/content/docs/api/sdk/)** - Core TypeScript SDK reference
 
 ## TypeScript Support
 
@@ -169,18 +169,11 @@ function ProductList() {
 
 ## Examples
 
-Check out working examples in the [`/example`](../example/) directory:
-
-- React with Vite
-- Next.js App Router
-- Next.js Pages Router
-- Authentication flows
-- Realtime features
-- File uploads
+See `sdk-react/examples/` for a working example app.
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](../../CONTRIBUTING.md) for details.
+Contributions are welcome! Please see the project repository for contribution guidelines.
 
 ## License
 
@@ -188,8 +181,8 @@ MIT © Fluxbase
 
 ## Links
 
-- [Documentation](../../docs/docs/sdks/react-hooks.md)
-- [API Reference](../../docs/static/api/sdk-react/)
+- [Documentation](../../docs/src/content/docs/sdk/)
+- [API Reference](../../docs/src/content/docs/api/sdk-react/)
 - [Core SDK](../sdk/)
 - [GitHub](https://github.com/nimbleflux/fluxbase)
 - [Issues](https://github.com/nimbleflux/fluxbase/issues)

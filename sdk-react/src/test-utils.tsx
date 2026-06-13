@@ -149,6 +149,64 @@ export function createMockClient(
 }
 
 /**
+ * Create a mock client with AI/Knowledge Base support
+ */
+export function createMockAIClient(
+  overrides: Partial<FluxbaseClient> = {},
+): FluxbaseClient {
+  const base = createMockClient(overrides);
+  return {
+    ...base,
+    ai: {
+      listChatbots: vi.fn().mockResolvedValue({ data: [], error: null }),
+      getChatbot: vi.fn().mockResolvedValue({ data: null, error: null }),
+      lookupChatbot: vi.fn().mockResolvedValue({ data: null, error: null }),
+      createChat: vi.fn().mockReturnValue({
+        connect: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn(),
+        isConnected: vi.fn().mockReturnValue(true),
+        startChat: vi.fn().mockResolvedValue("conv-1"),
+        sendMessage: vi.fn().mockResolvedValue(undefined),
+        cancel: vi.fn(),
+        getAccumulatedContent: vi.fn().mockReturnValue(""),
+      }),
+      listConversations: vi
+        .fn()
+        .mockResolvedValue({ data: { conversations: [], total: 0, has_more: false }, error: null }),
+      getConversation: vi.fn().mockResolvedValue({ data: null, error: null }),
+      deleteConversation: vi.fn().mockResolvedValue({ error: null }),
+      updateConversation: vi.fn().mockResolvedValue({ data: null, error: null }),
+      ...overrides.ai,
+    },
+    knowledgeBase: {
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      get: vi.fn().mockResolvedValue({ data: null, error: null }),
+      create: vi.fn().mockResolvedValue({ data: null, error: null }),
+      update: vi.fn().mockResolvedValue({ data: null, error: null }),
+      delete: vi.fn().mockResolvedValue({ data: true, error: null }),
+      listDocuments: vi.fn().mockResolvedValue({ data: [], error: null }),
+      getDocument: vi.fn().mockResolvedValue({ data: null, error: null }),
+      addDocument: vi.fn().mockResolvedValue({ data: null, error: null }),
+      uploadDocument: vi.fn().mockResolvedValue({ data: null, error: null }),
+      updateDocument: vi.fn().mockResolvedValue({ data: null, error: null }),
+      deleteDocument: vi.fn().mockResolvedValue({ data: true, error: null }),
+      deleteDocumentsByFilter: vi.fn().mockResolvedValue({ data: null, error: null }),
+      search: vi.fn().mockResolvedValue({ data: null, error: null }),
+      listEntities: vi.fn().mockResolvedValue({ data: [], error: null }),
+      searchEntities: vi.fn().mockResolvedValue({ data: [], error: null }),
+      getEntityRelationships: vi.fn().mockResolvedValue({ data: [], error: null }),
+      getKnowledgeGraph: vi.fn().mockResolvedValue({ data: null, error: null }),
+      ...overrides.knowledgeBase,
+    },
+    vector: {
+      embed: vi.fn().mockResolvedValue({ data: null, error: null }),
+      search: vi.fn().mockResolvedValue({ data: null, error: null }),
+      ...overrides.vector,
+    },
+  } as unknown as FluxbaseClient;
+}
+
+/**
  * Create a fresh QueryClient for testing
  */
 export function createTestQueryClient(): QueryClient {

@@ -499,15 +499,16 @@ export class FluxbaseAI {
    *
    * @returns Promise resolving to { data, error } tuple with array of chatbot summaries
    */
-  async listChatbots(): Promise<{
+  async listChatbots(namespace?: string): Promise<{
     data: AIChatbotSummary[] | null;
     error: Error | null;
   }> {
     try {
+      const params = namespace ? `?namespace=${encodeURIComponent(namespace)}` : "";
       const response = await this.fetch.get<{
         chatbots: AIChatbotSummary[];
         count: number;
-      }>("/api/v1/ai/chatbots");
+      }>(`/api/v1/ai/chatbots${params}`);
       return { data: response.chatbots || [], error: null };
     } catch (error) {
       return { data: null, error: error as Error };

@@ -159,6 +159,15 @@ describe('FluxbaseAI', () => {
       expect(error).toBeDefined()
       expect(error?.message).toBe('Permission denied')
     })
+
+    it('should filter by namespace', async () => {
+      mockFetch.mockResponse = { chatbots: [], count: 0 }
+
+      await ai.listChatbots('custom-ns')
+
+      expect(mockFetch.lastUrl).toBe('/api/v1/ai/chatbots?namespace=custom-ns')
+      expect(mockFetch.lastMethod).toBe('GET')
+    })
   })
 
   describe('getChatbot', () => {

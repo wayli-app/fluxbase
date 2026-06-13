@@ -51,6 +51,7 @@ import { SettingsClient } from "./settings";
 import { SecretsManager } from "./secrets";
 import { FluxbaseAI } from "./ai";
 import { FluxbaseVector } from "./vector";
+import { FluxbaseKnowledgeBase } from "./knowledge-base";
 import { FluxbaseGraphQL } from "./graphql";
 import { FluxbaseBranching } from "./branching";
 import { FluxbaseTenant } from "./tenant";
@@ -125,6 +126,9 @@ export class FluxbaseClient<
 
   /** AI module for chatbots and conversation history */
   public ai: FluxbaseAI;
+
+  /** Knowledge Base module for RAG document management and search */
+  public knowledgeBase: FluxbaseKnowledgeBase;
 
   /**
    * Vector search module for pgvector similarity search
@@ -359,6 +363,9 @@ export class FluxbaseClient<
 
     // Initialize vector search module
     this.vector = new FluxbaseVector(this.fetch);
+
+    // Initialize knowledge base module
+    this.knowledgeBase = new FluxbaseKnowledgeBase(this.fetch);
 
     // Initialize GraphQL module
     this.graphql = new FluxbaseGraphQL(this.fetch);

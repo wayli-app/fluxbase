@@ -9,6 +9,7 @@ import {
   type AIChatbotSummary,
   type AIProvider,
 } from "@/lib/api";
+import { ChatbotKBLinksSection } from "@/components/chatbots/chatbot-kb-links-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -316,6 +317,12 @@ function ChatbotSettingsForm({
             onCheckedChange={setIsPublic}
           />
         </div>
+      </div>
+
+      {/* Knowledge Bases (RAG) */}
+      <div className="space-y-4 border-t pt-4">
+        <h3 className="font-medium">Knowledge Bases (RAG)</h3>
+        <ChatbotKBLinksSection chatbotId={chatbot.id} />
       </div>
 
       <DialogFooter>

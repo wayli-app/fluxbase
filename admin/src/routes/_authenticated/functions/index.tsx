@@ -14,6 +14,7 @@ import {
 import { useExecutionLogs } from "@/hooks/use-execution-logs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImpersonationPopover } from "@/features/impersonation/components/impersonation-popover";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   StatsCard,
   ExecutionFilters,
@@ -39,23 +40,17 @@ export const Route = createFileRoute("/_authenticated/functions/")({
 function FunctionsPage() {
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Zap className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Edge Functions</h1>
-            <p className="text-muted-foreground text-sm">
-              Deploy and run TypeScript/JavaScript functions with Deno runtime
-            </p>
-          </div>
-        </div>
-        <ImpersonationPopover
-          contextLabel="Invoking as"
-          defaultReason="Testing function invocation"
-        />
-      </div>
+      <PageHeader
+        icon={<Zap />}
+        title="Edge Functions"
+        description="Deploy and run TypeScript/JavaScript functions with Deno runtime"
+        actions={
+          <ImpersonationPopover
+            contextLabel="Invoking as"
+            defaultReason="Testing function invocation"
+          />
+        }
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <EdgeFunctionsTab />

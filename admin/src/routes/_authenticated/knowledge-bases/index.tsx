@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   CreateKnowledgeBaseDialog,
   KnowledgeBaseCard,
@@ -213,19 +214,11 @@ function KnowledgeBasesPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <BookOpen className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Knowledge Bases</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage knowledge bases for RAG-powered AI chatbots
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<BookOpen />}
+        title="Knowledge Bases"
+        description="Manage knowledge bases for RAG-powered AI chatbots"
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <div className="flex flex-col gap-6">

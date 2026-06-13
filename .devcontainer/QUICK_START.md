@@ -26,29 +26,30 @@ make dev  # Start with hot-reload
 
 ```bash
 # Development
-make dev              # Start with hot-reload
-make build            # Build binary
-make test             # Run all tests
-make test-unit        # Unit tests only
-make test-integration # Integration tests
+make dev              # Start with hot-reload (backend + admin UI)
+make build            # Build production binary
 
-# Database
-make migrate-up       # Apply migrations
-make migrate-down     # Rollback migrations
-make db-setup         # Setup with example data
-
-# Documentation
-make docs-dev         # Start docs server
-make docs-build       # Build static docs
+# Testing
+make test             # Unit tests (~2min)
+make test-e2e         # End-to-end tests
+make test-full        # All tests including E2E (10min+)
+make test-sdk         # TypeScript SDK tests
 
 # Code Quality
-make fmt              # Format code
-make lint             # Run linters
-make vet              # Go vet
+make fmt              # Format Go code
+make lint-go          # Go linting with golangci-lint
+make lint-typescript  # TypeScript linting (admin UI + SDKs)
+
+# Database
+make db-reset         # Reset database (preserve user data)
+make db-reset-full    # Full reset (destroys all data)
+
+# Documentation
+make docs             # Start docs dev server
+make docs-build       # Build static docs
 
 # Docker
 make docker-build     # Build Docker image
-make docker-run       # Run container
 
 # All Commands
 make help             # Show all commands
@@ -60,7 +61,7 @@ make help             # Show all commands
 | ------------- | --------------------- | ------------------------- |
 | Fluxbase API  | http://localhost:8080 | -                         |
 | MailHog       | http://localhost:8025 | -                         |
-| Documentation | http://localhost:3000 | -                         |
+| Documentation | http://localhost:4321 | -                         |
 
 ## 🗄️ Database
 
@@ -125,31 +126,25 @@ psql -h postgres -U postgres -d fluxbase_dev
 fluxbase/
 ├── cmd/fluxbase/       # Main entry point
 ├── internal/           # Private app code
-│   ├── api/           # REST API
-│   ├── auth/          # Authentication (TO BUILD)
+│   ├── ai/            # AI features (chatbots, KBs, vector search)
+│   ├── api/           # REST API, GraphQL, handlers
+│   ├── auth/          # Authentication (JWT, OAuth, SAML, MFA)
+│   ├── branching/     # Database branching
 │   ├── config/        # Configuration
-│   ├── database/      # DB layer
-│   ├── realtime/      # WebSocket (TO BUILD)
-│   └── storage/       # File storage (TO BUILD)
-├── pkg/               # Public libraries
-├── test/              # Integration tests
+│   ├── database/      # DB layer, migrations
+│   ├── functions/     # Edge functions (Deno runtime)
+│   ├── jobs/          # Background jobs
+│   ├── realtime/      # WebSocket subscriptions
+│   └── storage/       # File storage, logging
+├── admin/             # Admin UI (React 19, Vite)
+├── sdk/               # TypeScript SDK
+├── sdk-react/         # React SDK (hooks)
+├── cli/               # CLI tool
 ├── docs/              # Documentation
-├── .devcontainer/     # This setup
-├── TODO.md            # Task list
-└── Makefile           # Commands
+├── test/              # E2E tests
+├── deploy/            # Docker, Helm, deploy configs
+└── Makefile           # Build & dev commands
 ```
-
-## 🎯 Current Sprint: Authentication
-
-Next tasks from `TODO.md`:
-
-1. Implement JWT token utilities
-2. Create user registration endpoint
-3. Create login endpoint
-4. Add auth middleware
-5. Session management
-
-See `TODO.md` and `IMPLEMENTATION_PLAN.md` for details.
 
 ## 💡 Pro Tips
 
@@ -197,11 +192,9 @@ go build cmd/fluxbase/main.go
 
 - **This Guide**: Quick start reference
 - **Full Docs**: `.devcontainer/README.md`
-- **Changes**: `.devcontainer/CHANGELOG.md`
-- **Fix Summary**: `DEVCONTAINER_FIXES.md`
-- **Dev Guide**: `.claude/instructions.md`
-- **Tasks**: `TODO.md`
-- **Plan**: `IMPLEMENTATION_PLAN.md`
+- **Developer Guide**: `docs/src/content/docs/guides/developer-guide.md`
+- **Feature Guides**: `docs/src/content/docs/guides/`
+- **SDK Docs**: `docs/src/content/docs/sdk/`
 
 ## ✅ Health Check
 

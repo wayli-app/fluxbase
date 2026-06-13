@@ -42,6 +42,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImpersonationPopover } from "@/features/impersonation/components/impersonation-popover";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   ExecutionDetailsDialog,
   ProcedureDetailsDialog,
@@ -65,23 +66,17 @@ const RPC_PAGE_SIZE = 50;
 function RPCPage() {
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Terminal className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">RPC Procedures</h1>
-            <p className="text-muted-foreground text-sm">
-              Execute SQL procedures securely via API
-            </p>
-          </div>
-        </div>
-        <ImpersonationPopover
-          contextLabel="Executing as"
-          defaultReason="Testing RPC procedure execution"
-        />
-      </div>
+      <PageHeader
+        icon={<Terminal />}
+        title="RPC Procedures"
+        description="Execute SQL procedures securely via API"
+        actions={
+          <ImpersonationPopover
+            contextLabel="Executing as"
+            defaultReason="Testing RPC procedure execution"
+          />
+        }
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <RPCContent />

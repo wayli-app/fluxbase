@@ -420,16 +420,15 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 
 			// For each matching entity, get documents mentioning it with salience
 			for _, entity := range matchingEntities {
-				docEntities, err := knowledgeGraph.GetDocumentEntities(ctx, "")
+				docEntities, err := knowledgeGraph.GetDocumentsByEntity(ctx, entity.ID)
 				if err != nil {
+					log.Warn().Err(err).Str("entity_id", entity.ID).Msg("Failed to get documents for entity")
 					continue
 				}
 
 				// Aggregate salience per document
 				for _, de := range docEntities {
-					if de.EntityID == entity.ID {
-						documentEntitySalience[de.DocumentID] += de.Salience
-					}
+					documentEntitySalience[de.DocumentID] += de.Salience
 				}
 			}
 		}
@@ -439,7 +438,14 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 		Int("documents_with_entities", len(documentEntitySalience)).
 		Msg("Found documents with entity matches")
 
-	// Step 4: Apply entity boost and re-rank
+	// Step 4-5: Apply entity boost, re-rank, and return top N
+	return applyGraphBoost(chunks, documentEntitySalience, opts), nil
+}
+
+// applyGraphBoost re-ranks retrieval results based on entity salience scores.
+// It combines vector similarity with entity-based boosting using a weighted average.
+// documentEntitySalience maps document_id -> aggregated salience score.
+func applyGraphBoost(chunks []RetrievalResult, documentEntitySalience map[string]float64, opts GraphBoostOptions) []RetrievalResult {
 	type boostedResult struct {
 		result      RetrievalResult
 		entityBoost float64
@@ -448,7 +454,6 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 
 	boosted := make([]boostedResult, 0, len(chunks))
 
-	// Find max salience for normalization
 	maxSalience := 0.0
 	for _, salience := range documentEntitySalience {
 		if salience > maxSalience {
@@ -459,11 +464,9 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 	for _, chunk := range chunks {
 		entityBoost := 0.0
 		if salience, ok := documentEntitySalience[chunk.DocumentID]; ok && maxSalience > 0 {
-			// Normalize to 0-1
 			entityBoost = (salience / maxSalience)
 		}
 
-		// Combined score: weighted average of vector similarity and entity boost
 		vectorWeight := 1.0 - opts.GraphBoostWeight
 		finalScore := (chunk.Similarity * vectorWeight) + (entityBoost * opts.GraphBoostWeight)
 
@@ -474,26 +477,24 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 		})
 	}
 
-	// Sort by final score (descending)
 	sort.Slice(boosted, func(i, j int) bool {
 		return boosted[i].finalScore > boosted[j].finalScore
 	})
 
-	// Step 5: Return top N results
 	resultCount := opts.Limit
 	if resultCount > len(boosted) {
 		resultCount = len(boosted)
+	}
+	if resultCount == 0 {
+		return []RetrievalResult{}
 	}
 
 	results := make([]RetrievalResult, resultCount)
 	for i := 0; i < resultCount; i++ {
 		results[i] = boosted[i].result
-		// Update similarity to the final score for consistency
 		results[i].Similarity = boosted[i].finalScore
-		// Store boost info in metadata for debugging (serialize as JSON)
 		metadataMap := make(map[string]any)
 		if len(results[i].Metadata) > 0 {
-			// Parse existing metadata if present (ignore errors - this is just for debugging)
 			_ = json.Unmarshal(results[i].Metadata, &metadataMap)
 		}
 		metadataMap["entity_boost"] = boosted[i].entityBoost
@@ -508,7 +509,7 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 		Float64("top_final_score", boosted[0].finalScore).
 		Msg("SearchChunksWithGraphBoost completed")
 
-	return results, nil
+	return results
 }
 
 // buildMetadataFilterSQL builds SQL WHERE conditions and args from a MetadataFilterGroup

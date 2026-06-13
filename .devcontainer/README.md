@@ -81,9 +81,8 @@ make dev
 # Run tests
 make test
 
-# Run specific test types
-make test-unit
-make test-integration
+# Run E2E tests
+make test-e2e
 
 # Build the binary
 make build
@@ -92,7 +91,7 @@ make build
 make help
 
 # Start documentation server
-make docs-dev
+make docs
 ```
 
 ## Environment
@@ -126,7 +125,7 @@ When services are running:
 
 - Fluxbase API: http://localhost:8080
 - MailHog UI: http://localhost:8025
-- Documentation: http://localhost:3000 (when `make docs-dev` is running)
+- Documentation: http://localhost:4321 (when `make docs` is running)
 
 ## Files Structure
 
@@ -211,17 +210,22 @@ make dev  # Automatically reloads on file changes
 ### Pre-configured Linting
 
 ```bash
-make lint  # Run golangci-lint
-make fmt   # Format code
-make vet   # Run go vet
+make lint-go          # Run golangci-lint
+make lint-typescript  # Lint TypeScript (admin UI + SDKs)
+make fmt              # Format Go code
 ```
 
 ### Database Migrations
 
+Migrations are managed via the Fluxbase CLI:
+
 ```bash
-make migrate-up    # Apply migrations
-make migrate-down  # Rollback migrations
+fluxbase migrations list                # List migrations
+fluxbase migrations apply-pending       # Apply all pending
+fluxbase migrations sync --dir ./migrations/user  # Sync from directory
 ```
+
+See `docs/src/content/docs/guides/migrations.md` for details.
 
 ## VS Code Tips
 

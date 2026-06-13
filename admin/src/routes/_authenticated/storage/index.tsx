@@ -27,6 +27,7 @@ import {
   UploadProgress,
   Toolbar,
 } from "@/components/storage";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const Route = createFileRoute("/_authenticated/storage/")({
   component: StorageBrowser,
@@ -669,19 +670,11 @@ function StorageBrowser() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <HardDrive className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Storage</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage files and buckets in your storage backend
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<HardDrive />}
+        title="Storage"
+        description="Manage files and buckets in your storage backend"
+      />
 
       <div className="flex flex-1 overflow-hidden p-6">
         <BucketList

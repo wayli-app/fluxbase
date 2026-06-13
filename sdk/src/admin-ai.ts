@@ -292,6 +292,7 @@ export class FluxbaseAdminAI {
       display_name?: string;
       enabled?: boolean;
       config?: Record<string, unknown>;
+      embedding_model?: string | null;
     },
   ): Promise<{ data: AIProvider | null; error: Error | null }> {
     try {
