@@ -17,7 +17,7 @@
     "picomatch": "^4.0.4"
   },
   "overrides": {
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "h3": "^1.15.11",
     "smol-toml": "^1.6.1",
     "picomatch": "^4.0.4"
