@@ -33,7 +33,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 
 - **PostgREST Compatible**: Use existing Supabase knowledge
 - **Auto-Generated APIs**: Database tables become REST endpoints automatically
-- **TypeScript & Go SDKs**: First-class support for modern development
+- **TypeScript SDK**: First-class support for modern development
 
 ## Core Features
 
