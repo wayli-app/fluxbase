@@ -49,6 +49,7 @@ export interface SidebarItem {
   visibility?: VisibilityLevel;
   requiresTenant?: boolean;
   badge?: string;
+  external?: boolean;
 }
 
 export interface SidebarGroup {
@@ -244,6 +245,14 @@ export const sidebarData: SidebarDataWithVisibility = {
           icon: Code2,
           visibility: "all",
           requiresTenant: false, // Override: works at both levels
+        },
+        {
+          title: "API Reference",
+          url: "/api-docs",
+          icon: ScrollText,
+          visibility: "all",
+          requiresTenant: false,
+          external: true,
         },
         {
           title: "Realtime",
