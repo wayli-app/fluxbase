@@ -577,22 +577,21 @@ jobs:
           go tool cover -html=coverage.out -o coverage.html
 
       - name: Check coverage thresholds
-        continue-on-error: true
         run: |
           go install github.com/vladopajic/go-test-coverage/v2@latest
           # Check thresholds against combined (unit + e2e) coverage
           go-test-coverage --config=.testcoverage.yml
 
-      # - name: Upload coverage to Codecov
-      #   uses: codecov/codecov-action@v5
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     files: ./coverage.out
-      #     flags: unittests
-      #     name: go-codecov
-      #     fail_ci_if_error: true
-      #     verbose: true
-      #     slug: nimbleflux/fluxbase
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
+          flags: unittests
+          name: go-codecov
+          fail_ci_if_error: false
+          verbose: true
+          slug: nimbleflux/fluxbase
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v7
