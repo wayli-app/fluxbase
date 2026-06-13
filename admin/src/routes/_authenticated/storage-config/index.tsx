@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { HardDrive, ImageIcon, Info, Lock } from "lucide-react";
 import api, { monitoringApi } from "@/lib/api";
 import { requireInstanceAdmin } from "@/lib/route-guards";
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -73,20 +74,11 @@ function StorageConfigPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <HardDrive className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Storage</h1>
-            <p className="text-muted-foreground text-sm">
-              File storage provider settings and upload limits
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<HardDrive />}
+        title="Storage"
+        description="File storage provider settings and upload limits"
+      />
 
       <div className="flex-1 overflow-auto space-y-6 p-6">
         <Card>

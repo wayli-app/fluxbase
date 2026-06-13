@@ -21,6 +21,7 @@ import {
   type SecurityWarning,
 } from "@/lib/api";
 import { BranchSelector } from "@/components/branch-selector";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -209,38 +210,32 @@ function SchemaViewerPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <GitFork className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Schema Viewer</h1>
-            <p className="text-muted-foreground text-sm">
-              Visualize database tables and their relationships
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <BranchSelector />
-          <Button
-            variant={viewMode === "erd" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("erd")}
-          >
-            <LayoutGrid className="mr-2 h-4 w-4" />
-            ERD View
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="mr-2 h-4 w-4" />
-            List View
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<GitFork />}
+        title="Schema Viewer"
+        description="Visualize database tables and their relationships"
+        actions={
+          <>
+            <BranchSelector />
+            <Button
+              variant={viewMode === "erd" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("erd")}
+            >
+              <LayoutGrid className="mr-2 h-4 w-4" />
+              ERD View
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="mr-2 h-4 w-4" />
+              List View
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <div className="flex items-center gap-4">

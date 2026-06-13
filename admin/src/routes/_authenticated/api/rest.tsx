@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useImpersonationStore } from "@/stores/impersonation-store";
 import { getAccessToken } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -555,20 +556,11 @@ print(data)`;
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Play className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">REST API Explorer</h1>
-            <p className="text-muted-foreground text-sm">
-              Build and test API requests against your Fluxbase backend
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Play />}
+        title="REST API Explorer"
+        description="Build and test API requests against your Fluxbase backend"
+      />
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden p-6">

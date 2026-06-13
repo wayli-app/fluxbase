@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ScrollText } from 'lucide-react'
 import { LogViewer } from '@/features/logs/components/log-viewer'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const Route = createFileRoute('/_authenticated/logs/')({
   component: LogsPage,
@@ -9,19 +10,11 @@ export const Route = createFileRoute('/_authenticated/logs/')({
 function LogsPage() {
   return (
     <div className='flex h-full flex-col'>
-      <div className='bg-background flex items-center justify-between border-b px-6 py-4'>
-        <div className='flex items-center gap-3'>
-          <div className='bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg'>
-            <ScrollText className='text-primary h-5 w-5' />
-          </div>
-          <div>
-            <h1 className='text-xl font-semibold'>Log Stream</h1>
-            <p className='text-muted-foreground text-sm'>
-              Real-time application logs
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<ScrollText />}
+        title="Log Stream"
+        description="Real-time application logs"
+      />
 
       <div className='min-h-0 flex-1 p-6'>
         <LogViewer />

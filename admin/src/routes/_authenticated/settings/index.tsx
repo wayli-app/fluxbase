@@ -19,6 +19,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/layout/page-header'
 import {
   Card,
   CardContent,
@@ -281,19 +282,11 @@ function SettingsPage() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='bg-background flex items-center justify-between border-b px-6 py-4'>
-        <div className='flex items-center gap-3'>
-          <div className='bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg'>
-            <User className='text-primary h-5 w-5' />
-          </div>
-          <div>
-            <h1 className='text-xl font-semibold'>Account</h1>
-            <p className='text-muted-foreground text-sm'>
-              Manage your profile and account security settings
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<User />}
+        title="Account"
+        description="Manage your profile and account security settings"
+      />
 
       <div className='flex-1 overflow-auto p-6'>
         <Tabs

@@ -22,6 +22,7 @@ import {
   type AIMetrics,
 } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/layout/page-header'
 import {
   Card,
   CardContent,
@@ -107,21 +108,11 @@ function MonitoringPage() {
 
   return (
     <div className='flex h-full flex-col'>
-      {/* Header */}
-      <div className='bg-background flex items-center justify-between border-b px-6 py-4'>
-        <div className='flex items-center gap-3'>
-          <div className='bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg'>
-            <Activity className='text-primary h-5 w-5' />
-          </div>
-          <div>
-            <h1 className='text-xl font-semibold'>System Monitoring</h1>
-            <p className='text-muted-foreground text-sm'>
-              Real-time system metrics and health status
-            </p>
-          </div>
-        </div>
-
-        <div className='flex items-center gap-2'>
+      <PageHeader
+        icon={<Activity />}
+        title="System Monitoring"
+        description="Real-time system metrics and health status"
+        actions={
           <label className='flex items-center gap-2 text-sm'>
             <input
               type='checkbox'
@@ -131,8 +122,8 @@ function MonitoringPage() {
             />
             Auto-refresh
           </label>
-        </div>
-      </div>
+        }
+      />
 
       <div className='flex-1 overflow-auto p-6'>
         <div className='flex flex-col gap-6'>

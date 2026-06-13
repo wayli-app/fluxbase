@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { useTenantStore } from "@/stores/tenant-store";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   Card,
   CardContent,
@@ -149,19 +150,11 @@ const ClientKeysPage = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Key className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Client Keys</h1>
-            <p className="text-muted-foreground text-sm">
-              Generate and manage client keys for programmatic access
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Key />}
+        title="Client Keys"
+        description="Generate and manage client keys for programmatic access"
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <div className="flex flex-col gap-6">

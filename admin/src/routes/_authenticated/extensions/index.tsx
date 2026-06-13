@@ -13,6 +13,7 @@ import { getErrorMessage } from '@/lib/get-error-message'
 import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -215,33 +216,26 @@ function ExtensionsPage() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='bg-background flex items-center justify-between border-b px-6 py-4'>
-        <div className='flex items-center gap-3'>
-          <div className='bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg'>
-            <Puzzle className='text-primary h-5 w-5' />
-          </div>
-          <div>
-            <h1 className='text-xl font-semibold'>Extensions</h1>
-            <p className='text-muted-foreground text-sm'>
-              Manage PostgreSQL extensions for your database
-            </p>
-          </div>
-        </div>
-
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-        >
-          {syncMutation.isPending ? (
-            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-          ) : (
-            <RefreshCw className='mr-2 h-4 w-4' />
-          )}
-          Sync from Database
-        </Button>
-      </div>
+      <PageHeader
+        icon={<Puzzle />}
+        title="Extensions"
+        description="Manage PostgreSQL extensions for your database"
+        actions={
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+          >
+            {syncMutation.isPending ? (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            ) : (
+              <RefreshCw className='mr-2 h-4 w-4' />
+            )}
+            Sync from Database
+          </Button>
+        }
+      />
 
       <div className='flex-1 overflow-auto p-6'>
 
