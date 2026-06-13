@@ -491,19 +491,32 @@ func (g *GraphQLSchemaGenerator) generateFilterType(table database.TableInfo) *g
 		}
 	}
 
-	// Add logical operators to the filter type
+	// Create filter type name
 	filterTypeName := typeName + "Filter"
 
-	// NOTE: Self-referencing filter operators (_and, _or, _not) are not supported
-	// in graphql-go v0.8.1 due to limitations in input object type resolution.
-	// Users can still filter on individual columns using the column-specific operators
-	// (eq, neq, gt, gte, lt, lte, like, ilike, in, is_null, contains, contained_by).
-
-	// Create the filter type with column-based filters only
-	filterType := graphql.NewInputObject(graphql.InputObjectConfig{
+	// Create the filter type with column-based filters + logical operators.
+	// Self-referencing fields (_and, _or, _not) use a thunk to break the
+	// circular dependency — the thunk runs lazily during schema assembly,
+	// after filterType is already assigned.
+	var filterType *graphql.InputObject
+	filterType = graphql.NewInputObject(graphql.InputObjectConfig{
 		Name:        filterTypeName,
 		Description: fmt.Sprintf("Filter type for %s.%s", table.Schema, table.Name),
-		Fields:      fields,
+		Fields: graphql.InputObjectConfigFieldMapThunk(func() graphql.InputObjectConfigFieldMap {
+			fields["_and"] = &graphql.InputObjectFieldConfig{
+				Type:        graphql.NewList(graphql.NewNonNull(filterType)),
+				Description: "Logical AND — all conditions must match",
+			}
+			fields["_or"] = &graphql.InputObjectFieldConfig{
+				Type:        graphql.NewList(graphql.NewNonNull(filterType)),
+				Description: "Logical OR — any condition must match",
+			}
+			fields["_not"] = &graphql.InputObjectFieldConfig{
+				Type:        filterType,
+				Description: "Logical NOT — negates all enclosed conditions",
+			}
+			return fields
+		}),
 	})
 	g.filterTypes[filterTypeName] = filterType
 

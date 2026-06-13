@@ -64,13 +64,7 @@ func (h *AdminSessionHandler) ListSessions(c fiber.Ctx) error {
 		return apperrors.SendInternalError(c, "Failed to list sessions")
 	}
 
-	return c.JSON(fiber.Map{
-		"sessions":    sessions,
-		"count":       len(sessions),
-		"total_count": total,
-		"limit":       limit,
-		"offset":      offset,
-	})
+	return apperrors.SendPaginated(c, "sessions", sessions, total, limit, offset)
 }
 
 // RevokeSession revokes a specific session

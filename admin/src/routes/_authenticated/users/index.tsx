@@ -6,6 +6,7 @@ import { Users, UserPlus, UserCheck, Clock, Shield } from "lucide-react";
 import { userManagementApi } from "@/lib/api";
 import { useTenantStore } from "@/stores/tenant-store";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersDialogs } from "@/features/users/components/users-dialogs";
@@ -146,27 +147,23 @@ function UsersPage() {
   return (
     <UsersProvider userType={activeTab}>
       <div className="flex h-full flex-col">
-        <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-              <Users className="text-primary h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold">Users</h1>
-              <p className="text-muted-foreground text-sm">
-                {activeTab === "dashboard"
-                  ? "Manage Fluxbase dashboard administrators"
-                  : "Manage application users"}
-              </p>
-            </div>
-          </div>
-          {activeTab === "app" && (
-            <Button onClick={() => setInviteDialogOpen(true)}>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invite User
-            </Button>
-          )}
-        </div>
+        <PageHeader
+          icon={<Users />}
+          title="Users"
+          description={
+            activeTab === "dashboard"
+              ? "Manage Fluxbase dashboard administrators"
+              : "Manage application users"
+          }
+          actions={
+            activeTab === "app" ? (
+              <Button onClick={() => setInviteDialogOpen(true)}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Invite User
+              </Button>
+            ) : undefined
+          }
+        />
 
         <div className="flex-1 overflow-auto p-6">
           {isInstanceScope ? (

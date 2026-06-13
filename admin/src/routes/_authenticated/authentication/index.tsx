@@ -1,6 +1,7 @@
 import z from "zod";
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Key, Settings, Users, Building2, Shield } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   OAuthProvidersTab,
@@ -24,21 +25,15 @@ const AuthenticationPage = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Shield className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Authentication</h1>
-            <p className="text-muted-foreground text-sm">
-              {isInstanceLevel
-                ? "Configuring instance-level providers (available to all tenants)"
-                : `Configuring providers for "${currentTenant.name}"`}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Shield />}
+        title="Authentication"
+        description={
+          isInstanceLevel
+            ? "Configuring instance-level providers (available to all tenants)"
+            : `Configuring providers for "${currentTenant.name}"`
+        }
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <Tabs

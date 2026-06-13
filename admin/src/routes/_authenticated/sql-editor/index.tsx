@@ -14,6 +14,7 @@ import { Panel, Group, Separator } from "react-resizable-panels";
 import { toast } from "sonner";
 import { useImpersonationStore } from "@/stores/impersonation-store";
 import { BranchSelector } from "@/components/branch-selector";
+import { PageHeader } from "@/components/layout/page-header";
 import api from "@/lib/api";
 import { useTheme } from "@/context/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -455,54 +456,44 @@ function SQLEditorPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            {editorMode === "sql" ? (
-              <Database className="text-primary h-5 w-5" />
-            ) : (
-              <Braces className="text-primary h-5 w-5" />
-            )}
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Query Editor</h1>
-            <p className="text-muted-foreground text-sm">
-              Execute {editorMode === "sql" ? "SQL" : "GraphQL"} queries on the
-              database
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        icon={editorMode === "sql" ? <Database /> : <Braces />}
+        title="Query Editor"
+        description={`Execute ${editorMode === "sql" ? "SQL" : "GraphQL"} queries on the database`}
+        actions={
+          <>
+            <Tabs
+              value={editorMode}
+              onValueChange={(v) => handleModeChange(v as EditorMode)}
+            >
+              <TabsList>
+                <TabsTrigger value="sql" className="gap-2">
+                  <Database className="h-4 w-4" />
+                  SQL
+                </TabsTrigger>
+                <TabsTrigger value="graphql" className="gap-2">
+                  <Braces className="h-4 w-4" />
+                  GraphQL
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-        <Tabs
-          value={editorMode}
-          onValueChange={(v) => handleModeChange(v as EditorMode)}
-        >
-          <TabsList>
-            <TabsTrigger value="sql" className="gap-2">
-              <Database className="h-4 w-4" />
-              SQL
-            </TabsTrigger>
-            <TabsTrigger value="graphql" className="gap-2">
-              <Braces className="h-4 w-4" />
-              GraphQL
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="flex items-center gap-2">
-          <BranchSelector />
-          {queryHistory.length > 0 && (
-            <Button variant="outline" size="sm" onClick={clearHistory}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Clear History
-            </Button>
-          )}
-          <Button size="sm" onClick={executeQuery} disabled={isExecuting}>
-            <Play className="mr-2 h-4 w-4" />
-            {isExecuting ? "Executing..." : "Execute (Ctrl+Enter)"}
-          </Button>
-        </div>
-      </div>
+            <div className="flex items-center gap-2">
+              <BranchSelector />
+              {queryHistory.length > 0 && (
+                <Button variant="outline" size="sm" onClick={clearHistory}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Clear History
+                </Button>
+              )}
+              <Button size="sm" onClick={executeQuery} disabled={isExecuting}>
+                <Play className="mr-2 h-4 w-4" />
+                {isExecuting ? "Executing..." : "Execute (Ctrl+Enter)"}
+              </Button>
+            </div>
+          </>
+        }
+      />
 
       <div className="flex flex-1 overflow-hidden p-6">
         <Group orientation="vertical" id="sql-editor-group-v2">

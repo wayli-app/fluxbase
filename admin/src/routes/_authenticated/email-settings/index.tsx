@@ -22,6 +22,7 @@ import { apiClient } from "@/lib/api";
 import { fluxbaseClient } from "@/lib/fluxbase-client";
 import { useTenantStore } from "@/stores/tenant-store";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   Card,
   CardContent,
@@ -425,46 +426,42 @@ function EmailSettingsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Mail className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Email Settings</h1>
-            <p className="text-muted-foreground text-sm">
-              {showTenantLevel
-                ? `Tenant overrides for ${currentTenant?.name || "tenant"} — inherits from instance defaults`
-                : "Configure email service and customize email templates"}
-            </p>
-          </div>
-        </div>
-        {showTenantLevel && (
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300"
-            >
-              <Building2 className="mr-1 h-3 w-3" />
-              {currentTenant?.name}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                clearTenant();
-                navigate({
-                  to: "/email-settings",
-                  search: { tab: search.tab },
-                });
-              }}
-            >
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Instance Settings
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        icon={<Mail />}
+        title="Email Settings"
+        description={
+          showTenantLevel
+            ? `Tenant overrides for ${currentTenant?.name || "tenant"} — inherits from instance defaults`
+            : "Configure email service and customize email templates"
+        }
+        actions={
+          showTenantLevel ? (
+            <>
+              <Badge
+                variant="outline"
+                className="border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300"
+              >
+                <Building2 className="mr-1 h-3 w-3" />
+                {currentTenant?.name}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  clearTenant();
+                  navigate({
+                    to: "/email-settings",
+                    search: { tab: search.tab },
+                  });
+                }}
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Instance Settings
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <Tabs

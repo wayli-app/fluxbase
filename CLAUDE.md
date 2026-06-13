@@ -6,7 +6,7 @@ Fluxbase is a single-binary Backend-as-a-Service (BaaS). PostgreSQL is the only 
 
 - **Backend:** Go 1.25+, Fiber v3, pgx/v5, golang-migrate, TimescaleDB
 - **Admin UI:** React 19, Vite, TanStack Router/Query, Tailwind v4, shadcn/ui
-- **SDKs:** TypeScript (`sdk/`), React hooks (`sdk-react/`), Go (`pkg/client/`)
+- **SDKs:** TypeScript (`sdk/`), React hooks (`sdk-react/`)
 - **Functions Runtime:** Deno (JavaScript/TypeScript edge functions)
 
 ## Directory Structure

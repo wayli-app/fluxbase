@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -23,20 +23,8 @@ import {
   MessageSquare,
   History,
 } from "lucide-react";
-import { toast } from "sonner";
-import { chatbotsApi, type AIChatbotSummary } from "@/lib/api";
-import { useTenantStore } from "@/stores/tenant-store";
+import { type AIChatbotSummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +45,8 @@ import {
 import { ChatbotSettingsDialog } from "@/components/chatbots/chatbot-settings-dialog";
 import { ChatbotTestDialog } from "@/components/chatbots/chatbot-test-dialog";
 import { ChatbotConversationsDialog } from "@/components/chatbots/chatbot-conversations-dialog";
+import { DeleteChatbotDialog } from "@/components/chatbots/delete-chatbot-dialog";
+import { useChatbots } from "@/components/chatbots/use-chatbots";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   DataTablePagination,
@@ -64,94 +54,64 @@ import {
   DataTableColumnHeader,
 } from "@/components/data-table";
 
-const ChatbotsPage = () => {
-  const [chatbots, setChatbots] = useState<AIChatbotSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reloading, setReloading] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [settingsChatbot, setSettingsChatbot] =
-    useState<AIChatbotSummary | null>(null);
-  const [testChatbot, setTestChatbot] = useState<AIChatbotSummary | null>(null);
-  const [conversationsChatbot, setConversationsChatbot] =
-    useState<AIChatbotSummary | null>(null);
+interface ChatbotActionsProps {
+  onTest: () => void;
+  onConversations: () => void;
+  onSettings: () => void;
+  onDelete: () => void;
+}
 
-  // Table state
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+function ChatbotActions({
+  onTest,
+  onConversations,
+  onSettings,
+  onDelete,
+}: ChatbotActionsProps) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button onClick={onTest} size="sm" variant="ghost" className="h-7 w-7 p-0">
+            <MessageSquare className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Test chatbot</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button onClick={onConversations} size="sm" variant="ghost" className="h-7 w-7 p-0">
+            <History className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>View conversations</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button onClick={onSettings} size="sm" variant="ghost" className="h-7 w-7 p-0">
+            <Settings className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Settings</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={onDelete}
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Delete chatbot</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
 
-  const currentTenantId = useTenantStore((state) => state.currentTenant?.id);
-
-  const fetchChatbots = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await chatbotsApi.list();
-      setChatbots(data || []);
-    } catch {
-      toast.error("Failed to fetch chatbots");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const handleReloadClick = async () => {
-    setReloading(true);
-    try {
-      const result = await chatbotsApi.sync();
-      const { created, updated, deleted, errors } = result.summary;
-
-      if (created > 0 || updated > 0 || deleted > 0) {
-        const messages = [];
-        if (created > 0) messages.push(`${created} created`);
-        if (updated > 0) messages.push(`${updated} updated`);
-        if (deleted > 0) messages.push(`${deleted} deleted`);
-
-        toast.success(`Chatbots synced: ${messages.join(", ")}`);
-      } else if (errors > 0) {
-        toast.error(`Failed to sync chatbots: ${errors} errors`);
-      } else {
-        toast.info("No changes detected");
-      }
-
-      await fetchChatbots();
-    } catch {
-      toast.error("Failed to sync chatbots from filesystem");
-    } finally {
-      setReloading(false);
-    }
-  };
-
-  const toggleChatbot = async (chatbot: AIChatbotSummary) => {
-    const newEnabledState = !chatbot.enabled;
-
-    try {
-      await chatbotsApi.toggle(chatbot.id, newEnabledState);
-      toast.success(`Chatbot ${newEnabledState ? "enabled" : "disabled"}`);
-      await fetchChatbots();
-    } catch {
-      toast.error("Failed to toggle chatbot");
-    }
-  };
-
-  const deleteChatbot = async (id: string) => {
-    try {
-      await chatbotsApi.delete(id);
-      toast.success("Chatbot deleted successfully");
-      await fetchChatbots();
-    } catch {
-      toast.error("Failed to delete chatbot");
-    } finally {
-      setDeleteConfirm(null);
-    }
-  };
-
-  // Get unique namespaces for filter options
-  const namespaceOptions = useMemo(() => {
-    const namespaces = [...new Set(chatbots.map((cb) => cb.namespace))];
-    return namespaces.map((ns) => ({ label: ns, value: ns }));
-  }, [chatbots]);
-
-  // Define columns
-  const columns: ColumnDef<AIChatbotSummary>[] = useMemo(
+function useChatbotColumns(toggle: (chatbot: AIChatbotSummary) => void) {
+  return useMemo<ColumnDef<AIChatbotSummary>[]>(
     () => [
       {
         accessorKey: "name",
@@ -213,7 +173,7 @@ const ChatbotsPage = () => {
         cell: ({ row }) => (
           <Switch
             checked={row.getValue("enabled")}
-            onCheckedChange={() => toggleChatbot(row.original)}
+            onCheckedChange={() => toggle(row.original)}
             className="scale-90"
           />
         ),
@@ -235,77 +195,39 @@ const ChatbotsPage = () => {
       },
       {
         id: "actions",
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setTestChatbot(row.original)}
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                >
-                  <MessageSquare className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Test chatbot</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setConversationsChatbot(row.original)}
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                >
-                  <History className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>View conversations</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setSettingsChatbot(row.original)}
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Settings</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setDeleteConfirm(row.original.id)}
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Delete chatbot</TooltipContent>
-            </Tooltip>
-          </div>
-        ),
+        cell: ({ row }) => <ChatbotActionsCell chatbot={row.original} />,
         enableSorting: false,
         enableHiding: false,
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [toggle],
   );
+}
+
+const ChatbotsPage = () => {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+
+  const {
+    chatbots,
+    loading,
+    reloading,
+    sync,
+    toggle,
+    refetch,
+  } = useChatbots();
+
+  const columns = useChatbotColumns(toggle);
+
+  const namespaceOptions = useMemo(() => {
+    const namespaces = [...new Set(chatbots.map((cb) => cb.namespace))];
+    return namespaces.map((ns) => ({ label: ns, value: ns }));
+  }, [chatbots]);
 
   const table = useReactTable({
     data: chatbots,
     columns,
-    state: {
-      sorting,
-      columnFilters,
-    },
+    state: { sorting, columnFilters },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -315,10 +237,6 @@ const ChatbotsPage = () => {
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
-
-  useEffect(() => {
-    fetchChatbots();
-  }, [fetchChatbots, currentTenantId]);
 
   if (loading) {
     return (
@@ -358,7 +276,7 @@ const ChatbotsPage = () => {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleReloadClick}
+                onClick={() => sync()}
                 variant="outline"
                 size="sm"
                 disabled={reloading}
@@ -375,11 +293,7 @@ const ChatbotsPage = () => {
                   </>
                 )}
               </Button>
-              <Button
-                onClick={() => fetchChatbots()}
-                variant="outline"
-                size="sm"
-              >
+              <Button onClick={() => refetch()} variant="outline" size="sm">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
@@ -473,64 +387,60 @@ const ChatbotsPage = () => {
               <DataTablePagination table={table} className="mt-auto" />
             </div>
           )}
-
-          {/* Delete Confirmation Dialog */}
-          <AlertDialog
-            open={deleteConfirm !== null}
-            onOpenChange={(open) => !open && setDeleteConfirm(null)}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Chatbot</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete this chatbot? This action
-                  cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => deleteConfirm && deleteChatbot(deleteConfirm)}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Settings Dialog */}
-          {settingsChatbot && (
-            <ChatbotSettingsDialog
-              chatbot={settingsChatbot}
-              open={settingsChatbot !== null}
-              onOpenChange={(open) => !open && setSettingsChatbot(null)}
-            />
-          )}
-
-          {/* Test Dialog */}
-          {testChatbot && (
-            <ChatbotTestDialog
-              chatbot={testChatbot}
-              open={testChatbot !== null}
-              onOpenChange={(open) => !open && setTestChatbot(null)}
-            />
-          )}
-
-          {/* Conversations Dialog */}
-          {conversationsChatbot && (
-            <ChatbotConversationsDialog
-              open={conversationsChatbot !== null}
-              onOpenChange={(open) => !open && setConversationsChatbot(null)}
-              chatbotId={conversationsChatbot.id}
-              chatbotName={conversationsChatbot.name}
-            />
-          )}
         </div>
       </div>
     </div>
   );
 };
+
+function ChatbotActionsCell({ chatbot }: { chatbot: AIChatbotSummary }) {
+  const [settings, setSettings] = useState(false);
+  const [test, setTest] = useState(false);
+  const [conversations, setConversations] = useState(false);
+  const [del, setDel] = useState(false);
+  const { deleteChatbot } = useChatbots();
+
+  return (
+    <>
+      <ChatbotActions
+        onTest={() => setTest(true)}
+        onConversations={() => setConversations(true)}
+        onSettings={() => setSettings(true)}
+        onDelete={() => setDel(true)}
+      />
+      {settings && (
+        <ChatbotSettingsDialog
+          chatbot={chatbot}
+          open={settings}
+          onOpenChange={setSettings}
+        />
+      )}
+      {test && (
+        <ChatbotTestDialog
+          chatbot={chatbot}
+          open={test}
+          onOpenChange={setTest}
+        />
+      )}
+      {conversations && (
+        <ChatbotConversationsDialog
+          open={conversations}
+          onOpenChange={setConversations}
+          chatbotId={chatbot.id}
+          chatbotName={chatbot.name}
+        />
+      )}
+      <DeleteChatbotDialog
+        open={del}
+        onOpenChange={setDel}
+        onConfirm={() => {
+          deleteChatbot(chatbot.id);
+          setDel(false);
+        }}
+      />
+    </>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/chatbots/")({
   component: ChatbotsPage,

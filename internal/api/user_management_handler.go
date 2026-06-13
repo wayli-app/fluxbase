@@ -100,12 +100,7 @@ func (h *UserManagementHandler) ListUsers(c fiber.Ctx) error {
 		filteredUsers = filteredUsers[:limit]
 	}
 
-	return c.JSON(fiber.Map{
-		"users":  filteredUsers,
-		"total":  total,
-		"limit":  limit,
-		"offset": offset,
-	})
+	return apperrors.SendPaginated(c, "users", filteredUsers, total, limit, offset)
 }
 
 func (h *UserManagementHandler) GetUserByID(c fiber.Ctx) error {

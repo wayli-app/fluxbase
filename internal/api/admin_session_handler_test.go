@@ -202,19 +202,17 @@ func TestSessionResponses_Format(t *testing.T) {
 	t.Run("list sessions response structure", func(t *testing.T) {
 		// Test expected pagination response structure
 		expectedResponse := fiber.Map{
-			"sessions":    []interface{}{},
-			"count":       0,
-			"total_count": 0,
-			"limit":       25,
-			"offset":      0,
+			"sessions": []interface{}{},
+			"total":    0,
+			"limit":    25,
+			"offset":   0,
 		}
 
 		data, err := json.Marshal(expectedResponse)
 		require.NoError(t, err)
 
 		assert.Contains(t, string(data), `"sessions"`)
-		assert.Contains(t, string(data), `"count"`)
-		assert.Contains(t, string(data), `"total_count"`)
+		assert.Contains(t, string(data), `"total"`)
 		assert.Contains(t, string(data), `"limit"`)
 		assert.Contains(t, string(data), `"offset"`)
 	})

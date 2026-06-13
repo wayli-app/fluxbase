@@ -31,3 +31,51 @@ export function useJobStatus(jobId: string | null) {
     },
   })
 }
+
+export interface UseJobsOptions {
+  namespace?: string;
+  limit?: number;
+  offset?: number;
+  status?: string;
+}
+
+export function useJobs(options?: UseJobsOptions) {
+  const client = useFluxbaseClient()
+  return useQuery({
+    queryKey: ["fluxbase", "jobs", options],
+    queryFn: async (): Promise<unknown> => {
+      const { data, error } = await client.jobs.list(options)
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export function useCancelJob() {
+  const client = useFluxbaseClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (jobId: string): Promise<void> => {
+      const { error } = await client.jobs.cancel(jobId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fluxbase", "jobs"] })
+    },
+  })
+}
+
+export function useRetryJob() {
+  const client = useFluxbaseClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (jobId: string): Promise<unknown> => {
+      const { data, error } = await client.jobs.retry(jobId)
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fluxbase", "jobs"] })
+    },
+  })
+}

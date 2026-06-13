@@ -20,6 +20,7 @@ import api from '@/lib/api'
 import { getPageNumbers } from '@/lib/utils'
 import { useRealtimeConnections } from '@/hooks/use-realtime-connections'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -174,26 +175,17 @@ function RealtimePage() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header */}
-      <div className='bg-background flex items-center justify-between border-b px-6 py-4'>
-        <div className='flex items-center gap-3'>
-          <div className='bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg'>
-            <Radio className='text-primary h-5 w-5' />
-          </div>
-          <div>
-            <h1 className='text-xl font-semibold'>Realtime Dashboard</h1>
-            <p className='text-muted-foreground text-sm'>
-              Monitor WebSocket connections and subscriptions
-            </p>
-          </div>
-        </div>
-
-        <div className='flex items-center gap-2'>
+      <PageHeader
+        icon={<Radio />}
+        title="Realtime Dashboard"
+        description="Monitor WebSocket connections and subscriptions"
+        actions={
           <Button variant='outline' size='sm' onClick={fetchStats}>
             <RefreshCw className='mr-2 h-4 w-4' />
             Refresh
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Stats Cards */}
       <div className='grid grid-cols-1 gap-4 p-6 md:grid-cols-2'>

@@ -10,6 +10,7 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/branching"
 	"github.com/nimbleflux/fluxbase/internal/config"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 )
 
@@ -234,12 +235,7 @@ func (h *BranchHandler) ListBranches(c fiber.Ctx) error {
 		total = len(branches)
 	}
 
-	return c.JSON(fiber.Map{
-		"branches": branches,
-		"total":    total,
-		"limit":    filter.Limit,
-		"offset":   filter.Offset,
-	})
+	return apperrors.SendPaginated(c, "branches", branches, total, filter.Limit, filter.Offset)
 }
 
 // GetBranch handles GET /admin/branches/:id

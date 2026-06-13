@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/realtime"
 )
 
@@ -93,11 +94,6 @@ func newRealtimeStatsHandler(db *database.Connection, manager *realtime.Manager)
 			filteredConnections = filteredConnections[:limit]
 		}
 
-		return c.JSON(fiber.Map{
-			"total_connections": total,
-			"connections":       filteredConnections,
-			"limit":             limit,
-			"offset":            offset,
-		})
+		return apperrors.SendPaginated(c, "connections", filteredConnections, total, limit, offset)
 	}
 }

@@ -29,6 +29,7 @@ import { jobsApi, type JobFunction, type Job, type JobWorker } from "@/lib/api";
 import { fluxbaseClient } from "@/lib/fluxbase-client";
 import { useExecutionLogs } from "@/hooks/use-execution-logs";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -709,29 +710,23 @@ function JobsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <ListTodo className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Background Jobs</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage job functions and monitor background task execution
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ImpersonationPopover
-            contextLabel="Running as"
-            defaultReason="Testing job submission"
-          />
-          <Button onClick={refreshAllData} variant="outline" size="sm">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<ListTodo />}
+        title="Background Jobs"
+        description="Manage job functions and monitor background task execution"
+        actions={
+          <>
+            <ImpersonationPopover
+              contextLabel="Running as"
+              defaultReason="Testing job submission"
+            />
+            <Button onClick={refreshAllData} variant="outline" size="sm">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <Card className="!gap-0 !py-0 mb-6">

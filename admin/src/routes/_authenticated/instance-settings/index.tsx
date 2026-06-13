@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Settings, Shield, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -128,19 +129,11 @@ function InstanceSettingsPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Settings className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Instance Settings</h1>
-            <p className="text-muted-foreground text-sm">
-              Instance-level configuration for security and tenant permissions
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        icon={<Settings />}
+        title="Instance Settings"
+        description="Instance-level configuration for security and tenant permissions"
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -149,8 +142,8 @@ function InstanceSettingsPage() {
             <Shield className="h-4 w-4 mr-2" />
             Manage Tenant Overrides
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Main content */}
       <div className="flex-1 overflow-auto p-6">

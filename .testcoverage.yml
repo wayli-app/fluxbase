@@ -4,7 +4,7 @@
 profile: coverage.out
 
 threshold:
-  file: 0       # Individual files (not enforced yet)
+  file: -1      # Individual files (not enforced)
   package: 0    # Per-package minimum (enforced via overrides below)
   total: 25     # Overall project target
 
@@ -100,6 +100,7 @@ exclude:
     # Infrastructure code (requires system dependencies, tested via E2E)
     - ^internal/scaling/leader\.go$
     - ^internal/database/connection\.go$
+    - ^internal/database/schema/
     - ^internal/ai/ocr_tesseract\.go$
 
     # Entry points and embedded assets

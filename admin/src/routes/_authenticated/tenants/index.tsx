@@ -39,6 +39,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -240,23 +241,17 @@ function TenantsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-            <Building2 className="text-primary h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Tenants</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage multi-tenant organizations
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Tenant
-        </Button>
-      </div>
+      <PageHeader
+        icon={<Building2 />}
+        title="Tenants"
+        description="Manage multi-tenant organizations"
+        actions={
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Tenant
+          </Button>
+        }
+      />
 
       <div className="flex-1 overflow-auto p-6">
         <div className="flex flex-col gap-6">

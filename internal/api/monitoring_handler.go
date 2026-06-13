@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/jobs"
 	"github.com/nimbleflux/fluxbase/internal/logging"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
@@ -451,13 +452,8 @@ func (h *MonitoringHandler) GetLogs(c fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"logs":    logs,
-		"total":   result.TotalCount,
-		"limit":   limit,
-		"offset":  opts.Offset,
-		"hasMore": result.TotalCount > int64(opts.Offset+len(logs)),
-	})
+	hasMore := result.TotalCount > int64(opts.Offset+len(logs))
+	return apperrors.SendPaginatedWithMore(c, "logs", logs, int(result.TotalCount), limit, opts.Offset, hasMore)
 }
 
 // fiber:context-methods migrated

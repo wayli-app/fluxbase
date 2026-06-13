@@ -643,10 +643,15 @@ func (g *GraphQLSchemaGenerator) buildFiltersFromArgsWithCounter(table database.
 			continue
 		}
 		if key == "_or" {
-			// OR: each element in the array gets the same OrGroupID
+			// OR: each element in the array gets the same OrGroupID.
+			// When negated (inside _not), De Morgan's law applies:
+			// NOT(A OR B) = NOT A AND NOT B, so we skip OrGroupID.
 			if orArr, ok := value.([]interface{}); ok {
-				*orGroupCounter++
-				groupID := *orGroupCounter
+				groupID := 0
+				if !negated {
+					*orGroupCounter++
+					groupID = *orGroupCounter
+				}
 				for _, orItem := range orArr {
 					if orMap, ok := orItem.(map[string]interface{}); ok {
 						subFilters := g.buildFiltersFromArgsWithCounter(table, orMap, orGroupCounter, groupID, negated)
