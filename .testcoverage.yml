@@ -100,6 +100,7 @@ exclude:
     # Infrastructure code (requires system dependencies, tested via E2E)
     - ^internal/scaling/leader\.go$
     - ^internal/database/connection\.go$
+    - ^internal/database/schema/
     - ^internal/ai/ocr_tesseract\.go$
 
     # Entry points and embedded assets
