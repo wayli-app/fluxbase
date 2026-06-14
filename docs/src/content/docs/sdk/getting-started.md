@@ -146,8 +146,8 @@ console.log(data);
 
 ## Next Steps
 
-- [Advanced Features](./advanced-features) — Aggregations, vector search, batch operations
-- [Admin SDK](./admin) — Admin operations (users, client keys, webhooks)
-- [Management SDK](./management) — Client keys, webhooks, invitations
-- [Settings SDK](./settings) — App and system settings
-- [DDL SDK](./ddl) — Schema and table management
+- [Advanced Features](../advanced-features) — Aggregations, vector search, batch operations
+- [Admin SDK](../admin) — Admin operations (users, client keys, webhooks)
+- [Management SDK](../management) — Client keys, webhooks, invitations
+- [Settings SDK](../settings) — App and system settings
+- [DDL SDK](../ddl) — Schema and table management
