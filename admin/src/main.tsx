@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { FluxbaseProvider } from "@nimbleflux/fluxbase-sdk-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
 import { fluxbaseClient } from "@/lib/fluxbase-client";
@@ -79,6 +80,17 @@ const router = createRouter({
   defaultPreloadStaleTime: 0,
   // Always use /admin as base path for consistency
   basepath: "/admin",
+  // Render the pending component almost immediately while route beforeLoad
+  // guards resolve. Without this, an await on a slow/failing network call in
+  // a beforeLoad (e.g. _authenticated/route.tsx calling getSetupStatus when
+  // the backend is down) leaves the SPA on a blank screen until the call
+  // settles. The pending component shows a centered spinner instead.
+  defaultPendingMs: 1,
+  defaultPendingComponent: () => (
+    <div className="flex h-screen w-full items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  ),
 });
 
 // Register the router instance for type safety

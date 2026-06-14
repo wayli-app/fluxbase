@@ -1,4 +1,4 @@
-.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk build clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
+.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk build clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full db-grants deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
 
 # Variables
 BINARY_NAME=fluxbase-server
@@ -471,6 +471,23 @@ db-reset: ## Reset database (preserves public, auth.users, platform.users, setup
 	@echo "${BLUE}Database:${NC} $(DATABASE_ADMIN_USER)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
 	@PGPASSWORD=$(DATABASE_ADMIN_PASSWORD) psql -h $(DATABASE_HOST) -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -f internal/database/bootstrap/bootstrap.sql
 	@echo "${YELLOW}Granting permissions to test users (fluxbase_app, fluxbase_rls_test)...${NC}"
+	@$(MAKE) db-grants
+	@# Restore user data from backups
+	@echo "${YELLOW}Restoring user data from backups...${NC}"
+	@PGPASSWORD=$(DATABASE_ADMIN_PASSWORD) psql -h $(DATABASE_HOST) -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "INSERT INTO auth.users SELECT * FROM _fluxbase_auth_users_backup ON CONFLICT (id) DO NOTHING; DROP TABLE IF EXISTS _fluxbase_auth_users_backup;" 2>/dev/null || true
+	@PGPASSWORD=$(DATABASE_ADMIN_PASSWORD) psql -h $(DATABASE_HOST) -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "INSERT INTO platform.users SELECT * FROM _fluxbase_platform_users_backup ON CONFLICT (id) DO NOTHING; DROP TABLE IF EXISTS _fluxbase_platform_users_backup;" 2>/dev/null || true
+	@PGPASSWORD=$(DATABASE_ADMIN_PASSWORD) psql -h $(DATABASE_HOST) -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "INSERT INTO app.settings SELECT * FROM _fluxbase_setup_backup ON CONFLICT (key) WHERE user_id IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(); DROP TABLE IF EXISTS _fluxbase_setup_backup;" 2>/dev/null || true
+	@echo "${GREEN}Database reset complete!${NC}"
+	@echo "${BLUE}Note: Migrations granted all permissions to the user running them ($(DATABASE_ADMIN_USER)).${NC}"
+	@echo "${BLUE}Additional permissions granted to fluxbase_app and fluxbase_rls_test for testing.${NC}"
+
+# db-grants: Grant fluxbase_app and fluxbase_rls_test the role memberships, schema USAGE,
+# table/sequence/function privileges, and SET ROLE memberships they need.
+# Required because bootstrap.sql runs as the admin user via the Go server, so
+# `GRANT ... TO CURRENT_USER` lines never reach the app user. Both db-reset and
+# db-reset-full invoke this target so the database is left in a usable state.
+db-grants:
+	@echo "${YELLOW}Applying schema and table grants...${NC}"
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "GRANT CREATE ON DATABASE $(DATABASE_NAME) TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "GRANT USAGE, CREATE ON SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
@@ -511,15 +528,7 @@ db-reset: ## Reset database (preserves public, auth.users, platform.users, setup
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA mcp TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fluxbase_app, fluxbase_rls_test;" || true
 	@echo "${YELLOW}Granting role memberships for SET ROLE support...${NC}"
-	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT anon TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT authenticated TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT service_role TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT anon TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT authenticated TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT service_role TO fluxbase_rls_test; END IF; END \$$\$$;" || true
-	@# Restore user data from backups
-	@echo "${YELLOW}Restoring user data from backups...${NC}"
-	@PGPASSWORD=$(DATABASE_ADMIN_PASSWORD) psql -h $(DATABASE_HOST) -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "INSERT INTO auth.users SELECT * FROM _fluxbase_auth_users_backup ON CONFLICT (id) DO NOTHING; DROP TABLE IF EXISTS _fluxbase_auth_users_backup;" 2>/dev/null || true
-	@PGPASSWORD=$(DATABASE_ADMIN_PASSWORD) psql -h $(DATABASE_HOST) -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "INSERT INTO platform.users SELECT * FROM _fluxbase_platform_users_backup ON CONFLICT (id) DO NOTHING; DROP TABLE IF EXISTS _fluxbase_platform_users_backup;" 2>/dev/null || true
-	@PGPASSWORD=$(DATABASE_ADMIN_PASSWORD) psql -h $(DATABASE_HOST) -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "INSERT INTO app.settings SELECT * FROM _fluxbase_setup_backup ON CONFLICT (key) WHERE user_id IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(); DROP TABLE IF EXISTS _fluxbase_setup_backup;" 2>/dev/null || true
-	@echo "${GREEN}Database reset complete!${NC}"
-	@echo "${BLUE}Note: Migrations granted all permissions to the user running them ($(DATABASE_ADMIN_USER)).${NC}"
-	@echo "${BLUE}Additional permissions granted to fluxbase_app and fluxbase_rls_test for testing.${NC}"
+	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT anon TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT authenticated TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT service_role TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_service') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT tenant_service TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_migration_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT tenant_migration_role TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT anon TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT authenticated TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT service_role TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_service') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT tenant_service TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_migration_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT tenant_migration_role TO fluxbase_rls_test; END IF; END \$$\$$;" || true
 
 db-reset-full: ## Full database reset (drops ALL schemas). Bootstrap and schema applied on server startup. WARNING: Destroys all data!
 	@echo "${RED}WARNING: Full database reset - this will destroy ALL data!${NC}"
@@ -536,6 +545,10 @@ db-reset-full: ## Full database reset (drops ALL schemas). Bootstrap and schema 
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'fluxbase_rls_test') THEN CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN; END IF; END \$$\$$;" || true
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "ALTER USER postgres WITH BYPASSRLS;" || true
 	@docker exec $(POSTGRES_CONTAINER) psql -U $(DATABASE_ADMIN_USER) -d $(DATABASE_NAME) -c "ALTER USER fluxbase_app WITH BYPASSRLS;" || true
+	@# Grant app user permissions before bootstrap runs. The server's bootstrap runs
+	@# as the admin user, so without these grants fluxbase_app cannot SET LOCAL ROLE
+	@# service_role or read from platform/storage/auth schemas on first startup.
+	@$(MAKE) db-grants
 	@echo "${GREEN}Full database reset complete! Run 'make dev' to apply bootstrap and declarative schema.${NC}"
 
 docs: ## Serve Starlight documentation at http://localhost:4321

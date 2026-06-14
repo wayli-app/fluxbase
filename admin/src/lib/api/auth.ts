@@ -7,6 +7,18 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   "";
 
+// Timeout for raw axios calls (admin auth endpoints that bypass the shared `api`
+// instance). Without this, axios defaults to timeout=0 (infinite). When the
+// backend is down or hung, callers — including the TanStack Router beforeLoad
+// guard in _authenticated/route.tsx — would hang forever, leaving the SPA on a
+// blank screen. 5s is long enough to survive a slow startup but short enough
+// to surface failures quickly.
+const ADMIN_API_TIMEOUT = 5000;
+
+// Raw axios instance with the admin timeout pre-applied. Use this for any
+// call that would otherwise use the global `axios` directly.
+const adminAxios = axios.create({ timeout: ADMIN_API_TIMEOUT });
+
 export interface User {
   id: string;
   email: string;
@@ -128,7 +140,7 @@ export const adminAuthAPI = {
     needs_setup: boolean;
     has_admin: boolean;
   }> => {
-    const response = await axios.get(
+    const response = await adminAxios.get(
       `${API_BASE_URL}/api/v1/admin/setup/status`,
     );
     return response.data;
@@ -179,7 +191,7 @@ export const adminAuthAPI = {
     refresh_token: string;
     expires_in: number;
   }> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/api/v1/admin/login`,
       credentials,
     );
@@ -281,7 +293,7 @@ export const dashboardAuthAPI = {
   signup: async (
     data: DashboardSignupRequest,
   ): Promise<{ user: DashboardUser; message: string }> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/signup`,
       data,
     );
@@ -291,7 +303,7 @@ export const dashboardAuthAPI = {
   login: async (
     credentials: DashboardLoginRequest,
   ): Promise<DashboardLoginResponse> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/login`,
       credentials,
     );
@@ -299,14 +311,14 @@ export const dashboardAuthAPI = {
   },
 
   me: async (): Promise<DashboardUser> => {
-    const response = await axios.get(`${API_BASE_URL}/dashboard/auth/me`, {
+    const response = await adminAxios.get(`${API_BASE_URL}/dashboard/auth/me`, {
       headers: getDashboardAuthHeaders(),
     });
     return response.data;
   },
 
   updateProfile: async (data: UpdateProfileRequest): Promise<DashboardUser> => {
-    const response = await axios.put(
+    const response = await adminAxios.put(
       `${API_BASE_URL}/dashboard/auth/profile`,
       data,
       { headers: getDashboardAuthHeaders() },
@@ -317,7 +329,7 @@ export const dashboardAuthAPI = {
   changePassword: async (
     data: ChangePasswordRequest,
   ): Promise<{ message: string }> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/password/change`,
       data,
       { headers: getDashboardAuthHeaders() },
@@ -328,7 +340,7 @@ export const dashboardAuthAPI = {
   deleteAccount: async (
     data: DeleteAccountRequest,
   ): Promise<{ message: string }> => {
-    const response = await axios.delete(
+    const response = await adminAxios.delete(
       `${API_BASE_URL}/dashboard/auth/account`,
       { data, headers: getDashboardAuthHeaders() },
     );
@@ -336,7 +348,7 @@ export const dashboardAuthAPI = {
   },
 
   setup2FA: async (): Promise<Setup2FAResponse> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/2fa/setup`,
       {},
       { headers: getDashboardAuthHeaders() },
@@ -345,7 +357,7 @@ export const dashboardAuthAPI = {
   },
 
   enable2FA: async (data: Enable2FARequest): Promise<Enable2FAResponse> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/2fa/enable`,
       data,
       { headers: getDashboardAuthHeaders() },
@@ -356,7 +368,7 @@ export const dashboardAuthAPI = {
   verify2FA: async (
     data: Verify2FARequest,
   ): Promise<DashboardLoginResponse> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/2fa/verify`,
       data,
     );
@@ -364,7 +376,7 @@ export const dashboardAuthAPI = {
   },
 
   disable2FA: async (data: Disable2FARequest): Promise<{ message: string }> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/2fa/disable`,
       data,
       { headers: getDashboardAuthHeaders() },
@@ -373,7 +385,7 @@ export const dashboardAuthAPI = {
   },
 
   requestPasswordReset: async (email: string): Promise<{ message: string }> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/password/reset`,
       { email },
     );
@@ -398,7 +410,7 @@ export const dashboardAuthAPI = {
     token: string,
     newPassword: string,
   ): Promise<{ message: string }> => {
-    const response = await axios.post(
+    const response = await adminAxios.post(
       `${API_BASE_URL}/dashboard/auth/password/reset/confirm`,
       {
         token,
@@ -412,7 +424,7 @@ export const dashboardAuthAPI = {
     providers: SSOProvider[];
     password_login_disabled: boolean;
   }> => {
-    const response = await axios.get(
+    const response = await adminAxios.get(
       `${API_BASE_URL}/dashboard/auth/sso/providers`,
     );
     return response.data;

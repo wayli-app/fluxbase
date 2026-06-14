@@ -92,11 +92,105 @@ else
   echo "⚠️  Deno not found - edge functions bundling may fail"
 fi
 
-# Run bootstrap (server will apply declarative schema on startup)
+# Create application users (idempotent)
+# The postgres container only creates the `postgres` superuser on first boot.
+# The server connects as `fluxbase_app`, which must exist before bootstrap runs.
+# `fluxbase_rls_test` is used by `make test`. Mirrors Makefile db-reset/db-reset-full.
+echo "👤 Creating application users (fluxbase_app, fluxbase_rls_test)..."
+PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -v ON_ERROR_STOP=1 <<'SQL' || echo "⚠️  Application users may already exist"
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'fluxbase_app') THEN
+    CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN CREATEDB BYPASSRLS;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'fluxbase_rls_test') THEN
+    CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN;
+  END IF;
+END $$;
+ALTER USER fluxbase_app WITH BYPASSRLS;
+SQL
+echo "✅ Application users ready"
+
+# Run bootstrap with {{APP_USER}} substitution.
+# bootstrap.sql is run by the Go server at startup with admin privileges, so
+# `CURRENT_USER` inside the SQL resolves to the admin role — grants to
+# `CURRENT_USER` never reach `fluxbase_app`. We run bootstrap here as `postgres`
+# with the placeholder substituted (matching Makefile db-reset), then apply
+# the comprehensive grant block below so the app user has the permissions the
+# server needs on first startup.
 echo "🗄️  Running database bootstrap..."
 cd /workspace
-PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -f /workspace/internal/database/bootstrap/bootstrap.sql || echo "⚠️  Bootstrap may have already been run"
+sed "s/{{APP_USER}}/fluxbase_app/g" /workspace/internal/database/bootstrap/bootstrap.sql \
+  | PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev \
+  || echo "⚠️  Bootstrap reported errors (some statements may be idempotent re-runs)"
 echo "✅ Bootstrap complete - server will apply declarative schema on first startup"
+
+# Grant permissions to application users.
+# The Go server runs bootstrap via an admin pool, so role memberships and
+# schema USAGE granted by bootstrap.sql go to the admin user, not to
+# fluxbase_app. Without these grants, the server cannot SET LOCAL ROLE
+# service_role and cannot read from platform/storage/auth schemas.
+# Mirrors Makefile db-reset grant block.
+echo "🔑 Granting permissions to fluxbase_app and fluxbase_rls_test..."
+PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev <<'SQL' || echo "⚠️  Some grants failed (schemas may not exist until server applies declarative schema)"
+GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA app TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA platform TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA functions TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA jobs TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA ai TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA rpc TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA mcp TO fluxbase_app, fluxbase_rls_test;
+GRANT USAGE, CREATE ON SCHEMA branching TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA platform TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA platform TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA functions TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA functions TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA jobs TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA jobs TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA rpc TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA rpc TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA mcp TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA mcp TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL TABLES IN SCHEMA branching TO fluxbase_app, fluxbase_rls_test;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA branching TO fluxbase_app, fluxbase_rls_test;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA rpc TO fluxbase_app, fluxbase_rls_test;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA mcp TO fluxbase_app, fluxbase_rls_test;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fluxbase_app, fluxbase_rls_test;
+SQL
+
+echo "🔑 Granting role memberships for SET ROLE support..."
+PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev <<'SQL' || echo "⚠️  Role membership grants failed"
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT anon TO fluxbase_app; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT authenticated TO fluxbase_app; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT service_role TO fluxbase_app; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_service') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT tenant_service TO fluxbase_app; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_migration_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT tenant_migration_role TO fluxbase_app; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT anon TO fluxbase_rls_test; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT authenticated TO fluxbase_rls_test; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT service_role TO fluxbase_rls_test; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_service') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT tenant_service TO fluxbase_rls_test; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'tenant_migration_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT tenant_migration_role TO fluxbase_rls_test; END IF;
+END $$;
+SQL
+echo "✅ Permissions granted"
 
 # bun is already set up in the Dockerfile - just verify it's available
 echo "📦 Verifying bun..."
