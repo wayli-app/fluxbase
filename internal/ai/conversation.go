@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/observability"
 )
 
 // ConversationManager handles conversation state management
@@ -24,6 +25,12 @@ type ConversationManager struct {
 	cacheTTL    time.Duration
 	maxTurns    int
 	cleanupDone chan struct{}
+	metrics     *observability.Metrics // optional, for active-conversation gauge
+}
+
+// SetMetrics wires the optional metrics handle (called after construction).
+func (cm *ConversationManager) SetMetrics(m *observability.Metrics) {
+	cm.metrics = m
 }
 
 // ConversationState represents the in-memory state of a conversation
@@ -516,6 +523,11 @@ func (cm *ConversationManager) cleanup() {
 			delete(cm.cache, id)
 			log.Debug().Str("id", id).Msg("Removed inactive conversation from cache")
 		}
+	}
+
+	// Refresh the active-conversations gauge with the live cache size.
+	if cm.metrics != nil {
+		cm.metrics.UpdateAIConversations(len(cm.cache))
 	}
 }
 

@@ -465,6 +465,9 @@ export type {
   AIChatClientMessage,
   AIChatServerMessage,
   AIUsageStats,
+  AIMatchedIntentRule,
+  AIDailyQuotaSnapshot,
+  AIQuota,
   AIConversation,
   AIConversationMessage,
 

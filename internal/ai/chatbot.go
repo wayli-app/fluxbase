@@ -84,9 +84,10 @@ type Chatbot struct {
 	KnowledgeBases         []string `json:"knowledge_bases,omitempty"`
 	RAGMaxChunks           int      `json:"rag_max_chunks"`
 	RAGSimilarityThreshold float64  `json:"rag_similarity_threshold"`
-	RAGTable               string   `json:"rag_table,omitempty"`          // User table for vector search
-	RAGColumn              string   `json:"rag_column,omitempty"`         // Vector column in RAG table
-	RAGContentColumn       string   `json:"rag_content_column,omitempty"` // Text content column in RAG table
+	RAGGraphBoostWeight    float64  `json:"rag_graph_boost_weight,omitempty"` // 0=off (default), 1=fully entity-driven
+	RAGTable               string   `json:"rag_table,omitempty"`              // User table for vector search
+	RAGColumn              string   `json:"rag_column,omitempty"`             // Vector column in RAG table
+	RAGContentColumn       string   `json:"rag_content_column,omitempty"`     // Text content column in RAG table
 
 	// Agent behavior settings
 	ReasoningMode     string `json:"reasoning_mode,omitempty"`      // "none" (default), "react", "strict" - controls think tool usage
@@ -137,6 +138,7 @@ type ChatbotConfig struct {
 	KnowledgeBases         []string // Knowledge base names to link
 	RAGMaxChunks           int      // Max chunks to retrieve per query
 	RAGSimilarityThreshold float64  // Minimum similarity score (0-1)
+	RAGGraphBoostWeight    float64  // Graph-boost weight (0=off, 1=fully entity-driven); falls back to global config
 	RAGTable               string   // User table for vector search (optional)
 	RAGColumn              string   // Vector column in RAG table
 	RAGContentColumn       string   // Text content column in RAG table
@@ -266,6 +268,9 @@ var (
 
 	// @fluxbase:rag-similarity-threshold 0.7
 	ragThresholdPattern = regexp.MustCompile(`@fluxbase:rag-similarity-threshold\s+([\d.]+)`)
+
+	// @fluxbase:rag-graph-boost-weight 0.3 (0=off, 1=fully entity-driven)
+	ragGraphBoostPattern = regexp.MustCompile(`@fluxbase:rag-graph-boost-weight\s+([\d.]+)`)
 
 	// @fluxbase:rag-table documents (for user-table RAG)
 	ragTablePattern = regexp.MustCompile(`@fluxbase:rag-table\s+([^\n*\s]+)`)
@@ -457,6 +462,13 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 	if matches := ragThresholdPattern.FindStringSubmatch(code); len(matches) > 1 {
 		if v, err := strconv.ParseFloat(matches[1], 64); err == nil && v >= 0 && v <= 1 {
 			config.RAGSimilarityThreshold = v
+		}
+	}
+
+	// Parse RAG graph boost weight
+	if matches := ragGraphBoostPattern.FindStringSubmatch(code); len(matches) > 1 {
+		if v, err := strconv.ParseFloat(matches[1], 64); err == nil && v >= 0 && v <= 1 {
+			config.RAGGraphBoostWeight = v
 		}
 	}
 
@@ -652,6 +664,7 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.KnowledgeBases = config.KnowledgeBases
 	c.RAGMaxChunks = config.RAGMaxChunks
 	c.RAGSimilarityThreshold = config.RAGSimilarityThreshold
+	c.RAGGraphBoostWeight = config.RAGGraphBoostWeight
 	c.RAGTable = config.RAGTable
 	c.RAGColumn = config.RAGColumn
 	c.RAGContentColumn = config.RAGContentColumn

@@ -979,8 +979,60 @@ describe('FluxbaseAIChat', () => {
 
       expect(onDone).toHaveBeenCalledWith(
         { total_tokens: 150, prompt_tokens: 100, completion_tokens: 50 },
-        'conv-123'
+        'conv-123',
+        // extras is always passed as the third argument; both fields are
+        // undefined when the server omits them (preserves backward compat
+        // for callbacks that only declare two params).
+        { daily_quota: undefined, matched_intent_rules: undefined }
       );
+    });
+
+    it('should forward daily_quota and matched_intent_rules via onDone extras', async () => {
+      const onDone = vi.fn();
+      const chat = new FluxbaseAIChat({
+        wsUrl: 'ws://localhost:8080/ai/ws',
+        onDone,
+      });
+
+      const connectPromise = chat.connect();
+      mockWs.simulateOpen();
+      await connectPromise;
+
+      const dailyQuota = {
+        requests: { used: 12, limit: 500 },
+        tokens: { used: 4500, limit: 100000 },
+        resets_at: '2026-07-01T00:00:00Z',
+      };
+      const matchedRules = [
+        { keyword: 'restaurant', required_table: 'my_place_visits' },
+      ];
+
+      mockWs.simulateMessage({
+        type: 'done',
+        conversation_id: 'conv-456',
+        usage: {
+          total_tokens: 200,
+          prompt_tokens: 150,
+          completion_tokens: 50,
+          cached_tokens: 120,
+        },
+        daily_quota: dailyQuota,
+        matched_intent_rules: matchedRules,
+      });
+
+      expect(onDone).toHaveBeenCalledTimes(1);
+      const [usage, conversationId, extras] = onDone.mock.calls[0];
+      expect(usage).toEqual({
+        total_tokens: 200,
+        prompt_tokens: 150,
+        completion_tokens: 50,
+        cached_tokens: 120,
+      });
+      expect(conversationId).toBe('conv-456');
+      expect(extras).toEqual({
+        daily_quota: dailyQuota,
+        matched_intent_rules: matchedRules,
+      });
     });
 
     it('should handle error messages', async () => {

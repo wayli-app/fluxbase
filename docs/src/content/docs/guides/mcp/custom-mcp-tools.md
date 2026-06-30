@@ -427,6 +427,55 @@ Access secrets securely via `context.secrets.get("SECRET_NAME")`. Secrets are:
 - Never exposed in logs
 - Only available when `allow_env` is enabled
 
+## Sharing Code Between Tools (`_shared/`)
+
+Custom MCP tools are stored as single files, so any code shared across tools — a constants map, a date-range parser, an HTTP client wrapper — must be inlined at sync time. The `fluxbase mcp tools sync` command does this automatically when it finds a `_shared/` directory next to your tool files. (This is the same convention used by edge functions and jobs.)
+
+### Layout
+
+```
+fluxbase/mcp-tools/
+├── _shared/
+│   ├── countries.ts    # country-name → ISO code map
+│   └── date_range.ts   # parses "last 7 days", "this month", etc.
+├── search_visits.ts    # imports from _shared/
+└── aggregate_visits.ts # imports from _shared/
+```
+
+### Importing
+
+Reference shared modules with a relative `_shared/...` path:
+
+```typescript
+// search_visits.ts
+import { COUNTRIES } from "./_shared/countries.ts";
+import { parseDateRange } from "./_shared/date_range.ts";
+
+export default async function handler(args: any) {
+  const range = parseDateRange(args.timeframe);
+  const iso = COUNTRIES[args.country.toLowerCase()];
+  // ...
+}
+```
+
+### Syncing
+
+Run sync as usual — files with imports are bundled locally (requires Deno on your PATH) and the bundled output is what's stored:
+
+```bash
+fluxbase mcp tools sync --dir ./fluxbase/mcp-tools
+# Bundling search_visits.ts... 4.2 KB → 18.7 KB
+# Bundling aggregate_visits.ts... 3.8 KB → 17.9 KB
+```
+
+If Deno isn't installed locally, sync falls back to posting raw source; tools with imports will then fail at runtime, so install Deno (`brew install deno`) when using `_shared/`.
+
+### Caveats
+
+- The stored tool body is the bundled output, not the original. Edit source in git and re-sync — direct edits via the admin UI will be overwritten on the next `sync`.
+- Bundling is opt-in per file: tools without `import` statements are uploaded verbatim, exactly as before.
+
+
 ## Integration with Chatbots
 
 Custom tools are automatically available to chatbots. Configure which tools a chatbot can use:

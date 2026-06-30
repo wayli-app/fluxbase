@@ -41,8 +41,9 @@ func (s *KnowledgeBaseStorage) CreateKnowledgeBase(ctx context.Context, kb *Know
 				id, name, namespace, description,
 				embedding_model, embedding_dimensions,
 				chunk_size, chunk_overlap, chunk_strategy,
-				enabled, source, created_by, visibility, owner_id
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				enabled, source, created_by, visibility, owner_id,
+				entity_extraction_enabled
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			RETURNING created_at, updated_at
 		`
 
@@ -52,6 +53,7 @@ func (s *KnowledgeBaseStorage) CreateKnowledgeBase(ctx context.Context, kb *Know
 			kb.EmbeddingModel, kb.EmbeddingDimensions,
 			kb.ChunkSize, kb.ChunkOverlap, kb.ChunkStrategy,
 			kb.Enabled, kb.Source, kb.CreatedBy, kb.Visibility, kb.OwnerID,
+			kb.EntityExtractionEnabled,
 		).Scan(&kb.CreatedAt, &kb.UpdatedAt)
 	})
 }
@@ -67,7 +69,7 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBase(ctx context.Context, id string) 
 				chunk_size, chunk_overlap, chunk_strategy,
 				enabled, document_count, total_chunks,
 				source, created_by, created_at, updated_at,
-				visibility, owner_id
+				visibility, owner_id, entity_extraction_enabled
 			FROM ai.knowledge_bases
 			WHERE id = $1
 			  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
@@ -79,7 +81,7 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBase(ctx context.Context, id string) 
 			&kb.ChunkSize, &kb.ChunkOverlap, &kb.ChunkStrategy,
 			&kb.Enabled, &kb.DocumentCount, &kb.TotalChunks,
 			&kb.Source, &kb.CreatedBy, &kb.CreatedAt, &kb.UpdatedAt,
-			&kb.Visibility, &kb.OwnerID,
+			&kb.Visibility, &kb.OwnerID, &kb.EntityExtractionEnabled,
 		)
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -101,7 +103,8 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBaseByName(ctx context.Context, name,
 				embedding_model, embedding_dimensions,
 				chunk_size, chunk_overlap, chunk_strategy,
 				enabled, document_count, total_chunks,
-				source, created_by, created_at, updated_at, visibility
+				source, created_by, created_at, updated_at, visibility,
+				entity_extraction_enabled
 			FROM ai.knowledge_bases
 			WHERE name = $1 AND namespace = $2
 			  AND (tenant_id = $3 OR ($3 IS NULL AND tenant_id IS NULL))
@@ -113,6 +116,7 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBaseByName(ctx context.Context, name,
 			&kb.ChunkSize, &kb.ChunkOverlap, &kb.ChunkStrategy,
 			&kb.Enabled, &kb.DocumentCount, &kb.TotalChunks,
 			&kb.Source, &kb.CreatedBy, &kb.CreatedAt, &kb.UpdatedAt, &kb.Visibility,
+			&kb.EntityExtractionEnabled,
 		)
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -134,7 +138,8 @@ func (s *KnowledgeBaseStorage) ListKnowledgeBases(ctx context.Context, namespace
 				embedding_model, embedding_dimensions,
 				chunk_size, chunk_overlap, chunk_strategy,
 				enabled, document_count, total_chunks,
-				source, created_by, created_at, updated_at
+				source, created_by, created_at, updated_at,
+				entity_extraction_enabled
 			FROM ai.knowledge_bases
 			WHERE (tenant_id = $1 OR ($1 IS NULL AND tenant_id IS NULL))
 			  AND ($2 = '' OR namespace = $2)
@@ -156,6 +161,7 @@ func (s *KnowledgeBaseStorage) ListKnowledgeBases(ctx context.Context, namespace
 				&kb.ChunkSize, &kb.ChunkOverlap, &kb.ChunkStrategy,
 				&kb.Enabled, &kb.DocumentCount, &kb.TotalChunks,
 				&kb.Source, &kb.CreatedBy, &kb.CreatedAt, &kb.UpdatedAt,
+				&kb.EntityExtractionEnabled,
 			); err != nil {
 				log.Warn().Err(err).Msg("Failed to scan knowledge base row")
 				continue
@@ -188,6 +194,7 @@ func (s *KnowledgeBaseStorage) UpdateKnowledgeBase(ctx context.Context, kb *Know
 				visibility = $10,
 				created_by = $11,
 				owner_id = $12,
+				entity_extraction_enabled = $13,
 				updated_at = NOW()
 			WHERE id = $1
 			RETURNING updated_at
@@ -199,6 +206,7 @@ func (s *KnowledgeBaseStorage) UpdateKnowledgeBase(ctx context.Context, kb *Know
 			kb.EmbeddingModel, kb.EmbeddingDimensions,
 			kb.ChunkSize, kb.ChunkOverlap, kb.ChunkStrategy,
 			kb.Enabled, kb.Visibility, kb.CreatedBy, kb.OwnerID,
+			kb.EntityExtractionEnabled,
 		).Scan(&kb.UpdatedAt)
 	})
 }
@@ -271,6 +279,13 @@ func (s *KnowledgeBaseStorage) CreateKnowledgeBaseFromRequest(ctx context.Contex
 	// Set owner from request if provided
 	kb.OwnerID = req.OwnerID
 
+	// Entity extraction defaults to true; explicit false opts out.
+	if req.EntityExtractionEnabled != nil {
+		kb.EntityExtractionEnabled = *req.EntityExtractionEnabled
+	} else {
+		kb.EntityExtractionEnabled = true
+	}
+
 	if err := s.CreateKnowledgeBase(ctx, kb); err != nil {
 		return nil, err
 	}
@@ -319,6 +334,9 @@ func (s *KnowledgeBaseStorage) UpdateKnowledgeBaseByID(ctx context.Context, id s
 	}
 	if req.Enabled != nil {
 		kb.Enabled = *req.Enabled
+	}
+	if req.EntityExtractionEnabled != nil {
+		kb.EntityExtractionEnabled = *req.EntityExtractionEnabled
 	}
 
 	if err := s.UpdateKnowledgeBase(ctx, kb); err != nil {

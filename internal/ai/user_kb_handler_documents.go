@@ -303,6 +303,15 @@ func (h *UserKnowledgeBaseHandler) DeleteMyDocument(c fiber.Ctx) error {
 		})
 	}
 
+	// Clean up orphaned entities (those only referenced by this document) before
+	// deleting, mirroring the admin path. Without this the FK CASCADE removes
+	// document_entities rows but leaves entity rows as orphans forever.
+	if h.knowledgeGraph != nil {
+		if err := h.knowledgeGraph.DeleteOrphanedEntitiesByDocument(ctx, docID); err != nil {
+			log.Warn().Err(err).Str("doc_id", docID).Msg("Failed to delete orphaned entities (continuing)")
+		}
+	}
+
 	// Delete document
 	if err := h.storage.DeleteDocument(ctx, docID); err != nil {
 		log.Error().Err(err).Str("doc_id", docID).Msg("Failed to delete document")
@@ -407,6 +416,8 @@ func (h *UserKnowledgeBaseHandler) DeleteMyDocumentsByFilter(c fiber.Ctx) error 
 		Metadata: req.Metadata,
 	}
 
+	// ponytail: bulk delete does not clean up orphaned entities (single-doc
+	// path does). Add per-doc cleanup if entity-table bloat becomes an issue.
 	deletedCount, err := h.storage.DeleteDocumentsByFilter(ctx, kbID, filter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

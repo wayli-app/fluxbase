@@ -71,7 +71,17 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		return
 	}
 
-	// Retrieve RAG context if available (with user isolation)
+	// Build the dynamic per-turn context (user ID, current time, RAG) as a
+	// separate message so the static system prompt stays byte-identical across
+	// turns — enabling provider-side prompt caching (OpenAI automatic, Anthropic
+	// explicit). Order matters: static system first, dynamic context second,
+	// history third, user message last.
+	var dynamicContext strings.Builder
+	fmt.Fprintf(&dynamicContext, "Current user ID: %s\n", userID)
+	fmt.Fprintf(&dynamicContext, "Current date and time: %s\n", time.Now().UTC().Format("Monday, January 2, 2006 at 3:04 PM MST"))
+
+	// Retrieve RAG context if available (with user isolation) and append to
+	// the dynamic context (NOT the static system prompt).
 	if h.ragService != nil {
 		ragOpts := RetrieveContextOptions{
 			ChatbotID: chatbot.ID,
@@ -84,23 +94,34 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		if chatbot.RAGSimilarityThreshold > 0 {
 			ragOpts.Threshold = chatbot.RAGSimilarityThreshold
 		}
+		// Graph boost: chatbot annotation wins; fall back to global config.
+		// Both default to 0 (off), preserving existing behavior.
+		if chatbot.RAGGraphBoostWeight > 0 {
+			ragOpts.GraphBoostWeight = chatbot.RAGGraphBoostWeight
+		} else if h.config != nil && h.config.RAGGraphBoostWeight > 0 {
+			ragOpts.GraphBoostWeight = h.config.RAGGraphBoostWeight
+		}
 		ragSection, err := h.ragService.RetrieveContext(ctx, ragOpts)
 		if err != nil {
 			log.Warn().Err(err).Str("chatbot_id", chatbot.ID).Msg("Failed to retrieve RAG context")
 			// Continue without RAG - don't fail the request
 		} else if ragSection != nil && ragSection.FormattedContext != "" {
-			systemPrompt = systemPrompt + "\n\n" + ragSection.FormattedContext
+			dynamicContext.WriteString("\n\n")
+			dynamicContext.WriteString(ragSection.FormattedContext)
 			log.Debug().
 				Str("chatbot_id", chatbot.ID).
 				Str("conversation_id", msg.ConversationID).
 				Int("rag_section_len", len(ragSection.FormattedContext)).
-				Msg("RAG context added to system prompt")
+				Msg("RAG context added to dynamic context message")
 		}
 	}
 
-	// Build messages for LLM
+	// Build messages for LLM. The static system prompt is message[0]; the
+	// dynamic context (user ID, time, RAG) is message[1] as a second system
+	// message so providers can cache message[0] but not message[1].
 	messages := []Message{
 		{Role: RoleSystem, Content: systemPrompt},
+		{Role: RoleSystem, Content: dynamicContext.String()},
 	}
 
 	// Add conversation history
@@ -109,6 +130,26 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	// Add user message
 	userMsg := Message{Role: RoleUser, Content: msg.Content}
 	messages = append(messages, userMsg)
+
+	// Pre-check daily token budget with a rough estimate of the upcoming request.
+	// Real usage is reconciled after the request via AddTokenUsage; this guard
+	// only stops obviously-over-budget requests from starting.
+	if chatbot.DailyTokenBudget > 0 {
+		estimatedInputChars := len(systemPrompt) + dynamicContext.Len() + len(msg.Content)
+		for _, m := range state.Messages {
+			estimatedInputChars += len(m.Content)
+		}
+		// ponytail: chars/4 estimate is a coarse lower bound for English text;
+		// upgrade to a real tokenizer if budget edge cases matter.
+		estimatedTokens := estimatedInputChars / 4
+		if chatbot.MaxTokens > 0 {
+			estimatedTokens += chatbot.MaxTokens
+		}
+		if !h.limiter.CheckDailyTokenBudget(chatbot.ID, userIdentifier, chatbot.DailyTokenBudget, estimatedTokens) {
+			h.sendError(chatCtx, msg.ConversationID, "TOKEN_BUDGET", "Daily token budget exceeded.")
+			return
+		}
+	}
 
 	// Get provider
 	provider, err := h.getProvider(ctx, chatbot)
@@ -124,6 +165,10 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	// Tool calling loop - continue until AI generates content without tool calls
 	var totalUsage UsageStats
 	var accumulatedQueryResults []QueryResult // Accumulate query results for persistence
+	// matchedIntentRules accumulates rules that fire across the turn (both
+	// pre-tool-selection and post-tool-call). Surfaced in the done event so
+	// apps can observe and tune their rules (Ask 5).
+	var matchedIntentRules []MatchedIntentRule
 	maxIterations := chatbot.MaxToolIterations
 	if maxIterations <= 0 {
 		maxIterations = 5
@@ -144,6 +189,11 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		if len(chatbot.IntentRules) > 0 {
 			intentValidator := NewIntentValidator(chatbot.IntentRules, chatbot.RequiredColumns, chatbot.DefaultTable)
 			forbiddenTools = intentValidator.GetForbiddenTools(msg.Content)
+			// Capture rule matches on the first iteration only (the user
+			// message doesn't change between iterations of the tool loop).
+			if iteration == 0 {
+				matchedIntentRules = append(matchedIntentRules, intentValidator.GetMatchedRules(msg.Content)...)
+			}
 			if len(forbiddenTools) > 0 {
 				log.Debug().
 					Strs("forbidden_tools", forbiddenTools).
@@ -223,6 +273,7 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		// Create chat request
 		chatReq := &ChatRequest{
 			Messages:    messages,
+			Model:       chatbot.Model,
 			MaxTokens:   chatbot.MaxTokens,
 			Temperature: chatbot.Temperature,
 			Tools:       tools,
@@ -264,6 +315,7 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 					totalUsage.PromptTokens += event.Usage.PromptTokens
 					totalUsage.CompletionTokens += event.Usage.CompletionTokens
 					totalUsage.TotalTokens += event.Usage.TotalTokens
+					totalUsage.CachedTokens += event.Usage.CachedTokens
 				}
 			}
 			return nil
@@ -272,14 +324,22 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		// Stream the response
 		h.sendProgress(chatCtx, msg.ConversationID, "generating", "Generating response...")
 
+		providerStart := time.Now()
+		providerName := provider.Name()
 		if err := provider.ChatStream(ctx, chatReq, callback); err != nil {
 			log.Error().Err(err).Msg("Chat stream error")
+			if h.metrics != nil {
+				h.metrics.RecordAIProviderRequest(providerName, "error", time.Since(providerStart))
+			}
 			h.sendError(chatCtx, msg.ConversationID, "STREAM_ERROR", "Error generating response")
 
 			if h.metrics != nil {
 				h.metrics.RecordAIChatRequest(chatbot.Name, "error", time.Since(start))
 			}
 			return
+		}
+		if h.metrics != nil {
+			h.metrics.RecordAIProviderRequest(providerName, "success", time.Since(providerStart))
 		}
 
 		// If no tool calls, we're done
@@ -315,6 +375,10 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 			if len(chatbot.IntentRules) > 0 {
 				intentValidator := NewIntentValidator(chatbot.IntentRules, chatbot.RequiredColumns, chatbot.DefaultTable)
 				toolValidation := intentValidator.ValidateToolCall(msg.Content, toolName)
+				// Surface tool/table rules that fire on this call. GetMatchedRules
+				// already captured all matching rules once at iteration 0; here
+				// we only add ones with tool/table constraints we haven't seen.
+				matchedIntentRules = append(matchedIntentRules, toolValidation.MatchedRules...)
 
 				log.Debug().
 					Int("intent_rules_count", len(chatbot.IntentRules)).
@@ -406,14 +470,38 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		if chatCtx.UserID != nil {
 			userIdentifier = *chatCtx.UserID
 		}
-		h.limiter.AddTokenUsage(chatbot.ID, userIdentifier, totalUsage.TotalTokens)
+		// ponytail: cached input tokens are billed at 0x (free) toward the
+		// daily budget — they cost the provider ~0.1x (Anthropic) to ~0.5x
+		// (OpenAI), so the user shouldn't foot the full bill. Effective spend
+		// = fresh input + completion. CachedTokens is non-negative by
+		// construction; the floor is a defensive guard.
+		effective := totalUsage.PromptTokens - totalUsage.CachedTokens + totalUsage.CompletionTokens
+		if effective < 0 {
+			effective = 0
+		}
+		h.limiter.AddTokenUsage(chatbot.ID, userIdentifier, effective)
+	}
+
+	// Build the per-user daily quota snapshot for the done event (Ask 2).
+	// Surfaced when the chatbot has either a daily request limit or a token
+	// budget configured; omitted otherwise (preserves old wire shape).
+	var dailyQuota *DailyQuotaSnapshot
+	if chatbot.DailyRequestLimit > 0 || chatbot.DailyTokenBudget > 0 {
+		usage := h.limiter.GetDailyUsage(chatbot.ID, userIdentifier, chatbot.DailyRequestLimit, chatbot.DailyTokenBudget)
+		dailyQuota = &DailyQuotaSnapshot{
+			Requests: Quota{Used: usage.RequestsUsed, Limit: usage.RequestsLimit},
+			Tokens:   Quota{Used: usage.TokensUsed, Limit: usage.TokensLimit},
+			ResetsAt: usage.ResetsAt.UTC().Format(time.RFC3339),
+		}
 	}
 
 	// Send completion
 	h.send(chatCtx, ServerMessage{
-		Type:           "done",
-		ConversationID: msg.ConversationID,
-		Usage:          &totalUsage,
+		Type:               "done",
+		ConversationID:     msg.ConversationID,
+		Usage:              &totalUsage,
+		MatchedIntentRules: matchedIntentRules,
+		DailyQuota:         dailyQuota,
 	})
 
 	// Record metrics

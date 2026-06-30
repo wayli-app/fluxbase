@@ -3123,6 +3123,10 @@ export interface AIChatServerMessage {
   row_count?: number;
   data?: Record<string, unknown>[];
   usage?: AIUsageStats;
+  /** Intent rules that fired for this turn (Ask 5). Empty when none match. */
+  matched_intent_rules?: AIMatchedIntentRule[];
+  /** Per-user daily quota snapshot at turn end (Ask 2). Omitted when no limits configured. */
+  daily_quota?: AIDailyQuotaSnapshot;
   error?: string;
   code?: string;
 }
@@ -3134,6 +3138,43 @@ export interface AIUsageStats {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens?: number;
+  /**
+   * Subset of prompt_tokens served from the provider's prompt cache
+   * (OpenAI automatic prefix caching, Anthropic prompt caching). 0 when
+   * caching didn't fire or the provider doesn't report it. (Ask 4)
+   */
+  cached_tokens?: number;
+}
+
+/**
+ * One intent rule that fired for a user message (Ask 5). Mirrors the
+ * chatbot's @fluxbase:intent-rules entry plus the specific keyword that matched.
+ */
+export interface AIMatchedIntentRule {
+  keyword: string;
+  required_table?: string;
+  forbidden_table?: string;
+  required_tool?: string;
+  forbidden_tool?: string;
+}
+
+/**
+ * Per-user daily quota snapshot returned in the done event (Ask 2) and by
+ * fluxbase.ai.getUsage(). Counts are best-effort in-memory; they reset on
+ * server restart and are per-instance in multi-replica deployments.
+ */
+export interface AIDailyQuotaSnapshot {
+  requests: AIQuota;
+  tokens: AIQuota;
+  /** RFC3339 timestamp of when the counters roll over to zero. */
+  resets_at?: string;
+}
+
+/** One half of AIDailyQuotaSnapshot. */
+export interface AIQuota {
+  used: number;
+  /** Configured limit; 0 means unlimited. */
+  limit: number;
 }
 
 /**

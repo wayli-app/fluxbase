@@ -20,6 +20,21 @@ type IntentValidationResult struct {
 	Errors          []string `json:"errors,omitempty"`
 	Suggestions     []string `json:"suggestions,omitempty"`
 	MatchedKeywords []string `json:"matched_keywords,omitempty"`
+	// MatchedRules carries the rules that fired for this validation, with the
+	// keyword that triggered the match. Surfaced to clients via the `done`
+	// event so apps can observe and tune their intent rules.
+	MatchedRules []MatchedIntentRule `json:"matched_rules,omitempty"`
+}
+
+// MatchedIntentRule is a public, client-facing view of a single intent rule
+// that fired for a user message. Mirrors the fields of IntentRule plus the
+// specific keyword that matched.
+type MatchedIntentRule struct {
+	Keyword        string `json:"keyword"`
+	RequiredTable  string `json:"required_table,omitempty"`
+	ForbiddenTable string `json:"forbidden_table,omitempty"`
+	RequiredTool   string `json:"required_tool,omitempty"`
+	ForbiddenTool  string `json:"forbidden_tool,omitempty"`
 }
 
 // NewIntentValidator creates a new intent validator
@@ -56,16 +71,29 @@ func (v *IntentValidator) ValidateIntent(userMessage, sql string, tablesAccessed
 	for _, rule := range v.intentRules {
 		// Check if any keywords match
 		keywordMatched := false
+		var firstMatchedKeyword string
 		for _, keyword := range rule.Keywords {
 			if strings.Contains(lowerMessage, strings.ToLower(keyword)) {
 				keywordMatched = true
 				result.MatchedKeywords = append(result.MatchedKeywords, keyword)
+				if firstMatchedKeyword == "" {
+					firstMatchedKeyword = keyword
+				}
 			}
 		}
 
 		if !keywordMatched {
 			continue
 		}
+
+		// Record that this rule fired (surfaces to clients via done event).
+		result.MatchedRules = append(result.MatchedRules, MatchedIntentRule{
+			Keyword:        firstMatchedKeyword,
+			RequiredTable:  rule.RequiredTable,
+			ForbiddenTable: rule.ForbiddenTable,
+			RequiredTool:   rule.RequiredTool,
+			ForbiddenTool:  rule.ForbiddenTool,
+		})
 
 		// Check forbidden table first (more specific error)
 		if rule.ForbiddenTable != "" {
@@ -121,16 +149,29 @@ func (v *IntentValidator) ValidateToolCall(userMessage string, toolName string) 
 
 		// Check if any keywords match
 		keywordMatched := false
+		var firstMatchedKeyword string
 		for _, keyword := range rule.Keywords {
 			if strings.Contains(lowerMessage, strings.ToLower(keyword)) {
 				keywordMatched = true
 				result.MatchedKeywords = append(result.MatchedKeywords, keyword)
+				if firstMatchedKeyword == "" {
+					firstMatchedKeyword = keyword
+				}
 			}
 		}
 
 		if !keywordMatched {
 			continue
 		}
+
+		// Record that this rule fired (surfaces to clients via done event).
+		result.MatchedRules = append(result.MatchedRules, MatchedIntentRule{
+			Keyword:        firstMatchedKeyword,
+			RequiredTable:  rule.RequiredTable,
+			ForbiddenTable: rule.ForbiddenTable,
+			RequiredTool:   rule.RequiredTool,
+			ForbiddenTool:  rule.ForbiddenTool,
+		})
 
 		// Check forbidden tool first (more specific error)
 		if rule.ForbiddenTool != "" && toolName == rule.ForbiddenTool {
@@ -319,4 +360,40 @@ func (v *IntentValidator) GetForbiddenTools(userMessage string) []string {
 	}
 
 	return forbidden
+}
+
+// GetMatchedRules returns all intent rules whose keywords match the user
+// message. Covers rules with table and/or tool constraints. Used to surface
+// which rules shaped a turn (matched_intent_rules in the done event) so apps
+// can observe and tune their intent rules from real data.
+func (v *IntentValidator) GetMatchedRules(userMessage string) []MatchedIntentRule {
+	if len(v.intentRules) == 0 {
+		return nil
+	}
+	lowerMessage := strings.ToLower(userMessage)
+
+	var matched []MatchedIntentRule
+	for _, rule := range v.intentRules {
+		var firstMatchedKeyword string
+		keywordMatched := false
+		for _, keyword := range rule.Keywords {
+			if strings.Contains(lowerMessage, strings.ToLower(keyword)) {
+				keywordMatched = true
+				if firstMatchedKeyword == "" {
+					firstMatchedKeyword = keyword
+				}
+			}
+		}
+		if !keywordMatched {
+			continue
+		}
+		matched = append(matched, MatchedIntentRule{
+			Keyword:        firstMatchedKeyword,
+			RequiredTable:  rule.RequiredTable,
+			ForbiddenTable: rule.ForbiddenTable,
+			RequiredTool:   rule.RequiredTool,
+			ForbiddenTool:  rule.ForbiddenTool,
+		})
+	}
+	return matched
 }

@@ -96,6 +96,37 @@ func (cl *ChatbotLimiter) AddTokenUsage(chatbotID, userID string, tokens int) {
 	entry.tokenCount += tokens
 }
 
+// DailyUsage is a point-in-time view of the per-user daily counters for a
+// chatbot. ResetsAt is the start of the *next* local day (when counters roll).
+type DailyUsage struct {
+	RequestsUsed  int
+	TokensUsed    int
+	RequestsLimit int // configured @fluxbase:daily-limit, 0 = unlimited
+	TokensLimit   int // configured @fluxbase:token-budget, 0 = unlimited
+	ResetsAt      time.Time
+}
+
+// GetDailyUsage returns the current per-user daily counters for a chatbot.
+// Pass the configured limits in (the limiter itself doesn't know them — they
+// live on the Chatbot struct). Used to surface remaining quota in the done
+// event (Ask 2) and the GET /api/v1/ai/usage/:chatbotId endpoint.
+func (cl *ChatbotLimiter) GetDailyUsage(chatbotID, userID string, requestsLimit, tokensLimit int) DailyUsage {
+	cl.mu.Lock()
+	defer cl.mu.Unlock()
+
+	k := cl.key(chatbotID, userID)
+	entry := cl.getOrCreateDaily(k)
+
+	reset := entry.dayStart.Add(24 * time.Hour)
+	return DailyUsage{
+		RequestsUsed:  entry.requestCount,
+		TokensUsed:    entry.tokenCount,
+		RequestsLimit: requestsLimit,
+		TokensLimit:   tokensLimit,
+		ResetsAt:      reset,
+	}
+}
+
 func (cl *ChatbotLimiter) getOrCreateDaily(k string) *dailyUsageEntry {
 	now := time.Now()
 	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())

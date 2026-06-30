@@ -288,6 +288,7 @@ Available metadata annotations:
 | `@fluxbase:knowledge-base`           | Name of knowledge base for RAG (can specify multiple)              | -                         |
 | `@fluxbase:rag-max-chunks`           | Maximum chunks to retrieve for RAG context                         | `5`                       |
 | `@fluxbase:rag-similarity-threshold` | Minimum similarity score for RAG (0.0-1.0)                         | `0.7`                     |
+| `@fluxbase:rag-graph-boost-weight`   | Re-rank RAG chunks by entity salience (0.0=off, 1.0=fully entity-driven). See [Graph-Boosted Retrieval](/guides/knowledge-bases#graph-boosted-retrieval) | `0` (off) |
 | `@fluxbase:required-settings`        | Setting keys to load for template resolution                       | -                         |
 | `@fluxbase:mcp-tools`                | Comma-separated MCP tools to enable (see [MCP Tools](#mcp-tools))  | `""` (legacy execute_sql) |
 | `@fluxbase:use-mcp-schema`           | Fetch schema from MCP resources instead of direct DB introspection | `false`                   |
@@ -670,13 +671,13 @@ if (data) {
 
 ### Provider Management
 
-Configure AI providers (OpenAI, Azure OpenAI, or Ollama):
+Configure AI providers (OpenAI, Azure OpenAI, Anthropic Claude, or Ollama):
 
 ```typescript
 // List providers
 const { data: providers } = await client.admin.ai.listProviders();
 
-// Create a provider
+// Create an OpenAI provider
 const { data, error } = await client.admin.ai.createProvider({
   name: "openai-main",
   display_name: "OpenAI (Main)",
@@ -685,6 +686,18 @@ const { data, error } = await client.admin.ai.createProvider({
   config: {
     api_key: "sk-...",
     model: "gpt-4-turbo",
+  },
+});
+
+// Create an Anthropic Claude provider (supports explicit prompt caching via
+// cache_control breakpoints — see Prompt Caching below)
+const { data: anthropic, error: anthropicErr } = await client.admin.ai.createProvider({
+  name: "anthropic-main",
+  display_name: "Anthropic Claude",
+  provider_type: "anthropic",
+  config: {
+    api_key: "sk-ant-...",
+    model: "claude-sonnet-4-5-20250929",
   },
 });
 
@@ -813,6 +826,70 @@ Restrict database operations to prevent data modification:
 - User lacks PostgreSQL permissions on the table
 - Check Row-Level Security policies
 - Verify user authentication
+
+## Turn Metadata (`done` event)
+
+Every chat turn ends with a `done` WebSocket event. The payload extends the basic usage shape with optional fields that surface live state to clients:
+
+```typescript
+chat.onDone((usage, conversationId, extras) => {
+  // Token accounting for the turn that just finished
+  console.log(usage?.prompt_tokens, usage?.completion_tokens)
+  // cached_tokens: subset of prompt_tokens served from the provider's prompt
+  // cache (0 when caching didn't fire). See Prompt Caching below.
+  console.log(`  cached: ${usage?.cached_tokens ?? 0}`)
+
+  // Per-user daily quota snapshot at turn end (omitted when the chatbot has
+  // no daily-limit / token-budget configured).
+  if (extras?.daily_quota) {
+    const reqLeft = extras.daily_quota.requests.limit - extras.daily_quota.requests.used
+    const tokLeft = extras.daily_quota.tokens.limit - extras.daily_quota.tokens.used
+    console.log(`${reqLeft} requests / ${tokLeft} tokens left today`)
+  }
+
+  // Intent rules that fired for this turn (omitted when none match or no
+  // rules are configured). Use this to log and tune @fluxbase:intent-rules.
+  for (const rule of extras?.matched_intent_rules ?? []) {
+    console.log(`Rule fired: "${rule.keyword}" →`, rule)
+  }
+})
+```
+
+For the initial load (before any turn is sent), use `fluxbase.ai.getUsage(chatbotId)` to fetch the same quota snapshot via REST:
+
+```typescript
+const { data, error } = await client.ai.getUsage('chatbot-uuid')
+if (data) console.log(`${data.requests.limit - data.requests.used} requests left today`)
+```
+
+:::note
+Quota counters are best-effort in-memory and reset on server restart; per-instance in multi-replica deployments. They are accurate enough for "X left today" displays but not for billing.
+:::
+
+## Prompt Caching
+
+Fluxbase enables provider-side prompt caching so the static portion of your chatbot's system prompt is cached across turns of a conversation. The cache is automatic; you don't opt in per chatbot.
+
+**How it works:**
+
+- The static system prompt (your `export default` text + schema description + query guidelines + intent rules) is sent as a separate system message at the start of the conversation.
+- The dynamic per-turn context (current user ID, current time, RAG retrieval) is sent as a *second* system message after the static one, so the static prefix is byte-identical across turns.
+- OpenAI caches the byte-identical prefix automatically (≥1024 tokens).
+- Anthropic (when configured as the provider) marks the static system block and the last tool definition with `cache_control: {type: "ephemeral"}`, the explicit-cache model. Cached reads are billed at **0.1x** instead of 1x.
+
+**Reading the cache hit rate:**
+
+`usage.cached_tokens` in the `done` event carries the count of input tokens served from cache (0 when caching didn't fire). For Anthropic providers, this is `cache_read_input_tokens`. For OpenAI/Azure, it's `prompt_tokens_details.cached_tokens`.
+
+**Budget impact:**
+
+Cached input tokens are billed at **0x** against the chatbot's `@fluxbase:token-budget` — they cost the provider 0.1x–0.5x, so the user doesn't foot the full bill. Effective daily spend = `(prompt_tokens - cached_tokens) + completion_tokens`.
+
+**Cache-breakers to avoid in your prompt:**
+
+The static prefix is cached up to the first differing token. To maximize cache hits:
+- Avoid `{{user_id}}` and user-scoped `{{user:key}}` templates near the top of the system prompt — these vary per user. (Fluxbase already moves `Current user ID` into the dynamic context; user-injected templates in your prompt are your responsibility.)
+- Don't put timestamps, request IDs, or other per-turn values in the static portion.
 
 ## Next Steps
 
