@@ -34,12 +34,13 @@ func NewRAGService(
 
 // RetrieveContextOptions contains options for retrieval
 type RetrieveContextOptions struct {
-	ChatbotID      string
-	ConversationID string
-	UserID         string
-	Query          string
-	MaxChunks      int     // Override max chunks (optional)
-	Threshold      float64 // Override threshold (optional)
+	ChatbotID        string
+	ConversationID   string
+	UserID           string
+	Query            string
+	MaxChunks        int     // Override max chunks (optional)
+	Threshold        float64 // Override threshold (optional)
+	GraphBoostWeight float64 // Optional: >0 enables entity-based re-ranking
 }
 
 // RetrieveContextResult contains the retrieval results
@@ -74,8 +75,16 @@ func (r *RAGService) RetrieveContext(ctx context.Context, opts RetrieveContextOp
 		searchOpts.UserID = &opts.UserID
 	}
 
-	// Search for relevant chunks with user isolation
-	chunks, err := r.storage.SearchChatbotKnowledgeWithOptions(ctx, opts.ChatbotID, queryEmbedding, searchOpts)
+	// Search for relevant chunks. When graph boost is requested and the
+	// knowledge graph + entity extractor are wired, take the graph-boosted
+	// path which over-fetches and re-ranks by entity salience. Otherwise use
+	// the standard cross-KB search.
+	var chunks []RetrievalResult
+	if opts.GraphBoostWeight > 0 && r.knowledgeGraph != nil && r.entityExtractor != nil {
+		chunks, err = r.retrieveContextWithGraphBoost(ctx, opts, queryEmbedding)
+	} else {
+		chunks, err = r.storage.SearchChatbotKnowledgeWithOptions(ctx, opts.ChatbotID, queryEmbedding, searchOpts)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to search knowledge: %w", err)
 	}
@@ -126,6 +135,70 @@ func (r *RAGService) RetrieveContext(ctx context.Context, opts RetrieveContextOp
 		DurationMs:       duration.Milliseconds(),
 		EmbeddingModel:   r.embeddingService.DefaultModel(),
 	}, nil
+}
+
+// retrieveContextWithGraphBoost runs the chat retrieval path with graph-boosted
+// re-ranking. Mirrors the standard cross-KB search but calls SearchChunksWithGraphBoost
+// per linked KB, preserving user isolation via the MetadataFilter.
+func (r *RAGService) retrieveContextWithGraphBoost(ctx context.Context, opts RetrieveContextOptions, queryEmbedding []float32) ([]RetrievalResult, error) {
+	links, err := r.storage.GetChatbotKnowledgeBases(ctx, opts.ChatbotID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get linked knowledge bases: %w", err)
+	}
+	if len(links) == 0 {
+		return nil, nil
+	}
+
+	maxChunks := opts.MaxChunks
+	if maxChunks <= 0 {
+		maxChunks = 5
+	}
+	threshold := opts.Threshold
+	if threshold <= 0 {
+		threshold = 0.7
+	}
+
+	// Build the same user-isolation filter SearchChatbotKnowledgeWithOptions uses.
+	var userFilter *MetadataFilter
+	if opts.UserID != "" {
+		userFilter = &MetadataFilter{
+			UserID:        &opts.UserID,
+			IncludeGlobal: true,
+		}
+	}
+
+	var allResults []RetrievalResult
+	for _, link := range links {
+		if !link.Enabled {
+			continue
+		}
+
+		graphOpts := GraphBoostOptions{
+			QueryEmbedding:   queryEmbedding,
+			QueryText:        opts.Query,
+			Limit:            maxChunks,
+			Threshold:        threshold,
+			GraphBoostWeight: opts.GraphBoostWeight,
+			Filter:           userFilter,
+		}
+
+		results, err := r.storage.SearchChunksWithGraphBoost(ctx, link.KnowledgeBaseID, r.knowledgeGraph, r.entityExtractor, graphOpts)
+		if err != nil {
+			log.Warn().Err(err).Str("kb_id", link.KnowledgeBaseID).Msg("Graph-boosted search failed, skipping KB")
+			continue
+		}
+
+		// Stamp KB name onto results for context formatting.
+		if kb, getErr := r.storage.GetKnowledgeBase(ctx, link.KnowledgeBaseID); getErr == nil && kb != nil {
+			for i := range results {
+				results[i].KnowledgeBaseName = kb.Name
+			}
+		}
+
+		allResults = append(allResults, results...)
+	}
+
+	return allResults, nil
 }
 
 // formatContext formats retrieved chunks into a string for the LLM prompt

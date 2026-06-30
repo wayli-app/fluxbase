@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateIntent_RequiredTable(t *testing.T) {
@@ -467,5 +468,48 @@ func TestGetForbiddenTools(t *testing.T) {
 
 		forbidden := validator.GetForbiddenTools("restaurant and cafe")
 		assert.Equal(t, []string{"http_request"}, forbidden)
+	})
+}
+
+// TestGetMatchedRules covers the public observability surface added in Ask 5
+// so apps can see which intent rules fired for a turn.
+func TestGetMatchedRules(t *testing.T) {
+	rules := []IntentRule{
+		{Keywords: []string{"restaurant", "cafe"}, RequiredTable: "my_place_visits", ForbiddenTool: "http_request"},
+		{Keywords: []string{"visited", "been to"}, ForbiddenTool: "http_request"},
+		{Keywords: []string{"never matches"}, RequiredTool: "vector_search"},
+	}
+	validator := NewIntentValidator(rules, nil, "")
+
+	t.Run("returns only rules whose keywords match", func(t *testing.T) {
+		matched := validator.GetMatchedRules("show me restaurants I've visited")
+		require.Len(t, matched, 2)
+
+		// First rule fires on "restaurant"
+		assert.Equal(t, "restaurant", matched[0].Keyword)
+		assert.Equal(t, "my_place_visits", matched[0].RequiredTable)
+		assert.Equal(t, "http_request", matched[0].ForbiddenTool)
+
+		// Second rule fires on "visited"
+		assert.Equal(t, "visited", matched[1].Keyword)
+		assert.Equal(t, "http_request", matched[1].ForbiddenTool)
+		assert.Empty(t, matched[1].RequiredTable)
+	})
+
+	t.Run("returns nil when no rules match", func(t *testing.T) {
+		matched := validator.GetMatchedRules("tell me a joke")
+		assert.Nil(t, matched)
+	})
+
+	t.Run("returns nil when no rules configured", func(t *testing.T) {
+		emptyValidator := NewIntentValidator(nil, nil, "")
+		assert.Nil(t, emptyValidator.GetMatchedRules("anything"))
+	})
+
+	t.Run("picks first matched keyword when multiple keywords in one rule hit", func(t *testing.T) {
+		// "restaurant and cafe" hits both keywords of rule 0; we report the first.
+		matched := validator.GetMatchedRules("restaurant and cafe")
+		require.Len(t, matched, 1)
+		assert.Equal(t, "restaurant", matched[0].Keyword)
 	})
 }

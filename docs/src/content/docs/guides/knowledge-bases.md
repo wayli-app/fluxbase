@@ -517,38 +517,41 @@ Fluxbase automatically extracts entities and relationships from documents when t
 
 ### Entity Types
 
-The following entity types are automatically extracted from documents:
+The following entity types are extracted by the built-in rule-based extractor. The extractor is regex-driven and works best on developer/technical content; it is US/English-centric. Set `entity_extraction_enabled=false` on a KB to skip extraction entirely (see [Disabling extraction](#disabling-extraction)).
 
-| Type               | Description                       | Examples                                       |
-| ------------------ | --------------------------------- | ---------------------------------------------- |
-| **person**         | People and names                  | John Smith, Dr. Jane Doe, CEO Bob              |
-| **organization**   | Companies and organizations       | Google, Microsoft, Corp, LLC                   |
-| **location**       | Geographic locations              | New York, London, Paris, California            |
-| **concept**        | Abstract concepts and ideas       | Machine Learning, Democracy                    |
-| **product**        | Products and services             | iPhone, AWS, Docker, Kubernetes                |
-| **event**          | Events and time-based occurrences | Olympics, World War II                         |
-| **table**          | Database tables                   | `auth.users`, `public.orders`                  |
-| **url**            | URLs and links                    | `https://example.com`, `www.fluxbase.com/docs` |
-| **api_endpoint**   | REST/GraphQL/RPC endpoints        | `POST /api/v1/users`, `GET /api/v1/auth/...`   |
-| **datetime**       | Dates, times, durations           | `2025-02-18`, `2h 30m`, `next week`            |
-| **code_reference** | File paths, repos, code snippets  | `internal/ai/kb.go`, `github.com/user/repo`    |
-| **error**          | Error codes, exceptions           | `ErrNotFound`, `404 Unauthorized`              |
+| Type               | What the rule matches                                   | Examples                                       |
+| ------------------ | ------------------------------------------------------- | ---------------------------------------------- |
+| **person**         | Title-prefixed names, 2+ capitalized words              | John Smith, Dr. Jane Doe, CEO Bob              |
+| **organization**   | Company suffixes (Inc/Corp/LLC/…) + a built-in list     | Google, Microsoft, Acme Corp                   |
+| **location**       | Built-in list of US/CA/EU cities and US states          | New York, London, Paris, California            |
+| **product**        | Built-in list of ~30 tech products                      | iPhone, AWS, Docker, Kubernetes                |
+| **url**            | URLs and links                                          | `https://example.com`, `www.fluxbase.com/docs` |
+| **api_endpoint**   | HTTP-method + `/api/...`, `/api/vN/...`, `/graphql`     | `POST /api/v1/users`, `GET /api/v1/auth/...`   |
+| **datetime**       | ISO 8601, `Month DD, YYYY`, relative phrases            | `2025-02-18`, `2h 30m`, `3 days ago`           |
+| **code_reference** | File paths, `github.com/user/repo`                      | `internal/ai/kb.go`, `github.com/user/repo`    |
+| **error**          | `Err[A-Z]…`, HTTP codes, quoted error phrases           | `ErrNotFound`, `404 Unauthorized`              |
+| **table**          | Created by table export, not the rule extractor         | `auth.users`, `public.orders`                  |
+| **other**          | Reserved; not produced by the extractor                 | —                                              |
+
+:::note
+The `person` rule (capitalized bigrams) is aggressive. Expect false positives on prose ("San Francisco" can match as both `person` and `location`). For non-technical KBs, consider disabling extraction.
+:::
 
 ### Relationship Types
 
-Entities are connected by the following relationship types:
+The schema defines 19 relationship types. Only three are produced automatically; the rest are available for manual insertion (e.g. via SQL or future tools).
 
-| Type            | Description                       | Example                          |
-| --------------- | --------------------------------- | -------------------------------- |
-| **works_at**    | Person works at organization      | "John works at Google"           |
-| **located_in**  | Entity located in location        | "Office in San Francisco"        |
-| **founded_by**  | Organization founded by person    | "Apple founded by Steve Jobs"    |
-| **owns**        | Ownership relationship            | "Company owns product"           |
-| **part_of**     | Hierarchical/part-of relationship | "Chapter is part of book"        |
-| **related_to**  | General relationship              | "Concept A related to Concept B" |
-| **knows**       | Person knows person               | "Alice knows Bob"                |
-| **foreign_key** | Database foreign key              | `orders.user_id → users.id`      |
-| **depends_on**  | Dependency relationship           | "View depends on table"          |
+**Automatically inferred:**
+
+| Type            | What the rule looks for                              | Example                          |
+| --------------- | ---------------------------------------------------- | -------------------------------- |
+| **works_at**    | `(?:works at\|is employed by\|joined\|works for)`     | "John works at Google"           |
+| **founded_by**  | `(?:founded\|co-founded\|started\|created)`          | "Apple founded by Steve Jobs"    |
+| **foreign_key** | Created by table export, not the rule extractor      | `orders.user_id → users.id`      |
+
+**Schema-supported (manual only — not produced by any extractor):**
+
+`located_in`, `owns`, `part_of`, `related_to`, `knows`, `customer_of`, `supplier_of`, `invested_in`, `acquired`, `merged_with`, `competitor_of`, `parent_of`, `child_of`, `spouse_of`, `sibling_of`, `depends_on`.
 
 ### Automatic Extraction
 
@@ -559,6 +562,53 @@ Entities and relationships are extracted automatically when documents are proces
 3. Rule-based entity extraction identifies entities and relationships
 4. Entities are stored in the knowledge graph
 5. Document-entity mentions are tracked
+
+Re-running extraction (e.g. via `ReprocessDocument`) replaces prior document-entity mentions for that document, so editing a document to remove an entity mention no longer leaves stale links. Entities themselves are de-duplicated by canonical name; entities referenced only by a deleted document are garbage-collected.
+
+### Disabling extraction
+
+Extraction is enabled by default for every KB. To skip it (e.g. for a prose-heavy KB where the regex `person` rule would create noise), set `entity_extraction_enabled=false`:
+
+```bash
+# CLI
+fluxbase kb update <kb-id> --entity-extraction=false
+
+# REST
+curl -X PUT http://localhost:8080/api/v1/admin/ai/knowledge-bases/<kb-id> \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"entity_extraction_enabled": false}'
+```
+
+Disabling extraction on an existing KB does not remove entities already stored; delete and recreate the KB if you need a clean slate, or remove entities via SQL.
+
+## Graph-Boosted Retrieval
+
+:::note
+Graph-boosted retrieval is **off by default**. Without enabling it, the knowledge graph has no effect on chatbot responses.
+:::
+
+When enabled, RAG retrieval over-fetches candidate chunks and re-ranks them using entity salience: chunks from documents that mention entities found in the user's query are boosted. The re-rank formula is:
+
+```
+finalScore = similarity * (1 - weight) + entityBoost * weight
+```
+
+where `entityBoost` is the normalized salience of query-extracted entities on the chunk's parent document (0 to 1). Because the rule extractor currently assigns a flat salience of `0.5` to every entity, the boost acts as an entity-presence signal; per-entity salience tuning is a future improvement.
+
+Enable graph boost via either of two knobs (per-chatbot annotation takes precedence over the global default):
+
+```ts
+// Chatbot annotation (0.0–1.0, 0 = off)
+// @fluxbase:rag-graph-boost-weight 0.3
+```
+
+```bash
+# Global default for all chatbots (env var)
+FLUXBASE_AI_RAG_GRAPH_BOOST_WEIGHT=0.3
+```
+
+User isolation is preserved: graph-boosted search honors the same `MetadataFilter` (per-user `user_id`, include-global) as the standard path.
 
 ## Database Table Export
 
@@ -754,74 +804,23 @@ fluxbase kb get <kb-id>
 # Create knowledge base
 fluxbase kb create my-kb --description "My knowledge base"
 
-# Update knowledge base
+# Update knowledge base (e.g. disable entity extraction)
 fluxbase kb update <kb-id> --description "Updated description"
+fluxbase kb update <kb-id> --entity-extraction=false
 
 # Delete knowledge base
 fluxbase kb delete <kb-id>
-
-# Show status and statistics
-fluxbase kb status <kb-id>
 ```
 
 ### Document Management
 
 ```bash
 # List documents
-fluxbase kb documents <kb-id>
+fluxbase kb documents <kb-id>           # alias: kb docs
 
-# Add document from text
-fluxbase kb add <kb-id> --content "Document content" --title "My Doc"
-
-# Add document from file
-fluxbase kb add <kb-id> --from-file ./doc.txt --title "My Doc"
-
-# Add document from stdin
-echo "Content" | fluxbase kb add <kb-id> --title "Piped Doc"
-
-# Add with user isolation
-fluxbase kb add <kb-id> --content "..." --metadata '{"user_id":"user-123"}'
-
-# Get document details
-fluxbase kb documents get <kb-id> <doc-id>
-
-# Delete single document
-fluxbase kb documents delete <kb-id> <doc-id>
-
-# Bulk delete by filter
-fluxbase kb documents delete-by-filter <kb-id> --metadata-filter "user_id=user-123"
-```
-
-### File Upload
-
-```bash
-# Upload document file
+# Upload a file as a document
 fluxbase kb upload <kb-id> ./document.pdf --title "My PDF"
-
-# Upload with OCR languages (for scanned PDFs)
-fluxbase kb upload <kb-id> ./scanned.pdf --ocr-languages "eng,deu"
-```
-
-### Search
-
-```bash
-# Search knowledge base
-fluxbase kb search <kb-id> "how to reset password"
-
-# Search with options
-fluxbase kb search <kb-id> "pricing" --limit 5 --threshold 0.7
-```
-
-### Table Export
-
-```bash
-# List exportable tables
-fluxbase kb tables
-fluxbase kb tables auth  # Filter by schema
-
-# Export table as document
-fluxbase kb export-table <kb-id> --schema public --table users \
-  --include-fks --include-indexes --sample-rows 5
+fluxbase kb upload <kb-id> report.md --tag finance --tag q4
 ```
 
 ### Knowledge Graph

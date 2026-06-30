@@ -142,6 +142,14 @@ type openAIUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	// OpenAI returns prompt_tokens_details.cached_tokens when prompt caching
+	// fires. Older deployments that don't support caching simply omit it.
+	PromptTokensDetails *openAIPromptTokensDetails `json:"prompt_tokens_details,omitempty"`
+}
+
+// openAIPromptTokensDetails carries the cached-token breakdown.
+type openAIPromptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens"`
 }
 
 type openAIError struct {
@@ -436,6 +444,9 @@ func (p *openAIProvider) convertResponse(resp *openAIResponse) *ChatResponse {
 			CompletionTokens: resp.Usage.CompletionTokens,
 			TotalTokens:      resp.Usage.TotalTokens,
 		}
+		if resp.Usage.PromptTokensDetails != nil {
+			usage.CachedTokens = resp.Usage.PromptTokensDetails.CachedTokens
+		}
 	}
 
 	return &ChatResponse{
@@ -563,6 +574,9 @@ func (p *openAIProvider) processStream(ctx context.Context, reader io.Reader, ca
 						PromptTokens:     chunk.Usage.PromptTokens,
 						CompletionTokens: chunk.Usage.CompletionTokens,
 						TotalTokens:      chunk.Usage.TotalTokens,
+					}
+					if chunk.Usage.PromptTokensDetails != nil {
+						event.Usage.CachedTokens = chunk.Usage.PromptTokensDetails.CachedTokens
 					}
 				}
 				if err := callback(event); err != nil {

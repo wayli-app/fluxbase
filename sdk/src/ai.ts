@@ -10,6 +10,8 @@ import type {
   AIChatServerMessage,
   AIUsageStats,
   AIUserConversationDetail,
+  AIDailyQuotaSnapshot,
+  AIMatchedIntentRule,
   ListConversationsOptions,
   ListConversationsResult,
   UpdateConversationOptions,
@@ -72,7 +74,18 @@ export interface AIChatOptions {
     conversationId: string,
   ) => void;
   /** Callback when message is complete */
-  onDone?: (usage: AIUsageStats | undefined, conversationId: string) => void;
+  onDone?: (
+    usage: AIUsageStats | undefined,
+    conversationId: string,
+    /**
+     * Turn metadata (Ask 2/4/5). Optional third argument — old callbacks
+     * that only declare two params keep working unchanged.
+     */
+    extras?: {
+      matched_intent_rules?: AIMatchedIntentRule[];
+      daily_quota?: AIDailyQuotaSnapshot;
+    },
+  ) => void;
   /** Callback for errors */
   onError?: (
     error: string,
@@ -388,7 +401,14 @@ export class FluxbaseAIChat {
 
         case "done":
           if (message.conversation_id) {
-            this.options.onDone?.(message.usage, message.conversation_id);
+            this.options.onDone?.(
+              message.usage,
+              message.conversation_id,
+              {
+                matched_intent_rules: message.matched_intent_rules,
+                daily_quota: message.daily_quota,
+              },
+            );
           }
           break;
 
@@ -698,6 +718,41 @@ export class FluxbaseAI {
       const response = await this.fetch.patch<AIUserConversationDetail>(
         `/api/v1/ai/conversations/${id}`,
         updates,
+      );
+      return { data: response, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Get the current user's daily quota for a chatbot (Ask 2).
+   *
+   * Returns requests used/limit and tokens used/limit, plus the RFC3339
+   * timestamp of when the counters reset. Best-effort: counters are in-memory
+   * and reset on server restart; per-instance in multi-replica deployments.
+   *
+   * For per-turn updates without an extra round-trip, read `daily_quota` from
+   * the `onDone` callback's third argument.
+   *
+   * @param chatbotId - Chatbot ID
+   * @returns Promise resolving to { data, error } with the quota snapshot
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await ai.getUsage('chatbot-uuid')
+   * if (data) {
+   *   console.log(`${data.requests.limit - data.requests.used} requests left today`)
+   *   console.log(`${data.tokens.limit - data.tokens.used} tokens left today`)
+   * }
+   * ```
+   */
+  async getUsage(
+    chatbotId: string,
+  ): Promise<{ data: AIDailyQuotaSnapshot | null; error: Error | null }> {
+    try {
+      const response = await this.fetch.get<AIDailyQuotaSnapshot>(
+        `/api/v1/ai/usage/${chatbotId}`,
       );
       return { data: response, error: null };
     } catch (error) {

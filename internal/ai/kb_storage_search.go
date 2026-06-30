@@ -119,11 +119,12 @@ type HybridSearchOptions struct {
 
 // GraphBoostOptions contains options for graph-boosted search
 type GraphBoostOptions struct {
-	QueryEmbedding   []float32 // Query vector embedding
-	QueryText        string    // Query text for entity extraction
-	Limit            int       // Maximum number of results to return
-	Threshold        float64   // Minimum similarity threshold (0-1)
-	GraphBoostWeight float64   // How much to weight entity matches vs vector similarity (0.0-1.0)
+	QueryEmbedding   []float32       // Query vector embedding
+	QueryText        string          // Query text for entity extraction
+	Limit            int             // Maximum number of results to return
+	Threshold        float64         // Minimum similarity threshold (0-1)
+	GraphBoostWeight float64         // How much to weight entity matches vs vector similarity (0.0-1.0)
+	Filter           *MetadataFilter // Optional metadata filter for user isolation
 }
 
 // SearchChunksHybrid performs hybrid search combining vector similarity with full-text search
@@ -387,16 +388,9 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 		log.Debug().Int("entity_count", len(queryEntities)).Msg("Extracted entities from query")
 	}
 
-	// Step 2: Get more results than needed (for re-ranking)
-	retrievalLimit := opts.Limit * 3 // Get 3x results for re-ranking
-	if retrievalLimit < 10 {
-		retrievalLimit = 10
-	}
-	if retrievalLimit > 100 {
-		retrievalLimit = 100
-	}
-
-	chunks, err := s.SearchChunks(ctx, knowledgeBaseID, opts.QueryEmbedding, retrievalLimit, opts.Threshold)
+	// Step 2: Over-fetch candidate chunks (3x) for re-ranking. The helper honors
+	// the optional user-isolation filter.
+	chunks, err := s.searchChunksForBoost(ctx, knowledgeBaseID, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -440,6 +434,23 @@ func (s *KnowledgeBaseStorage) SearchChunksWithGraphBoost(
 
 	// Step 4-5: Apply entity boost, re-rank, and return top N
 	return applyGraphBoost(chunks, documentEntitySalience, opts), nil
+}
+
+// searchChunksForBoost over-fetches candidate chunks for graph-boost re-ranking.
+// Uses SearchChunksWithFilter when a user-isolation filter is supplied (preserving
+// per-user scoping); otherwise falls back to plain SearchChunks.
+func (s *KnowledgeBaseStorage) searchChunksForBoost(ctx context.Context, knowledgeBaseID string, opts GraphBoostOptions) ([]RetrievalResult, error) {
+	retrievalLimit := opts.Limit * 3
+	if retrievalLimit < 10 {
+		retrievalLimit = 10
+	}
+	if retrievalLimit > 100 {
+		retrievalLimit = 100
+	}
+	if opts.Filter != nil {
+		return s.SearchChunksWithFilter(ctx, knowledgeBaseID, opts.QueryEmbedding, retrievalLimit, opts.Threshold, opts.Filter)
+	}
+	return s.SearchChunks(ctx, knowledgeBaseID, opts.QueryEmbedding, retrievalLimit, opts.Threshold)
 }
 
 // applyGraphBoost re-ranks retrieval results based on entity salience scores.

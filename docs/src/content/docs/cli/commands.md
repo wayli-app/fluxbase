@@ -455,11 +455,20 @@ Update an existing knowledge base.
 
 ```bash
 fluxbase kb update abc123 --description "Updated description"
+fluxbase kb update abc123 --entity-extraction=false
 ```
 
 **Flags:**
 
+- `--name` - New name
 - `--description` - New description
+- `--chunk-size` - Chunk size in tokens
+- `--chunk-overlap` - Chunk overlap in tokens
+- `--embedding-model` - Embedding model
+- `--chunk-strategy` - `recursive` | `sentence` | `paragraph` | `fixed`
+- `--visibility` - `private` | `shared` | `public`
+- `--enabled` - Enable/disable the KB
+- `--entity-extraction` - Enable/disable rule-based entity extraction (default: true)
 
 ### `fluxbase kb delete`
 
@@ -469,170 +478,33 @@ Delete a knowledge base and all its documents.
 fluxbase kb delete abc123
 ```
 
-### `fluxbase kb status`
-
-Show knowledge base status and statistics.
-
-```bash
-fluxbase kb status abc123
-fluxbase kb status abc123 --output json
-```
-
-**Flags:**
-
-- `--output` - Output format (`json`, `table`)
-
 ### `fluxbase kb upload`
 
-Upload a document to a knowledge base. Supported formats: PDF, DOCX, TXT, MD, images (with OCR).
+Upload a file (PDF, DOCX, TXT, MD, images with OCR enabled on the server) as a document to a knowledge base.
 
 ```bash
 fluxbase kb upload abc123 ./manual.pdf
 fluxbase kb upload abc123 ./guide.md --title "User Guide"
-fluxbase kb upload abc123 ./scan.png --ocr-languages eng,deu
+fluxbase kb upload abc123 ./report.pdf --tag finance --tag q4
 ```
 
 **Flags:**
 
-- `--title` - Document title
-- `--metadata` - Document metadata (JSON)
-- `--tags` - Comma-separated tags
-- `--ocr-languages` - OCR languages for images (e.g., `eng,deu`)
-
-### `fluxbase kb add`
-
-Add a document from text, stdin, or file (alternative to upload for text content).
-
-```bash
-# Add from inline content
-fluxbase kb add abc123 --content "Hello world" --title "Greeting"
-
-# Add from stdin
-echo "Content" | fluxbase kb add abc123 --title "My Doc"
-
-# Add from file
-fluxbase kb add abc123 --from-file ./doc.txt --title "Document"
-
-# Add with metadata
-fluxbase kb add abc123 --content "..." --title "Doc" --metadata '{"user_id":"uuid"}' --tags "important,reference"
-```
-
-**Flags:**
-
-- `--content` - Inline document content
-- `--from-file` - Read content from file
-- `--title` - Document title
-- `--metadata` - Document metadata (JSON)
-- `--tags` - Comma-separated tags
+- `--title` - Document title (defaults to filename)
+- `--tag` - Tag to attach (can be repeated: `--tag a --tag b`)
 
 ### `fluxbase kb documents`
 
-List documents in a knowledge base.
+List documents in a knowledge base (alias: `kb docs`).
 
 ```bash
 fluxbase kb documents abc123
-```
-
-### `fluxbase kb documents get`
-
-Get document details.
-
-```bash
-fluxbase kb documents get abc123 doc456
-```
-
-### `fluxbase kb documents update`
-
-Update document metadata.
-
-```bash
-fluxbase kb documents update abc123 doc456 --title "New Title"
-fluxbase kb documents update abc123 doc456 --tags "tag1,tag2"
-fluxbase kb documents update abc123 doc456 --metadata '{"key":"value"}'
+fluxbase kb documents abc123 --limit 100
 ```
 
 **Flags:**
 
-- `--title` - New document title
-- `--tags` - New tags (comma-separated)
-- `--metadata` - New metadata (JSON)
-
-### `fluxbase kb documents delete`
-
-Delete a document from a knowledge base.
-
-```bash
-fluxbase kb documents delete abc123 doc456
-```
-
-### `fluxbase kb documents delete-by-filter`
-
-Bulk delete documents by tags or metadata.
-
-```bash
-fluxbase kb documents delete-by-filter abc123 --tags "archived"
-fluxbase kb documents delete-by-filter abc123 --metadata-filter "user_id=uuid-here"
-```
-
-**Flags:**
-
-- `--tags` - Filter by tags (comma-separated)
-- `--metadata-filter` - Filter by metadata (e.g., `key=value`)
-
-### `fluxbase kb search`
-
-Search a knowledge base using semantic similarity.
-
-```bash
-fluxbase kb search abc123 "how to reset password"
-fluxbase kb search abc123 "pricing plans" --limit 5 --threshold 0.8
-```
-
-**Flags:**
-
-- `--limit` - Maximum results (default: 10)
-- `--threshold` - Similarity threshold 0.0-1.0 (default: 0.7)
-
-### `fluxbase kb export-table`
-
-Export a database table as a document to the knowledge base. Includes schema, columns, relationships, and optional sample data.
-
-```bash
-# Export all columns
-fluxbase kb export-table abc123 --table users --schema public
-
-# Export specific columns (recommended for sensitive data)
-fluxbase kb export-table abc123 --table users --columns id,name,email
-
-# Include foreign keys and indexes
-fluxbase kb export-table abc123 --table products --include-fks --include-indexes --sample-rows 10
-```
-
-**Flags:**
-
-- `--table` - Table name (required)
-- `--schema` - Schema name (default: `public`)
-- `--columns` - Comma-separated column names (default: all)
-- `--include-fks` - Include foreign keys
-- `--include-indexes` - Include indexes
-- `--sample-rows` - Number of sample rows to include
-
-### `fluxbase kb tables`
-
-List exportable database tables.
-
-```bash
-fluxbase kb tables
-fluxbase kb tables public
-```
-
-### `fluxbase kb capabilities`
-
-Show system capabilities including supported OCR languages, file types, and features.
-
-```bash
-fluxbase kb capabilities
-```
+- `--limit` - Maximum number of documents to return (default: 50)
 
 ### `fluxbase kb graph`
 

@@ -10,9 +10,10 @@ import (
 type ProviderType string
 
 const (
-	ProviderTypeOpenAI ProviderType = "openai"
-	ProviderTypeAzure  ProviderType = "azure"
-	ProviderTypeOllama ProviderType = "ollama"
+	ProviderTypeOpenAI    ProviderType = "openai"
+	ProviderTypeAzure     ProviderType = "azure"
+	ProviderTypeOllama    ProviderType = "ollama"
+	ProviderTypeAnthropic ProviderType = "anthropic"
 )
 
 // Role represents the role of a message in a conversation
@@ -101,6 +102,10 @@ type UsageStats struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	// CachedTokens is the subset of PromptTokens served from the provider's
+	// prompt cache (OpenAI automatic prefix caching, Anthropic prompt caching).
+	// 0 when caching didn't fire or the provider doesn't report it.
+	CachedTokens int `json:"cached_tokens,omitempty"`
 }
 
 // StreamEvent represents a streaming event from the AI provider
@@ -188,6 +193,15 @@ type OllamaConfig struct {
 	Model    string `json:"model"`
 }
 
+// AnthropicConfig represents Anthropic-specific configuration
+type AnthropicConfig struct {
+	APIKey  string `json:"api_key"`
+	Model   string `json:"model"`
+	BaseURL string `json:"base_url,omitempty"` // Override endpoint (e.g. Azure-hosted Anthropic-compatible)
+	// Anthropic API version header (default: 2023-06-01).
+	APIVersion string `json:"api_version,omitempty"`
+}
+
 // NewProvider creates a new AI provider based on the configuration
 func NewProvider(config ProviderConfig) (Provider, error) {
 	switch config.Type {
@@ -197,6 +211,8 @@ func NewProvider(config ProviderConfig) (Provider, error) {
 		return NewAzureProvider(config)
 	case ProviderTypeOllama:
 		return NewOllamaProvider(config)
+	case ProviderTypeAnthropic:
+		return NewAnthropicProvider(config)
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", config.Type)
 	}
@@ -269,6 +285,34 @@ func NewOllamaProvider(config ProviderConfig) (Provider, error) {
 	}
 
 	return newOllamaProviderInternal(config.Name, ollamaConfig)
+}
+
+// NewAnthropicProvider creates a new Anthropic Claude provider (implemented in provider_anthropic.go)
+func NewAnthropicProvider(config ProviderConfig) (Provider, error) {
+	anthropicConfig := AnthropicConfig{
+		APIKey:     config.Config["api_key"],
+		Model:      config.Model,
+		BaseURL:    config.Config["base_url"],
+		APIVersion: config.Config["api_version"],
+	}
+
+	if anthropicConfig.APIKey == "" {
+		return nil, fmt.Errorf("anthropic: api_key is required")
+	}
+
+	if anthropicConfig.Model == "" {
+		anthropicConfig.Model = "claude-sonnet-4-5-20250929"
+	}
+
+	if anthropicConfig.BaseURL == "" {
+		anthropicConfig.BaseURL = "https://api.anthropic.com"
+	}
+
+	if anthropicConfig.APIVersion == "" {
+		anthropicConfig.APIVersion = "2023-06-01"
+	}
+
+	return newAnthropicProviderInternal(config.Name, anthropicConfig)
 }
 
 // ExecuteSQLTool is the standard tool definition for SQL execution

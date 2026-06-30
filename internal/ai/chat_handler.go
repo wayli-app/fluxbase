@@ -90,6 +90,19 @@ func (h *ChatHandler) SetMCPResources(resources MCPResourceReader) {
 	h.schemaBuilder.SetMCPResources(resources)
 }
 
+// InvalidateProvider drops a cached provider so the next request reloads it
+// from the database. Called by the admin Handler when a provider is mutated
+// (config update, deletion, default change). Without this, rotated API keys
+// and changed models never take effect for the chat path.
+func (h *ChatHandler) InvalidateProvider(providerID string) {
+	if providerID == "" {
+		return
+	}
+	h.providersMu.Lock()
+	delete(h.providers, providerID)
+	h.providersMu.Unlock()
+}
+
 // GetRAGService returns the RAG service (may be nil if not initialized)
 func (h *ChatHandler) GetRAGService() *RAGService {
 	return h.ragService
@@ -160,8 +173,29 @@ type ServerMessage struct {
 	RowCount       int              `json:"row_count,omitempty"`
 	Data           []map[string]any `json:"data,omitempty"`
 	Usage          *UsageStats      `json:"usage,omitempty"`
-	Error          string           `json:"error,omitempty"`
-	Code           string           `json:"code,omitempty"`
+	// MatchedIntentRules surfaces the intent rules that fired for this turn
+	// (Add 5). Empty/omitted when no rules match or no rules are configured.
+	MatchedIntentRules []MatchedIntentRule `json:"matched_intent_rules,omitempty"`
+	// DailyQuota carries the per-user remaining quota snapshot at turn end
+	// (Ask 2). Omitted when no daily limits are configured for the chatbot.
+	DailyQuota *DailyQuotaSnapshot `json:"daily_quota,omitempty"`
+	Error      string              `json:"error,omitempty"`
+	Code       string              `json:"code,omitempty"`
+}
+
+// DailyQuotaSnapshot is a point-in-time view of the per-user daily counters
+// for a chatbot. Surfaced in the done event so clients can render
+// "X requests/tokens left today" without an extra round-trip.
+type DailyQuotaSnapshot struct {
+	Requests Quota  `json:"requests"`
+	Tokens   Quota  `json:"tokens"`
+	ResetsAt string `json:"resets_at,omitempty"` // RFC3339; empty when unknown
+}
+
+// Quota is one counter half of a DailyQuotaSnapshot.
+type Quota struct {
+	Used  int `json:"used"`
+	Limit int `json:"limit"`
 }
 
 // ChatContext holds the context for a chat session

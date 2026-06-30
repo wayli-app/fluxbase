@@ -423,6 +423,8 @@ func (h *KnowledgeBaseHandler) DeleteDocumentsByFilter(c fiber.Ctx) error {
 	}
 
 	// Delete documents
+	// ponytail: bulk delete does not clean up orphaned entities (single-doc
+	// path does). Add per-doc cleanup if entity-table bloat becomes an issue.
 	count, err := h.storage.DeleteDocumentsByFilter(ctx, kbID, filter)
 	if err != nil {
 		log.Error().Err(err).Str("kb_id", kbID).Msg("Failed to delete documents by filter")

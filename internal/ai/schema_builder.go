@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -483,8 +482,10 @@ func (s *SchemaBuilder) BuildSystemPromptWithAuth(ctx context.Context, chatbot *
 
 	sb.WriteString("\n")
 	fmt.Fprintf(&sb, "Allowed operations: %s\n", strings.Join(chatbot.AllowedOperations, ", "))
-	fmt.Fprintf(&sb, "Current user ID: %s\n", userID)
-	fmt.Fprintf(&sb, "Current date and time: %s\n", time.Now().UTC().Format("Monday, January 2, 2006 at 3:04 PM MST"))
+	// ponytail: "Current user ID" and "Current date and time" intentionally
+	// omitted from the static prompt — they vary per user / per second and
+	// would defeat provider prompt caching. Injected as a separate dynamic
+	// system message by the chat handler so the static prefix stays byte-stable.
 
 	// Add response language instruction
 	sb.WriteString("\n## Response Language\n\n")

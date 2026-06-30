@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/nimbleflux/fluxbase/cli/bundler"
 	"github.com/nimbleflux/fluxbase/cli/output"
 )
 
@@ -465,18 +466,75 @@ func runMCPToolsSync(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Read _shared/ modules so MCP tools can import shared code (constants,
+	// helpers) instead of duplicating it across files. Same convention as
+	// edge functions and jobs (Ask 3).
+	sharedModulesMap := make(map[string]string)
+	sharedDir := filepath.Join(dir, "_shared")
+	if info, err := os.Stat(sharedDir); err == nil && info.IsDir() {
+		entries, err := os.ReadDir(sharedDir)
+		if err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") {
+					continue
+				}
+				if content, err := os.ReadFile(filepath.Join(sharedDir, name)); err == nil { //nolint:gosec // CLI reads user-provided path
+					sharedModulesMap["_shared/"+name] = string(content)
+				}
+			}
+		}
+	}
+
+	// Lazy-init the bundler; only used if at least one tool has imports.
+	var b *bundler.Bundler
+
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	for _, file := range files {
-		code, err := os.ReadFile(file) //nolint:gosec // CLI tool reads user-provided file path
+		rawCode, err := os.ReadFile(file) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			fmt.Printf("Error reading %s: %v\n", file, err)
 			continue
 		}
+		code := string(rawCode)
+
+		// Bundle if the tool has imports (relative or bare). Tools without
+		// imports skip the bundler entirely, so existing single-file tools
+		// behave exactly as before.
+		if strings.Contains(code, "import ") && len(sharedModulesMap) > 0 {
+			if b == nil {
+				b, err = bundler.NewBundler(dir)
+				if err != nil {
+					// Deno not available — post raw code, server-side runtime
+					// will reject the imports but at least sync won't fail.
+					fmt.Println("Note: Deno not available for local bundling; tools with imports may fail at runtime.")
+					b = nil
+				}
+			}
+			if b != nil {
+				if !b.NeedsBundle(code) {
+					// Import detected but not one the bundler handles (e.g. npm:).
+					// Leave code as-is.
+				} else {
+					fmt.Printf("Bundling %s...", filepath.Base(file))
+					result, bundleErr := b.Bundle(ctx, code, sharedModulesMap)
+					if bundleErr != nil {
+						fmt.Println()
+						return fmt.Errorf("failed to bundle %s: %w", filepath.Base(file), bundleErr)
+					}
+					fmt.Printf(" %s → %s\n", formatBytes(len(code)), formatBytes(len(result.BundledCode)))
+					code = result.BundledCode
+				}
+			}
+		}
 
 		// Parse annotations from code
-		name, annotations := parseMCPAnnotations(string(code), filepath.Base(file))
+		name, annotations := parseMCPAnnotations(code, filepath.Base(file))
 
 		// Use namespace from annotation if specified, otherwise use CLI flag
 		namespace := mcpNamespace
@@ -492,7 +550,7 @@ func runMCPToolsSync(cmd *cobra.Command, args []string) error {
 		payload := map[string]interface{}{
 			"name":      name,
 			"namespace": namespace,
-			"code":      string(code),
+			"code":      code,
 			"upsert":    true,
 		}
 

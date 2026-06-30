@@ -58,6 +58,7 @@ type AIHandlers struct {
 	Metrics         *observability.Metrics
 	KnowledgeBase   *ai.KnowledgeBaseHandler
 	KBStorage       *ai.KnowledgeBaseStorage
+	KnowledgeGraph  *ai.KnowledgeGraph
 	DocProcessor    *ai.DocumentProcessor
 	TableExportSync *ai.TableExportSyncService
 	VectorManager   *VectorManager

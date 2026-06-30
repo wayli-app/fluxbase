@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     pipeline_type text DEFAULT 'none' NOT NULL,
     pipeline_config jsonb DEFAULT '{}' NOT NULL,
     transformation_function text,
+    entity_extraction_enabled boolean DEFAULT true NOT NULL,
     tenant_id uuid,
     CONSTRAINT knowledge_bases_pkey PRIMARY KEY (id),
     CONSTRAINT unique_knowledge_base_name_namespace UNIQUE (name, namespace),
@@ -62,6 +63,9 @@ COMMENT ON COLUMN ai.knowledge_bases.chunk_strategy IS 'Chunking strategy: recur
 
 
 COMMENT ON COLUMN ai.knowledge_bases.visibility IS 'private=owner only, shared=explicit permissions, public=all authenticated users';
+
+
+COMMENT ON COLUMN ai.knowledge_bases.entity_extraction_enabled IS 'When true (default), documents are processed by the rule-based entity extractor on insert/reprocess. Set to false to skip extraction (no entities, no relationships, no graph-boost signal).';
 
 
 COMMENT ON COLUMN ai.knowledge_bases.quota_max_documents IS 'Maximum documents allowed in this KB';
@@ -696,7 +700,7 @@ CREATE TABLE IF NOT EXISTS providers (
     tenant_id uuid,
     CONSTRAINT providers_pkey PRIMARY KEY (id),
     CONSTRAINT providers_name_key UNIQUE (name),
-    CONSTRAINT providers_provider_type_check CHECK (provider_type IN ('openai'::text, 'azure'::text, 'ollama'::text))
+    CONSTRAINT providers_provider_type_check CHECK (provider_type IN ('openai'::text, 'azure'::text, 'ollama'::text, 'anthropic'::text))
 );
 
 

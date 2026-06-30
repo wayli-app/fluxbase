@@ -62,6 +62,7 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 	var aiMetrics *observability.Metrics
 	var knowledgeBaseHandler *ai.KnowledgeBaseHandler
 	var kbStorage *ai.KnowledgeBaseStorage
+	var knowledgeGraph *ai.KnowledgeGraph
 	var docProcessor *ai.DocumentProcessor
 	var tableExportSyncService *ai.TableExportSyncService
 	var ocrService *ai.OCRService
@@ -73,6 +74,7 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 
 		aiLoader := ai.NewLoader(cfg.AI.ChatbotsDir)
 		aiConversations = ai.NewConversationManager(db, cfg.AI.ConversationCacheTTL, cfg.AI.MaxConversationTurns)
+		aiConversations.SetMetrics(aiMetrics)
 		aiHandler = ai.NewHandler(aiStorage, aiLoader, &cfg.AI, vectorManager)
 
 		var embeddingService *ai.EmbeddingService
@@ -81,6 +83,10 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		}
 
 		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI, embeddingService, loggingSvc)
+
+		// Wire chat handler back into the admin handler so provider mutations
+		// invalidate the chat path's provider cache.
+		aiHandler.SetChatHandler(aiChatHandler)
 
 		if secretsSvc != nil {
 			settingsResolver := ai.NewSettingsResolver(secretsSvc, 5*time.Minute)
@@ -114,7 +120,7 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		}
 
 		kbStorage = ai.NewKnowledgeBaseStorage(db)
-		knowledgeGraph := ai.NewKnowledgeGraph(kbStorage)
+		knowledgeGraph = ai.NewKnowledgeGraph(kbStorage)
 		log.Info().Msg("Knowledge graph initialized")
 
 		entityExtractor := ai.NewRuleBasedExtractor()
@@ -175,6 +181,7 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		Metrics:         aiMetrics,
 		KnowledgeBase:   knowledgeBaseHandler,
 		KBStorage:       kbStorage,
+		KnowledgeGraph:  knowledgeGraph,
 		DocProcessor:    docProcessor,
 		TableExportSync: tableExportSyncService,
 		VectorManager:   vectorManager,

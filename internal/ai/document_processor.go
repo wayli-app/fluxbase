@@ -82,9 +82,15 @@ func (p *DocumentProcessor) ProcessDocument(ctx context.Context, doc *Document, 
 
 	log.Info().Str("doc_id", doc.ID).Int("chunks", len(textChunks)).Msg("Document chunked")
 
-	// Extract entities and relationships (best-effort, doesn't fail processing)
+	// Extract entities and relationships (best-effort, doesn't fail processing).
+	// Gated by the per-KB entity_extraction_enabled flag (default true) so KBs
+	// that don't want a knowledge graph can skip extraction entirely.
 	if p.entityExtractor != nil && p.knowledgeGraph != nil {
-		if err := p.extractAndStoreEntities(ctx, doc); err != nil {
+		if kb, kbErr := p.storage.GetKnowledgeBase(ctx, doc.KnowledgeBaseID); kbErr != nil {
+			log.Warn().Err(kbErr).Str("kb_id", doc.KnowledgeBaseID).Msg("Failed to load KB for extraction toggle check; defaulting to enabled")
+		} else if kb != nil && !kb.EntityExtractionEnabled {
+			log.Debug().Str("kb_id", doc.KnowledgeBaseID).Msg("Entity extraction disabled for this KB; skipping")
+		} else if err := p.extractAndStoreEntities(ctx, doc); err != nil {
 			log.Warn().Err(err).Str("doc_id", doc.ID).Msg("Entity extraction failed, continuing with embedding")
 		}
 	}
@@ -555,6 +561,14 @@ func (p *DocumentProcessor) AddDocument(ctx context.Context, kbID string, req Cr
 
 // extractAndStoreEntities extracts entities and relationships from a document and stores them in the knowledge graph
 func (p *DocumentProcessor) extractAndStoreEntities(ctx context.Context, doc *Document) error {
+	// Clear any prior document_entities mentions for this document so re-extraction
+	// (on reprocess/update) doesn't leave stale links to entities no longer present.
+	// AddDocumentEntities below upserts current mentions; this drop makes the table
+	// reflect exactly the current extraction.
+	if err := p.knowledgeGraph.DeleteDocumentEntitiesByDocument(ctx, doc.ID); err != nil {
+		log.Warn().Err(err).Str("doc_id", doc.ID).Msg("Failed to clear stale document_entities (continuing)")
+	}
+
 	// Use the entity extractor to get entities, relationships, and document-entity links
 	result, err := p.entityExtractor.ExtractEntitiesWithRelationships(
 		doc.Content,

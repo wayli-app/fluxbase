@@ -105,7 +105,7 @@ func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, 
 	result, err := h.executor.Execute(ctx, execReq)
 	if err != nil {
 		log.Error().Err(err).Msg("SQL execution error")
-		return fmt.Sprintf("Error executing query: %v", err), nil
+		return FormatErrorForLLM(err, args.SQL, "execute_sql"), nil
 	}
 
 	// Log to audit (unless execution logs are disabled)
@@ -143,7 +143,7 @@ func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, 
 
 	// Return result as string for AI to interpret
 	if !result.Success {
-		return fmt.Sprintf("Query failed: %s", result.Error), nil
+		return FormatErrorForLLM(fmt.Errorf("%s", result.Error), args.SQL, "execute_sql"), nil
 	}
 
 	// Build QueryResult for persistence
@@ -196,6 +196,15 @@ func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, 
 
 	if result.IsError {
 		log.Warn().Str("tool", toolName).Str("error", result.Content).Msg("MCP tool returned error")
+		// Surface the error to the client so they don't see silent execution.
+		// Without this, the only feedback was the LLM's interpretation of the
+		// error string returned below.
+		h.send(chatCtx, ServerMessage{
+			Type:           "tool_result",
+			ConversationID: conversationID,
+			Message:        toolName,
+			Error:          result.Content,
+		})
 		return fmt.Sprintf("Error: %s", result.Content), nil
 	}
 
@@ -215,20 +224,26 @@ func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, 
 		queryResult = h.parseMCPExecuteSQLResult(args, result.Content)
 	}
 
-	// Build server message
+	// Build server message. When the tool returned structured query data, emit
+	// the canonical `query_result` event type so clients (including old SDKs
+	// that only handled `query_result`) receive it uniformly across the legacy
+	// and MCP execution paths. Otherwise emit `tool_result`.
 	serverMsg := ServerMessage{
-		Type:           "tool_result",
 		ConversationID: conversationID,
 		Message:        toolName,
 	}
 
-	// Add structured fields for execute_sql
-	if toolName == "execute_sql" && queryResult != nil {
+	// Add structured fields whenever we parsed a QueryResult (execute_sql and
+	// query_table). The previous gate restricted this to execute_sql only,
+	// which left query_table results parsed-for-persistence but unstreamed.
+	if queryResult != nil {
+		serverMsg.Type = "query_result"
 		serverMsg.Query = queryResult.Query
 		serverMsg.Summary = queryResult.Summary
 		serverMsg.RowCount = queryResult.RowCount
 		serverMsg.Data = queryResult.Data
 	} else {
+		serverMsg.Type = "tool_result"
 		serverMsg.Data = []map[string]any{{"tool": toolName, "result": result.Content}}
 	}
 

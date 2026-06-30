@@ -17,6 +17,7 @@ type AIDeps struct {
 	GetUserConversation    fiber.Handler
 	DeleteUserConversation fiber.Handler
 	UpdateUserConversation fiber.Handler
+	GetUserUsage           fiber.Handler // GET /api/v1/ai/usage/:chatbotId — per-user daily quota
 }
 
 func BuildAIRoutes(deps *AIDeps) *RouteGroup {
@@ -87,6 +88,13 @@ func BuildAIRoutes(deps *AIDeps) *RouteGroup {
 				Path:    "/api/v1/ai/conversations/:id",
 				Handler: deps.UpdateUserConversation,
 				Summary: "Update user conversation",
+				Auth:    AuthRequired,
+			},
+			{
+				Method:  "GET",
+				Path:    "/api/v1/ai/usage/:chatbotId",
+				Handler: deps.GetUserUsage,
+				Summary: "Get the current user's daily quota for a chatbot",
 				Auth:    AuthRequired,
 			},
 		},

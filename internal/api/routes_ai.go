@@ -25,6 +25,7 @@ func (s *Server) buildAIRouteDeps() *routes.AIDeps {
 		GetUserConversation:    s.AI.Handler.GetUserConversation,
 		DeleteUserConversation: s.AI.Handler.DeleteUserConversation,
 		UpdateUserConversation: s.AI.Handler.UpdateUserConversation,
+		GetUserUsage:           s.AI.Chat.GetUserUsage,
 	}
 }
 
@@ -68,9 +69,19 @@ func (s *Server) buildKnowledgeBaseRouteDeps() *routes.KnowledgeBaseDeps {
 		return deps
 	}
 
-	handler := ai.NewUserKnowledgeBaseHandler(s.AI.KBStorage)
-	if s.AI.DocProcessor != nil {
+	// Use the graph-aware constructor when the knowledge graph is available so
+	// user-side entity/graph routes are wired. Without this the SDK methods
+	// (listEntities, getKnowledgeGraph, etc.) 404.
+	var handler *ai.UserKnowledgeBaseHandler
+	switch {
+	case s.AI.DocProcessor != nil && s.AI.KnowledgeGraph != nil:
+		handler = ai.NewUserKnowledgeBaseHandlerWithProcessorAndGraph(s.AI.KBStorage, s.AI.DocProcessor, s.AI.KnowledgeGraph)
+	case s.AI.DocProcessor != nil:
 		handler = ai.NewUserKnowledgeBaseHandlerWithProcessor(s.AI.KBStorage, s.AI.DocProcessor)
+	case s.AI.KnowledgeGraph != nil:
+		handler = ai.NewUserKnowledgeBaseHandlerWithGraph(s.AI.KBStorage, s.AI.KnowledgeGraph)
+	default:
+		handler = ai.NewUserKnowledgeBaseHandler(s.AI.KBStorage)
 	}
 
 	deps.ListKBs = handler.ListMyKnowledgeBases
@@ -86,7 +97,19 @@ func (s *Server) buildKnowledgeBaseRouteDeps() *routes.KnowledgeBaseDeps {
 		deps.AddDocument = handler.AddMyDocument
 		deps.UploadDocument = handler.UploadMyDocument
 		deps.DeleteDocument = handler.DeleteMyDocument
+		deps.UpdateDocument = handler.UpdateMyDocument
+		deps.DeleteDocsByFilter = handler.DeleteMyDocumentsByFilter
 		deps.SearchKB = handler.SearchMyKB
+		deps.DebugSearch = handler.DebugSearchMyKB
+	}
+
+	// Entity/graph routes — only populated when the handler has a knowledge graph.
+	if s.AI.KnowledgeGraph != nil {
+		deps.ListEntities = handler.ListMyEntities
+		deps.SearchEntities = handler.SearchMyEntities
+		deps.GetEntityRelationships = handler.GetMyEntityRelationships
+		deps.GetKnowledgeGraph = handler.GetMyKnowledgeGraph
+		deps.ListLinkedChatbots = handler.ListMyLinkedChatbots
 	}
 
 	return deps

@@ -512,62 +512,10 @@ func (kg *KnowledgeGraph) GetEntitiesByDocument(ctx context.Context, documentID 
 	return entities, nil
 }
 
-// BatchAddEntities adds multiple entities efficiently using batch operations
-func (kg *KnowledgeGraph) BatchAddEntities(ctx context.Context, entities []Entity) error {
-	if len(entities) == 0 {
-		return nil
-	}
-
-	query := `
-		INSERT INTO ai.entities (
-			id, knowledge_base_id, entity_type, name, canonical_name,
-			aliases, metadata, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (knowledge_base_id, entity_type, canonical_name)
-		DO UPDATE SET
-			name = EXCLUDED.name,
-			aliases = EXCLUDED.aliases,
-			metadata = EXCLUDED.metadata,
-			updated_at = NOW()
-	`
-
-	return kg.WithTenant(ctx, func(tx pgx.Tx) error {
-		batch := &pgx.Batch{}
-
-		for _, entity := range entities {
-			if entity.ID == "" {
-				entity.ID = uuid.New().String()
-			}
-			entity.CreatedAt = time.Now()
-			entity.UpdatedAt = time.Now()
-
-			batch.Queue(
-				query,
-				entity.ID, entity.KnowledgeBaseID, entity.EntityType, entity.Name,
-				entity.CanonicalName, entity.Aliases, entity.Metadata,
-				entity.CreatedAt, entity.UpdatedAt,
-			)
-		}
-
-		br := tx.SendBatch(ctx, batch)
-		defer func() { _ = br.Close() }()
-
-		for range entities {
-			if _, err := br.Exec(); err != nil {
-				return fmt.Errorf("failed to insert entity: %w", err)
-			}
-		}
-
-		return nil
-	})
-}
-
 // DeleteOrphanedEntitiesByDocument deletes entities that are only referenced by a specific document
 // This is useful for cleaning up table export entities when the document is deleted.
 // It only deletes entities that have exactly one document reference (the deleted one).
 func (kg *KnowledgeGraph) DeleteOrphanedEntitiesByDocument(ctx context.Context, documentID string) error {
-	// Delete entities that are only referenced by this document
-	// The CASCADE will automatically clean up relationships and document_entities
 	query := `
 		DELETE FROM ai.entities
 		WHERE id IN (
@@ -600,5 +548,33 @@ func (kg *KnowledgeGraph) DeleteOrphanedEntitiesByDocument(ctx context.Context, 
 			Msg("Deleted orphaned entities for document")
 	}
 
+	return nil
+}
+
+// DeleteDocumentEntitiesByDocument removes all document_entities mention rows for
+// the given document. Used before re-extraction on reprocess so stale mentions
+// (entities no longer present in the updated content) don't accumulate.
+// Does not delete the entities themselves; call DeleteOrphanedEntitiesByDocument
+// afterward to drop entities referenced only by this document.
+func (kg *KnowledgeGraph) DeleteDocumentEntitiesByDocument(ctx context.Context, documentID string) error {
+	var rowsAffected int64
+	err := kg.WithTenant(ctx, func(tx pgx.Tx) error {
+		result, execErr := tx.Exec(ctx, `DELETE FROM ai.document_entities WHERE document_id = $1`, documentID)
+		if execErr != nil {
+			return fmt.Errorf("failed to delete document_entities: %w", execErr)
+		}
+		rowsAffected = result.RowsAffected()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected > 0 {
+		log.Debug().
+			Str("document_id", documentID).
+			Int64("deleted_mentions", rowsAffected).
+			Msg("Cleared stale document_entities before re-extraction")
+	}
 	return nil
 }

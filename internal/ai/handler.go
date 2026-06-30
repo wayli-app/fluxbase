@@ -24,6 +24,7 @@ type Handler struct {
 	config               *config.AIConfig
 	vectorManager        VectorManagerInterface
 	knowledgeBaseStorage *KnowledgeBaseStorage // Optional: for syncing KB links
+	chatHandler          *ChatHandler          // Optional: for provider cache invalidation
 }
 
 // NewHandler creates a new AI handler
@@ -39,6 +40,20 @@ func NewHandler(storage *Storage, loader *Loader, cfg *config.AIConfig, vectorMa
 	h.ValidateConfig()
 
 	return h
+}
+
+// SetChatHandler wires the chat handler so provider mutations can invalidate
+// the chat path's provider cache. Called after both handlers are constructed.
+func (h *Handler) SetChatHandler(ch *ChatHandler) {
+	h.chatHandler = ch
+}
+
+// invalidateProvider drops the provider from the chat handler's cache (if wired).
+// Call this whenever a provider's config, default status, or existence changes.
+func (h *Handler) invalidateProvider(providerID string) {
+	if h.chatHandler != nil {
+		h.chatHandler.InvalidateProvider(providerID)
+	}
 }
 
 // SetKnowledgeBaseStorage sets the knowledge base storage for syncing KB links
@@ -539,6 +554,10 @@ func (h *Handler) SetDefaultProvider(c fiber.Ctx) error {
 		})
 	}
 
+	// Invalidate chat-side cache: chatbots without an explicit ProviderID fall
+	// back to the default and need to pick up the new default on next request.
+	h.invalidateProvider(id)
+
 	// Reload embedding service from database providers
 	if h.vectorManager != nil {
 		if err := h.vectorManager.RefreshFromDatabase(ctx); err != nil {
@@ -571,6 +590,9 @@ func (h *Handler) DeleteProvider(c fiber.Ctx) error {
 			"error": "Failed to delete provider",
 		})
 	}
+
+	// Drop the deleted provider from the chat-side cache.
+	h.invalidateProvider(id)
 
 	// Reload embedding service from database providers
 	if h.vectorManager != nil {
@@ -723,6 +745,10 @@ func (h *Handler) UpdateProvider(c fiber.Ctx) error {
 			"error": "Failed to update provider",
 		})
 	}
+
+	// Invalidate chat-side cache so the new config (API key, model, etc.) takes
+	// effect immediately rather than on next process restart.
+	h.invalidateProvider(id)
 
 	// Reload embedding service from database providers
 	if h.vectorManager != nil {
