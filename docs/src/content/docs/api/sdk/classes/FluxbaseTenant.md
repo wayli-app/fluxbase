@@ -48,7 +48,7 @@ await client.tenant.assignAdmin('tenant-id', {
 
 ### assignAdmin()
 
-> **assignAdmin**(`tenantId`, `options`): `Promise`\<`FluxbaseResponse`\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)\>\>
+> **assignAdmin**(`tenantId`, `options`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)\>\>
 
 Assign an admin to a tenant (tenant admin only)
 
@@ -61,7 +61,7 @@ Assign an admin to a tenant (tenant admin only)
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)\>\>
 
 Promise with created assignment or error
 
@@ -77,7 +77,7 @@ const { data, error } = await client.tenant.assignAdmin('tenant-id', {
 
 ### create()
 
-> **create**(`options`): `Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
+> **create**(`options`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
 
 Create a new tenant (instance admin only)
 
@@ -91,7 +91,7 @@ This creates a new isolated database for the tenant.
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
 
 Promise with created tenant or error
 
@@ -109,7 +109,7 @@ const { data, error } = await client.tenant.create({
 
 ### delete()
 
-> **delete**(`id`): `Promise`\<`FluxbaseResponse`\<`void`\>\>
+> **delete**(`id`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<`void`\>\>
 
 Delete a tenant (instance admin only)
 
@@ -124,7 +124,7 @@ Cannot delete the default tenant.
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<`void`\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<`void`\>\>
 
 Promise that resolves when deleted
 
@@ -138,7 +138,7 @@ const { error } = await client.tenant.delete('tenant-id')
 
 ### get()
 
-> **get**(`id`): `Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
+> **get**(`id`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
 
 Get a tenant by ID
 
@@ -150,7 +150,7 @@ Get a tenant by ID
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
 
 Promise with tenant details or error
 
@@ -164,13 +164,13 @@ const { data, error } = await client.tenant.get('tenant-id')
 
 ### list()
 
-> **list**(): `Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)[]\>\>
+> **list**(): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)[]\>\>
 
 List all tenants (instance admin only)
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)[]\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)[]\>\>
 
 Promise with tenants list or error
 
@@ -184,7 +184,7 @@ const { data, error } = await client.tenant.list()
 
 ### listAdmins()
 
-> **listAdmins**(`tenantId`): `Promise`\<`FluxbaseResponse`\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)[]\>\>
+> **listAdmins**(`tenantId`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)[]\>\>
 
 List admins of a tenant
 
@@ -196,7 +196,7 @@ List admins of a tenant
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)[]\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`TenantAdminAssignment`](/api/sdk/interfaces/tenantadminassignment/)[]\>\>
 
 Promise with admin list or error
 
@@ -211,13 +211,13 @@ const { data, error } = await client.tenant.listAdmins('tenant-id')
 
 ### listMine()
 
-> **listMine**(): `Promise`\<`FluxbaseResponse`\<[`TenantWithRole`](/api/sdk/interfaces/tenantwithrole/)[]\>\>
+> **listMine**(): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`TenantWithRole`](/api/sdk/interfaces/tenantwithrole/)[]\>\>
 
 List tenants the current user has access to
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<[`TenantWithRole`](/api/sdk/interfaces/tenantwithrole/)[]\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`TenantWithRole`](/api/sdk/interfaces/tenantwithrole/)[]\>\>
 
 Promise with tenants and user's role in each
 
@@ -232,7 +232,7 @@ const { data, error } = await client.tenant.listMine()
 
 ### migrate()
 
-> **migrate**(`id`): `Promise`\<`FluxbaseResponse`\<\{ `status`: `string`; \}\>\>
+> **migrate**(`id`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<\{ `status`: `string`; \}\>\>
 
 Migrate a tenant database to the latest schema (instance admin only)
 
@@ -244,7 +244,7 @@ Migrate a tenant database to the latest schema (instance admin only)
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<\{ `status`: `string`; \}\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<\{ `status`: `string`; \}\>\>
 
 Promise with migration status or error
 
@@ -259,7 +259,7 @@ const { data, error } = await client.tenant.migrate('tenant-id')
 
 ### removeAdmin()
 
-> **removeAdmin**(`tenantId`, `userId`): `Promise`\<`FluxbaseResponse`\<`void`\>\>
+> **removeAdmin**(`tenantId`, `userId`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<`void`\>\>
 
 Remove an admin from a tenant (tenant admin only)
 
@@ -272,7 +272,7 @@ Remove an admin from a tenant (tenant admin only)
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<`void`\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<`void`\>\>
 
 Promise that resolves when removed
 
@@ -286,7 +286,7 @@ const { error } = await client.tenant.removeAdmin('tenant-id', 'user-id')
 
 ### update()
 
-> **update**(`id`, `options`): `Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
+> **update**(`id`, `options`): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
 
 Update a tenant (tenant admin only)
 
@@ -299,7 +299,7 @@ Update a tenant (tenant admin only)
 
 #### Returns
 
-`Promise`\<`FluxbaseResponse`\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
+`Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`Tenant`](/api/sdk/interfaces/tenant/)\>\>
 
 Promise with updated tenant or error
 

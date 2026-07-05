@@ -22,7 +22,7 @@ Combined auth hook with all auth state and methods
 | `isSigningUp` | `boolean` | `signUp.isPending` |
 | `isUpdating` | `boolean` | `updateUser.isPending` |
 | `session` | [`AuthSession`](/api/sdk-react/interfaces/authsession/) \| `null` \| `undefined` | - |
-| `signIn` | `UseMutateAsyncFunction`\<`FluxbaseResponse$1`\<`AuthResponseData` \| `SignInWith2FAResponse`\>, `Error`, [`SignInCredentials`](/api/sdk-react/interfaces/signincredentials/), `unknown`\> | `signIn.mutateAsync` |
+| `signIn` | `UseMutateAsyncFunction`\<`FluxbaseResponse`\<`AuthResponseData` \| `SignInWith2FAResponse`\>, `Error`, [`SignInCredentials`](/api/sdk-react/interfaces/signincredentials/), `unknown`\> | `signIn.mutateAsync` |
 | `signOut` | `UseMutateAsyncFunction`\<`void`, `Error`, `void`, `unknown`\> | `signOut.mutateAsync` |
 | `signUp` | `UseMutateAsyncFunction`\<`FluxbaseAuthResponse`, `Error`, [`SignUpCredentials`](/api/sdk-react/interfaces/signupcredentials/), `unknown`\> | `signUp.mutateAsync` |
 | `updateUser` | `UseMutateAsyncFunction`\<`UserResponse`, `Error`, `Partial`\<`Pick`\<[`User`](/api/sdk-react/interfaces/user/), `"email"` \| `"metadata"`\>\>, `unknown`\> | `updateUser.mutateAsync` |

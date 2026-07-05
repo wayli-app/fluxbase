@@ -147,11 +147,54 @@ if (data) {
 
 ***
 
+### getUsage()
+
+> **getUsage**(`chatbotId`): `Promise`\<\{ `data`: [`AIDailyQuotaSnapshot`](/api/sdk/interfaces/aidailyquotasnapshot/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Get the current user's daily quota for a chatbot (Ask 2).
+
+Returns requests used/limit and tokens used/limit, plus the RFC3339
+timestamp of when the counters reset. Best-effort: counters are in-memory
+and reset on server restart; per-instance in multi-replica deployments.
+
+For per-turn updates without an extra round-trip, read `daily_quota` from
+the `onDone` callback's third argument.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `chatbotId` | `string` | Chatbot ID |
+
+#### Returns
+
+`Promise`\<\{ `data`: [`AIDailyQuotaSnapshot`](/api/sdk/interfaces/aidailyquotasnapshot/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Promise resolving to { data, error } with the quota snapshot
+
+#### Example
+
+```typescript
+const { data, error } = await ai.getUsage('chatbot-uuid')
+if (data) {
+  console.log(`${data.requests.limit - data.requests.used} requests left today`)
+  console.log(`${data.tokens.limit - data.tokens.used} tokens left today`)
+}
+```
+
+***
+
 ### listChatbots()
 
-> **listChatbots**(): `Promise`\<\{ `data`: [`AIChatbotSummary`](/api/sdk/interfaces/aichatbotsummary/)[] \| `null`; `error`: `Error` \| `null`; \}\>
+> **listChatbots**(`namespace?`): `Promise`\<\{ `data`: [`AIChatbotSummary`](/api/sdk/interfaces/aichatbotsummary/)[] \| `null`; `error`: `Error` \| `null`; \}\>
 
 List available chatbots (public, enabled)
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `namespace?` | `string` |
 
 #### Returns
 

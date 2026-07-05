@@ -201,7 +201,7 @@ if (data) {
 
 ### linkKnowledgeBase()
 
-> **linkKnowledgeBase**(`chatbotId`, `request`): `Promise`\<\{ `data`: `ChatbotKnowledgeBaseLink` \| `null`; `error`: `Error` \| `null`; \}\>
+> **linkKnowledgeBase**(`chatbotId`, `request`): `Promise`\<\{ `data`: [`ChatbotKnowledgeBaseLink`](/api/sdk/interfaces/chatbotknowledgebaselink/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Link a knowledge base to a chatbot
 
@@ -210,11 +210,11 @@ Link a knowledge base to a chatbot
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
 | `chatbotId` | `string` | Chatbot ID |
-| `request` | `LinkKnowledgeBaseRequest` | Link configuration |
+| `request` | [`LinkKnowledgeBaseRequest`](/api/sdk/interfaces/linkknowledgebaserequest/) | Link configuration |
 
 #### Returns
 
-`Promise`\<\{ `data`: `ChatbotKnowledgeBaseLink` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`ChatbotKnowledgeBaseLink`](/api/sdk/interfaces/chatbotknowledgebaselink/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with link details
 
@@ -233,7 +233,7 @@ const { data, error } = await client.admin.ai.linkKnowledgeBase('chatbot-uuid', 
 
 ### listChatbotKnowledgeBases()
 
-> **listChatbotKnowledgeBases**(`chatbotId`): `Promise`\<\{ `data`: `ChatbotKnowledgeBaseLink`[] \| `null`; `error`: `Error` \| `null`; \}\>
+> **listChatbotKnowledgeBases**(`chatbotId`): `Promise`\<\{ `data`: [`ChatbotKnowledgeBaseLink`](/api/sdk/interfaces/chatbotknowledgebaselink/)[] \| `null`; `error`: `Error` \| `null`; \}\>
 
 List knowledge bases linked to a chatbot
 
@@ -245,7 +245,7 @@ List knowledge bases linked to a chatbot
 
 #### Returns
 
-`Promise`\<\{ `data`: `ChatbotKnowledgeBaseLink`[] \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`ChatbotKnowledgeBaseLink`](/api/sdk/interfaces/chatbotknowledgebaselink/)[] \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with linked knowledge bases
 
@@ -458,7 +458,7 @@ const { data, error } = await client.admin.ai.unlinkKnowledgeBase('chatbot-uuid'
 
 ### updateChatbotKnowledgeBase()
 
-> **updateChatbotKnowledgeBase**(`chatbotId`, `knowledgeBaseId`, `updates`): `Promise`\<\{ `data`: `ChatbotKnowledgeBaseLink` \| `null`; `error`: `Error` \| `null`; \}\>
+> **updateChatbotKnowledgeBase**(`chatbotId`, `knowledgeBaseId`, `updates`): `Promise`\<\{ `data`: [`ChatbotKnowledgeBaseLink`](/api/sdk/interfaces/chatbotknowledgebaselink/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Update a chatbot-knowledge base link
 
@@ -468,11 +468,11 @@ Update a chatbot-knowledge base link
 | ------ | ------ | ------ |
 | `chatbotId` | `string` | Chatbot ID |
 | `knowledgeBaseId` | `string` | Knowledge base ID |
-| `updates` | `UpdateChatbotKnowledgeBaseRequest` | Fields to update |
+| `updates` | [`UpdateChatbotKnowledgeBaseRequest`](/api/sdk/interfaces/updatechatbotknowledgebaserequest/) | Fields to update |
 
 #### Returns
 
-`Promise`\<\{ `data`: `ChatbotKnowledgeBaseLink` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`ChatbotKnowledgeBaseLink`](/api/sdk/interfaces/chatbotknowledgebaselink/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with updated link
 
@@ -499,9 +499,10 @@ Update an existing AI provider
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
 | `id` | `string` | Provider ID |
-| `updates` | \{ `config?`: `Record`\<`string`, `unknown`\>; `display_name?`: `string`; `enabled?`: `boolean`; \} | Fields to update |
+| `updates` | \{ `config?`: `Record`\<`string`, `unknown`\>; `display_name?`: `string`; `embedding_model?`: `string` \| `null`; `enabled?`: `boolean`; \} | Fields to update |
 | `updates.config?` | `Record`\<`string`, `unknown`\> | - |
 | `updates.display_name?` | `string` | - |
+| `updates.embedding_model?` | `string` \| `null` | - |
 | `updates.enabled?` | `boolean` | - |
 
 #### Returns

@@ -397,6 +397,14 @@ Jobs module for submitting and monitoring background jobs
 
 ***
 
+### knowledgeBase
+
+> **knowledgeBase**: `FluxbaseKnowledgeBase`
+
+Knowledge Base module for RAG document management and search
+
+***
+
 ### management
 
 > **management**: `FluxbaseManagement`
