@@ -45,7 +45,7 @@ Fluxbase is open-source software released under the **GNU Affero General Public 
       <li><strong>Priority feature requests</strong></li>
       <li>Sponsor badge</li>
     </ul>
-    <a href="https://github.com/sponsors/nimbleflux" class="pricing-cta pricing-cta--sponsor" target="_blank">Sponsor →</a>
+    <a href="https://buymeacoffee.com/nimbleflux" class="pricing-cta pricing-cta--sponsor" target="_blank">Sponsor →</a>
   </div>
 </div>
 

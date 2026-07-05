@@ -77,6 +77,16 @@ GET request
 
 ***
 
+### getBaseUrl()
+
+> **getBaseUrl**(): `string`
+
+#### Returns
+
+`string`
+
+***
+
 ### getBlob()
 
 > **getBlob**(`path`, `options?`): `Promise`\<`Blob`\>
@@ -93,6 +103,16 @@ GET request that returns response as Blob (for file downloads)
 #### Returns
 
 `Promise`\<`Blob`\>
+
+***
+
+### getDefaultHeaders()
+
+> **getDefaultHeaders**(): `Record`\<`string`, `string`\>
+
+#### Returns
+
+`Record`\<`string`, `string`\>
 
 ***
 
