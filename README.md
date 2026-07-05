@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/nimbleflux/fluxbase/actions/workflows/ci.yml/badge.svg)](https://github.com/nimbleflux/fluxbase/actions/workflows/ci.yml)
 
+<a href="https://buymeacoffee.com/nimbleflux" target="_blank" rel="noopener"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
+
 A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase. Fluxbase provides essential backend services including auto-generated REST APIs, authentication, realtime subscriptions, file storage, and edge functions - all in a single Go binary with PostgreSQL as the only dependency.
 
 ## Features
