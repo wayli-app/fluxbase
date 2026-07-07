@@ -1143,6 +1143,83 @@ export async function handler(
 }
 ```
 
+### Media Processing (ffmpeg)
+
+`ffmpeg` and `ffprobe` are pre-installed in the runtime image and available to job functions (edge functions share the same image, so they get them too). No import is needed — invoke via `Deno.Command`.
+
+Jobs are sandboxed to `/tmp` for reads and writes, so the typical flow is: download the source via the storage SDK → transcode in `/tmp` → upload the result back. `/tmp` must be large enough to hold the input, the output, and ffmpeg's scratch files.
+
+:::warning[Memory and Timeout]
+Video transcoding is CPU- and memory-intensive. The defaults (`@fluxbase:memory 256`, `@fluxbase:timeout 300`) will OOM or time out on anything but trivial inputs. Always override per-job for video work, and ensure the server's `max_memory_limit` cap (see [Functions config](/guides/edge-functions/)) is high enough to admit your override.
+:::
+
+```typescript
+/**
+ * Transcode a video to H.264/MP4
+ * @fluxbase:timeout 1800
+ * @fluxbase:memory 2048
+ */
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils,
+) {
+  const context = job.getJobContext();
+  const { source_file, output_path } = context.payload;
+
+  job.reportProgress(10, "Downloading source...");
+  const { data: fileData, error } = await fluxbase.storage
+    .from("videos")
+    .download(source_file);
+
+  if (error) {
+    throw new Error(`Failed to download: ${error.message}`);
+  }
+
+  const inputPath = `/tmp/${context.job_id}-input`;
+  const outputPath = `/tmp/${context.job_id}-output.mp4`;
+
+  await Deno.writeFile(inputPath, new Uint8Array(fileData));
+
+  job.reportProgress(30, "Transcoding...");
+  const cmd = new Deno.Command("ffmpeg", {
+    args: [
+      "-y",
+      "-i", inputPath,
+      "-c:v", "libx264",
+      "-preset", "fast",
+      "-c:a", "aac",
+      outputPath,
+    ],
+    stderr: "piped",
+  });
+
+  const { success, code, stderr } = await cmd.output();
+  if (!success) {
+    throw new Error(
+      `ffmpeg exited ${code}: ${new TextDecoder().decode(stderr)}`,
+    );
+  }
+
+  job.reportProgress(80, "Uploading result...");
+  const outputBytes = await Deno.readFile(outputPath);
+  await fluxbase.storage
+    .from("videos")
+    .upload(output_path, new Blob([outputBytes], { type: "video/mp4" }));
+
+  // Clean up scratch files
+  await Deno.remove(inputPath).catch(() => {});
+  await Deno.remove(outputPath).catch(() => {});
+
+  job.reportProgress(100, "Complete");
+
+  return { success: true, output_file: output_path };
+}
+```
+
+To inspect media metadata without transcoding, invoke `ffprobe` the same way — for example `ffprobe -v error -print_format json -show_format -show_streams <file>`.
+
 ### Submitting Follow-up Jobs
 
 ```typescript

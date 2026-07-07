@@ -129,6 +129,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libleptonica-dev \
     libvips \
     poppler-utils \
+    ffmpeg \
     libstdc++6 \
     wget \
     unzip \
