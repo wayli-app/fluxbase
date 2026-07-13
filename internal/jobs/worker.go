@@ -277,26 +277,20 @@ func (w *Worker) pollLoop(ctx context.Context) {
 
 // heartbeatLoop sends periodic heartbeats
 func (w *Worker) heartbeatLoop(ctx context.Context) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			log.Error().
-				Interface("panic", rec).
-				Str("worker_id", w.ID.String()).
-				Str("goroutine", "heartbeatLoop").
-				Msg("Panic in heartbeat loop - recovered")
-		}
-	}()
-
 	ticker := time.NewTicker(w.Config.WorkerHeartbeatInterval)
 	defer ticker.Stop()
+
+	// Send a heartbeat immediately so the worker's row is fresh right after
+	// registration, then on every tick. This closes the gap between registration
+	// (which seeds last_heartbeat_at via DB default) and the first ticker fire
+	// (one full interval later), so a freshly-registered worker can never be
+	// mistaken for stale before its first heartbeat lands.
+	w.sendHeartbeat(ctx)
 
 	for {
 		select {
 		case <-ticker.C:
-			count := w.getCurrentJobCount()
-			if err := w.Storage.UpdateWorkerHeartbeat(ctx, w.ID, count); err != nil {
-				log.Error().Err(err).Str("worker_id", w.ID.String()).Msg("Failed to send heartbeat")
-			}
+			w.sendHeartbeat(ctx)
 		case <-w.shutdownChan:
 			// Send final heartbeat with stopped status
 			if err := w.Storage.UpdateWorkerStatus(ctx, w.ID, WorkerStatusStopped); err != nil {
@@ -304,6 +298,25 @@ func (w *Worker) heartbeatLoop(ctx context.Context) {
 			}
 			return
 		}
+	}
+}
+
+// sendHeartbeat updates the worker's heartbeat timestamp and recovers from
+// panics per call so a single failure never permanently silences the loop.
+func (w *Worker) sendHeartbeat(ctx context.Context) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Error().
+				Interface("panic", rec).
+				Str("worker_id", w.ID.String()).
+				Str("goroutine", "heartbeatLoop").
+				Msg("Panic sending heartbeat - recovered, will retry next tick")
+		}
+	}()
+
+	count := w.getCurrentJobCount()
+	if err := w.Storage.UpdateWorkerHeartbeat(ctx, w.ID, count); err != nil {
+		log.Error().Err(err).Str("worker_id", w.ID.String()).Msg("Failed to send heartbeat")
 	}
 }
 

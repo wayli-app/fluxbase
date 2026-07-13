@@ -81,6 +81,12 @@ func (jc *JobsConfig) Validate() error {
 	if jc.WorkerTimeout <= 0 {
 		return fmt.Errorf("worker_timeout must be positive, got: %v", jc.WorkerTimeout)
 	}
+	// Worker timeout must comfortably exceed the heartbeat interval, otherwise
+	// a worker can be reaped between heartbeats. Require at least 2x so a
+	// single missed heartbeat never triggers cleanup.
+	if jc.WorkerTimeout < 2*jc.WorkerHeartbeatInterval {
+		return fmt.Errorf("worker_timeout (%v) must be at least 2x worker_heartbeat_interval (%v)", jc.WorkerTimeout, jc.WorkerHeartbeatInterval)
+	}
 
 	// Warn if max_max_duration is very high (over 1 hour)
 	if jc.MaxMaxDuration > time.Hour {
