@@ -176,8 +176,10 @@ func (h *StorageHandler) DownloadSignedObject(c fiber.Ctx) error {
 		log.Error().Err(err).Str("bucket", tokenResult.Bucket).Str("key", tokenResult.Key).Msg("Failed to download file via signed URL")
 		return SendInternalError(c, "Failed to download file")
 	}
-	defer func() { _ = reader.Close() }()
-
+	// Don't defer reader.Close() here. SendStream hands reader to fasthttp,
+	// which streams the bytes then closes it after writing (reader is io.Closer).
+	// A deferred close here runs on handler return — before fasthttp streams —
+	// yielding a 0-byte body with correct headers (Content-Length set, empty content).
 	contentType := object.ContentType
 	contentLength := object.Size
 
@@ -223,6 +225,10 @@ func (h *StorageHandler) DownloadSignedObject(c fiber.Ctx) error {
 					filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ext
 				}
 				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", sanitizeContentDispositionFilename(filename)))
+
+				// TransformReader fully consumed the original reader; close it now
+				// (transformedReader is an independent buffered reader).
+				_ = reader.Close()
 
 				return c.SendStream(transformedReader)
 			}
