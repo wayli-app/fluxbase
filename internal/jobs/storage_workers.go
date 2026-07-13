@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database"
 )
@@ -41,8 +42,20 @@ func (s *Storage) UpdateWorkerHeartbeat(ctx context.Context, workerID uuid.UUID,
 	`
 
 	return database.WrapWithServiceRole(ctx, s.DB, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query, currentJobCount, workerID)
-		return err
+		result, err := tx.Exec(ctx, query, currentJobCount, workerID)
+		if err != nil {
+			return err
+		}
+		// Surface the silent no-op that happens once a worker row has been
+		// reaped by the stale-worker sweep: the UPDATE affects 0 rows and the
+		// loop keeps ticking uselessly. Without this, "heartbeats never update"
+		// is invisible.
+		if result.RowsAffected() == 0 {
+			log.Warn().
+				Str("worker_id", workerID.String()).
+				Msg("Heartbeat updated 0 rows - worker not found (likely already reaped by stale cleanup)")
+		}
+		return nil
 	})
 }
 
@@ -128,11 +141,15 @@ func (s *Storage) ListWorkers(ctx context.Context) ([]*WorkerRecord, error) {
 	return workers, nil
 }
 
-// CleanupStaleWorkers removes workers that haven't sent a heartbeat in a while
+// CleanupStaleWorkers removes workers that haven't sent a heartbeat in a while.
+// A worker is only reaped if BOTH its heartbeat is stale AND it has been
+// registered longer than the timeout — this guarantees a freshly-registered
+// worker is never swept before its first heartbeat lands.
 func (s *Storage) CleanupStaleWorkers(ctx context.Context, timeout time.Duration) (int64, error) {
 	query := `
 		DELETE FROM jobs.workers
 		WHERE last_heartbeat_at < NOW() - $1::INTERVAL
+		  AND started_at < NOW() - $1::INTERVAL
 	`
 
 	var result pgconn.CommandTag
