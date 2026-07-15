@@ -5,9 +5,28 @@ description: Complete reference for configuring Fluxbase via YAML config file or
 
 Complete reference for configuring Fluxbase via configuration file or environment variables.
 
+## Configuration Layers
+
+Fluxbase loads configuration in order; later layers override earlier ones:
+
+1. **Built-in defaults** — `internal/config/config_defaults.go`
+2. **Config file** — the first match found (see search paths below)
+3. **Environment** — a `.env` file is auto-loaded first (`.env`, then `.env.local`, then `../.env`; it does **not** overwrite variables already present in the environment), then `FLUXBASE_*` environment variables (highest precedence)
+
+Environment variables use the `FLUXBASE_` prefix with `_` separating nested keys — for example `server.body_limits.default_limit` maps to `FLUXBASE_SERVER_BODY_LIMITS_DEFAULT_LIMIT`. Lists are comma-separated in env (e.g. `FLUXBASE_CORS_ALLOWED_ORIGINS="a,b"`).
+
 ## Configuration File
 
-Create `fluxbase.yaml` in your working directory:
+Fluxbase searches these locations in order and uses the first match:
+
+- `./fluxbase.yaml`
+- `./fluxbase.yml`
+- `./config/fluxbase.yaml`
+- `./config/fluxbase.yml`
+- `/etc/fluxbase/fluxbase.yaml`
+- `/etc/fluxbase/fluxbase.yml`
+
+A minimal config:
 
 ```yaml
 # General Configuration
@@ -133,24 +152,17 @@ realtime:
   max_connections: 1000
   max_connections_per_user: 10
   max_connections_per_ip: 20
-  ping_interval: 30s
-  pong_timeout: 60s
-  read_buffer_size: 1024
-  write_buffer_size: 1024
-  message_size_limit: 524288 # 512KB
-  channel_buffer_size: 100
   rls_cache_size: 100000
   rls_cache_ttl: 30s
   listener_pool_size: 2 # LISTEN connections for redundancy
   notification_workers: 4
-  notification_queue_size: 1000
   client_message_queue_size: 256
   slow_client_threshold: 100
   slow_client_timeout: 30s
 
 # Admin UI
 admin:
-  enabled: false # Enable React admin dashboard
+  enabled: true # Admin UI on by default; API routes are still gated by security.setup_token
 
 # Multi-Tenancy
 tenants:
@@ -446,12 +458,6 @@ auth:
 | `FLUXBASE_REALTIME_MAX_CONNECTIONS`          | Max WebSocket connections    | `1000`           | `5000`          |
 | `FLUXBASE_REALTIME_MAX_CONNECTIONS_PER_USER` | Max connections per user     | `10`             | `20`            |
 | `FLUXBASE_REALTIME_MAX_CONNECTIONS_PER_IP`   | Max connections per IP       | `20`             | `50`            |
-| `FLUXBASE_REALTIME_PING_INTERVAL`            | Ping interval                | `30s`            | `30s`           |
-| `FLUXBASE_REALTIME_PONG_TIMEOUT`             | Pong timeout                 | `60s`            | `60s`           |
-| `FLUXBASE_REALTIME_READ_BUFFER_SIZE`         | WebSocket read buffer        | `1024`           | `2048`          |
-| `FLUXBASE_REALTIME_WRITE_BUFFER_SIZE`        | WebSocket write buffer       | `1024`           | `2048`          |
-| `FLUXBASE_REALTIME_MESSAGE_SIZE_LIMIT`       | Max message size (bytes)     | `524288` (512KB) | `1048576`       |
-| `FLUXBASE_REALTIME_CHANNEL_BUFFER_SIZE`      | Channel buffer size          | `100`            | `200`           |
 | `FLUXBASE_REALTIME_RLS_CACHE_SIZE`           | RLS permission cache entries | `100000`         | `200000`        |
 | `FLUXBASE_REALTIME_RLS_CACHE_TTL`            | RLS cache TTL                | `30s`            | `60s`           |
 
@@ -461,7 +467,6 @@ auth:
 | --------------------------------------------- | ------------------------------------------------ | ------- | ------- |
 | `FLUXBASE_REALTIME_LISTENER_POOL_SIZE`        | LISTEN connections for redundancy                | `2`     | `4`     |
 | `FLUXBASE_REALTIME_NOTIFICATION_WORKERS`      | Workers for parallel notification processing     | `4`     | `8`     |
-| `FLUXBASE_REALTIME_NOTIFICATION_QUEUE_SIZE`   | Queue size per notification worker               | `1000`  | `2000`  |
 | `FLUXBASE_REALTIME_CLIENT_MESSAGE_QUEUE_SIZE` | Per-client message queue for async sending       | `256`   | `512`   |
 | `FLUXBASE_REALTIME_SLOW_CLIENT_THRESHOLD`     | Queue length threshold for slow client detection | `100`   | `200`   |
 | `FLUXBASE_REALTIME_SLOW_CLIENT_TIMEOUT`       | Duration before disconnecting slow clients       | `30s`   | `60s`   |
@@ -481,7 +486,7 @@ The migrations API requires both IP allowlist and service key authentication. Th
 
 | Variable                 | Description     | Default | Example         |
 | ------------------------ | --------------- | ------- | --------------- |
-| `FLUXBASE_ADMIN_ENABLED` | Enable Admin UI | `false` | `true`, `false` |
+| `FLUXBASE_ADMIN_ENABLED` | Enable Admin UI (on by default; routes still gated by `security.setup_token`) | `true` | `true`, `false` |
 
 ### Multi-Tenancy
 
@@ -860,13 +865,9 @@ Global settings for the Deno runtime used by edge functions and background jobs.
 | `FLUXBASE_JOBS_WORKER_TIMEOUT`               | Worker considered dead after                  | `30s`      | `60s`                                |
 | `FLUXBASE_JOBS_GRACEFUL_SHUTDOWN_TIMEOUT`    | Time to wait for running jobs during shutdown | `5m`       | `10m`                                |
 
-**Execution Log Retention:**
-
-| Variable                                      | Description                                  | Default | Example |
-| --------------------------------------------- | -------------------------------------------- | ------- | ------- |
-| `FLUXBASE_JOBS_FUNCTIONS_LOGS_RETENTION_DAYS` | Retention for function execution logs (days) | `30`    | `60`    |
-| `FLUXBASE_JOBS_RPC_LOGS_RETENTION_DAYS`       | Retention for RPC execution logs (days)      | `30`    | `60`    |
-| `FLUXBASE_JOBS_JOBS_LOGS_RETENTION_DAYS`      | Retention for job execution logs (days)      | `30`    | `60`    |
+:::note[Execution Log Retention]
+Function, RPC, and job execution-log retention is controlled by `FLUXBASE_LOGGING_EXECUTION_RETENTION_DAYS` (see [Logging](#logging)) — there are no per-resource `jobs.*_logs_retention_days` settings.
+:::
 
 **Sync Security:**
 

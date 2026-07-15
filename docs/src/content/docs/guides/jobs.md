@@ -33,11 +33,13 @@ FLUXBASE_JOBS_AUTO_LOAD_ON_BOOT=true
 # Number of embedded worker threads
 FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT=4
 
-# Default timeout for job execution (seconds)
-FLUXBASE_JOBS_DEFAULT_TIMEOUT=300
+# Default max duration for job execution
+FLUXBASE_JOBS_DEFAULT_MAX_DURATION=5m
 
-# Default maximum retry attempts
-FLUXBASE_JOBS_DEFAULT_MAX_RETRIES=3
+# Maximum allowed job duration
+FLUXBASE_JOBS_MAX_MAX_DURATION=1h
+
+# Retries are configured per-job via the @fluxbase:max-retries annotation (default: 0)
 ```
 
 ## Worker Architecture

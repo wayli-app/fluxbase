@@ -1017,5 +1017,5 @@ console.log(secretMetadata.updated_at) // timestamp
 
 - Learn about [Admin SDK](/sdk/admin) for user management and authentication
 - Explore [Management SDK](/sdk/management) for client keys and webhooks
-- Read about [SDK Reference](/api/sdk/) operations
+- Read about [SDK Reference](/api/sdk/readme/) operations
 - Check out [Authentication](/guides/authentication) for user-facing auth flows

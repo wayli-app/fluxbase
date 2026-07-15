@@ -135,7 +135,7 @@ branching:
 
 | Option                    | Default       | Description                                                     |
 | ------------------------- | ------------- | --------------------------------------------------------------- |
-| `enabled`                 | `false`       | Enable database branching                                       |
+| `enabled`                 | `true`        | Enable database branching                                       |
 | `max_total_branches`      | `50`          | Maximum total branches across all users                         |
 | `default_data_clone_mode` | `schema_only` | Default cloning mode (schema_only, full_clone, seed_data)       |
 | `auto_delete_after`       | `0`           | Auto-delete preview branches after this duration (0 = disabled) |
@@ -149,7 +149,7 @@ branching:
 | ------------- | -------------------------------------------------------------------- |
 | `schema_only` | Copy schema only, no data (fast)                                     |
 | `full_clone`  | Copy schema and all data (slower, useful for testing with real data) |
-| `seed_data`   | Copy schema with seed data (coming soon)                             |
+| `seed_data`   | Copy schema with seed data from `seeds_path` (see [Workflows](/guides/branching/workflows/)) |
 
 ### How It Works
 

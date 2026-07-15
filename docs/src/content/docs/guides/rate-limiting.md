@@ -373,7 +373,7 @@ When creating client keys, you can set custom rate limits:
 
 ```bash
 # Create API key with custom rate limit
-curl -X POST http://localhost:8080/api/v1/admin/client-keys \
+curl -X POST http://localhost:8080/api/v1/client-keys \
   -H "Authorization: Bearer admin-token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -601,7 +601,7 @@ For integrations requiring high throughput:
 
 ```bash
 # Create API key with appropriate limits
-curl -X POST /api/v1/admin/client-keys \
+curl -X POST /api/v1/client-keys \
   -d '{"name": "Partner API", "rate_limit_rpm": 5000}'
 ```
 
@@ -624,7 +624,7 @@ curl -X POST /api/v1/admin/client-keys \
 
 ```bash
 # Create API key with higher limit
-curl -X POST /api/v1/admin/client-keys \
+curl -X POST /api/v1/client-keys \
   -H "Authorization: Bearer admin-token" \
   -d '{"name": "High Traffic Client", "rate_limit_rpm": 10000}'
 ```
@@ -696,7 +696,7 @@ Rate limiting adds minimal overhead:
 - **In-memory storage**: < 1ms per request
 - **Memory usage**: ~100 bytes per unique key
 
-**Note**: Fluxbase rate limiting is **in-memory only and per-instance**. There is no Redis or external storage backend. In multi-instance deployments, each instance maintains independent rate limit counters. Use a reverse proxy or API gateway for centralized rate limiting (see [Multi-Instance Deployments](#multi-instance-deployments)).
+**Note**: Fluxbase rate limiting supports three storage backends: `local` (in-memory, per-instance, default), `postgres`, and `redis` (also Dragonfly). For multi-instance deployments, set `scaling.backend: postgres` or `redis` so all instances share counters — a reverse proxy / API gateway is then **not** required for centralized limiting (see [Multi-Instance Deployments](#multi-instance-deployments)).
 
 **Benchmarks** (single instance):
 

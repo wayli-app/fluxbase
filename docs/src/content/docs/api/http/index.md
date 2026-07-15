@@ -152,27 +152,28 @@ A full GraphQL API auto-generated from your database schema.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/graphql` | Execute GraphQL queries and mutations |
+| `GET` | `/graphql` | Return the GraphQL introspection schema (when enabled) |
 
 See the [GraphQL API documentation](/api/http/graphql) for complete details on queries, mutations, filtering, and SDK usage.
 
 ### Database Tables
 
-Auto-generated CRUD endpoints for your PostgreSQL tables.
+Auto-generated, PostgREST-style CRUD for your PostgreSQL tables. Paths are schema-scoped (`/tables/{schema}/{table}`); `/tables/{schema}` addresses all tables in a schema, and `/tables/` lists tables.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/tables/{table}` | List records with filtering |
-| `POST` | `/tables/{table}` | Create record(s) |
-| `PATCH` | `/tables/{table}` | Batch update records |
-| `DELETE` | `/tables/{table}` | Batch delete records |
-| `GET` | `/tables/{table}/{id}` | Get record by ID |
-| `PUT` | `/tables/{table}/{id}` | Replace record |
-| `PATCH` | `/tables/{table}/{id}` | Update record |
-| `DELETE` | `/tables/{table}/{id}` | Delete record |
-| `POST` | `/tables/{table}/bulk` | Bulk insert |
-| `PATCH` | `/tables/{table}/bulk` | Bulk update |
-| `DELETE` | `/tables/{table}/bulk` | Bulk delete |
-| `GET` | `/tables/{table}/export` | Export table data (CSV/JSON) |
+| `GET` | `/tables/` | List all tables |
+| `POST` | `/tables/{schema}/{table}/query` | Query with a complex filter body |
+| `GET` | `/tables/{schema}/{table}` | List records (filters via query params) |
+| `POST` | `/tables/{schema}/{table}` | Create record(s) — send a JSON array for bulk insert |
+| `PATCH` | `/tables/{schema}/{table}` | Update records matching a query filter |
+| `DELETE` | `/tables/{schema}/{table}` | Delete records matching a query filter |
+| `GET` | `/tables/{schema}/{table}/{id}` | Get a record by primary key |
+| `PUT` | `/tables/{schema}/{table}/{id}` | Replace a record |
+| `PATCH` | `/tables/{schema}/{table}/{id}` | Update a record |
+| `DELETE` | `/tables/{schema}/{table}/{id}` | Delete a record |
+
+Batch update/delete use query-parameter filters (see [Query Parameters](#query-parameters)); there are no dedicated `/bulk` or `/export` routes.
 
 ### Tenant Management
 
@@ -328,13 +329,18 @@ Manage database branches for isolated dev/test environments. All routes require 
 
 ### Migrations
 
+All migration endpoints require a service key or `admin`/`instance_admin`/`tenant_admin` role and are gated by the migrations IP allowlist.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/admin/migrations` | List migrations |
 | `POST` | `/admin/migrations` | Create migration |
 | `GET` | `/admin/migrations/{name}` | Get migration details |
+| `PUT` | `/admin/migrations/{name}` | Update migration |
+| `DELETE` | `/admin/migrations/{name}` | Delete migration |
 | `POST` | `/admin/migrations/{name}/apply` | Apply migration |
 | `POST` | `/admin/migrations/{name}/rollback` | Rollback migration |
+| `GET` | `/admin/migrations/{name}/executions` | Get execution history |
 | `POST` | `/admin/migrations/apply-pending` | Apply all pending migrations |
 | `POST` | `/admin/migrations/sync` | Sync migrations (batch upload) |
 
@@ -358,25 +364,52 @@ Manage secrets for edge functions and background jobs.
 | `GET` | `/secrets/by-name/{name}/versions` | Get secret versions by name |
 | `POST` | `/secrets/by-name/{name}/rollback/{version}` | Rollback secret by name |
 
-### AI Chatbots & Knowledge Bases
+### AI Chatbots (Public)
+
+Public chatbot discovery and the conversational WebSocket. Chat is streaming over a WebSocket — there is no REST `POST .../chat` endpoint.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/chatbots` | List chatbots |
-| `POST` | `/chatbots` | Create chatbot |
-| `GET` | `/chatbots/{id}` | Get chatbot details |
-| `PUT` | `/chatbots/{id}` | Update chatbot |
-| `DELETE` | `/chatbots/{id}` | Delete chatbot |
-| `POST` | `/chatbots/{id}/chat` | Send message (WebSocket upgrade or HTTP) |
-| `GET` | `/knowledge-bases` | List knowledge bases |
-| `POST` | `/knowledge-bases` | Create knowledge base |
-| `GET` | `/knowledge-bases/{id}` | Get knowledge base details |
-| `PUT` | `/knowledge-bases/{id}` | Update knowledge base |
-| `DELETE` | `/knowledge-bases/{id}` | Delete knowledge base |
-| `POST` | `/knowledge-bases/{id}/documents` | Upload document |
-| `GET` | `/knowledge-bases/{id}/documents` | List documents |
-| `DELETE` | `/knowledge-bases/{id}/documents/{doc_id}` | Delete document |
-| `POST` | `/knowledge-bases/{id}/search` | Search knowledge base |
+| `GET` | `/ai/chatbots` | List enabled (public) chatbots |
+| `GET` | `/ai/chatbots/by-name/{name}` | Look up a chatbot by name |
+| `GET` | `/ai/chatbots/{id}` | Get a public chatbot |
+| `GET` | `/ai/ws` | Chat WebSocket (streaming responses) |
+| `GET` | `/ai/conversations` | List the current user's conversations |
+| `GET` | `/ai/conversations/{id}` | Get a conversation |
+| `PATCH` | `/ai/conversations/{id}` | Update a conversation (e.g. title) |
+| `DELETE` | `/ai/conversations/{id}` | Delete a conversation |
+| `GET` | `/ai/usage/{chatbotId}` | Current user's daily quota snapshot |
+
+:::note[Chatbot management]
+Creating, updating, deleting, and toggling chatbots is admin-only via `/admin/ai/chatbots/*` (see the Admin AI section).
+:::
+
+### Knowledge Bases
+
+User-facing knowledge-base routes. All require authentication, and the caller must have access to the given knowledge base.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/ai/knowledge-bases` | List the user's knowledge bases |
+| `POST` | `/ai/knowledge-bases` | Create a knowledge base |
+| `GET` | `/ai/knowledge-bases/{id}` | Get a knowledge base |
+| `POST` | `/ai/knowledge-bases/{id}/share` | Share a knowledge base with a user |
+| `GET` | `/ai/knowledge-bases/{id}/permissions` | List KB permissions |
+| `DELETE` | `/ai/knowledge-bases/{id}/permissions/{user_id}` | Revoke KB permission |
+| `POST` | `/ai/knowledge-bases/{id}/documents` | Add a document (JSON) |
+| `POST` | `/ai/knowledge-bases/{id}/documents/upload` | Upload a document file |
+| `GET` | `/ai/knowledge-bases/{id}/documents` | List documents |
+| `GET` | `/ai/knowledge-bases/{id}/documents/{doc_id}` | Get a document |
+| `PATCH` | `/ai/knowledge-bases/{id}/documents/{doc_id}` | Update a document |
+| `DELETE` | `/ai/knowledge-bases/{id}/documents/{doc_id}` | Delete a document |
+| `POST` | `/ai/knowledge-bases/{id}/documents/delete-by-filter` | Delete documents by filter |
+| `POST` | `/ai/knowledge-bases/{id}/search` | Semantic search |
+| `POST` | `/ai/knowledge-bases/{id}/debug-search` | Debug search (scores/explanation) |
+| `GET` | `/ai/knowledge-bases/{id}/entities` | List entities |
+| `GET` | `/ai/knowledge-bases/{id}/entities/search` | Search entities |
+| `GET` | `/ai/knowledge-bases/{id}/entities/{entity_id}/relationships` | Get entity relationships |
+| `GET` | `/ai/knowledge-bases/{id}/graph` | Get the full knowledge graph |
+| `GET` | `/ai/knowledge-bases/{id}/chatbots` | List chatbots linked to the KB |
 
 ### Realtime
 
@@ -391,7 +424,6 @@ Channels: `table:{schema}.{table}`, `presence:{room}`, `broadcast:{channel}`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/realtime/stats` | Get realtime connection statistics |
-| `POST` | `/realtime/broadcast` | Broadcast message to connected clients |
 
 ### Public Settings
 
@@ -575,15 +607,21 @@ Table endpoints support PostgREST-compatible query parameters:
 | `Content-Type` | Request body format (`application/json`, `multipart/form-data`) |
 | `Prefer` | Response preferences (`return=representation`, `count=exact`) |
 
-## OpenAPI Specification
+## API Reference & OpenAPI
 
-A live OpenAPI 3.0 specification is available at:
+An interactive API reference (Scalar) is served at:
+
+```
+GET /api-docs
+```
+
+A live OpenAPI 3.0 specification is also available:
 
 ```
 GET /openapi.json
 ```
 
-This specification is generated dynamically based on your database schema and includes all available endpoints with their request/response schemas.
+The specification is generated dynamically from the registered routes and your database schema, and includes request/response schemas for all endpoints.
 
 ## Error Responses
 

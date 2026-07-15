@@ -114,7 +114,7 @@ async function handler(req) {
   // Create a service client using the per-request token
   // Edge functions receive FLUXBASE_SERVICE_TOKEN (tenant-scoped) automatically
   const client = createClient(
-    Deno.env.get("FLUXBASE_BASE_URL")!,
+    Deno.env.get("FLUXBASE_URL")!,
     Deno.env.get("FLUXBASE_SERVICE_TOKEN")!,
   );
 
@@ -180,7 +180,7 @@ async function handler(req) {
 ```typescript
 async function handler(req) {
   // Use the Fluxbase SDK via environment variables for database access
-  const baseUrl = Deno.env.get("FLUXBASE_BASE_URL") || "http://localhost:8080";
+  const baseUrl = Deno.env.get("FLUXBASE_URL") || "http://localhost:8080";
   const token = Deno.env.get("FLUXBASE_SERVICE_TOKEN") || Deno.env.get("FLUXBASE_USER_TOKEN");
 
   // Query using the REST API
@@ -370,7 +370,7 @@ Common bundling errors:
 
 - **Package not found** - Check package name and version
 - **Network timeout** - npm registry may be slow/unavailable
-- **Bundle too large** - Limit is 5MB after bundling
+- **Bundle too large** - Limit is 50MB after bundling
 - **Blocked package** - Using a restricted security package
 
 ### Air-Gapped / Private Registry Environments
@@ -1298,8 +1298,8 @@ executions.forEach((exec) => {
 
 ## Limitations
 
-- Maximum execution time: 60 seconds (configurable)
-- Maximum response size: 6MB
+- Maximum execution time: 30s default / 300s max (`functions.max_timeout`)
+- Maximum response size: 10MB (`functions.max_output_size`)
 - No filesystem persistence (use database or external storage)
 - Limited Deno permissions by default (configurable)
 
@@ -1460,7 +1460,7 @@ When a function calls `secrets.get("openai_api_key")`:
 
 ## REST API
 
-For direct HTTP access without the SDK, see the [SDK Documentation](/api/sdk).
+For direct HTTP access without the SDK, see the [SDK Documentation](/api/sdk/readme/).
 
 ## Troubleshooting
 
@@ -1662,4 +1662,4 @@ async function handler(req) {
 
 - [Authentication](/guides/authentication) - Secure function access
 - [Webhooks](/guides/webhooks) - Trigger functions from events
-- [SDK Documentation](/api/sdk) - Complete SDK documentation
+- [SDK Documentation](/api/sdk/readme/) - Complete SDK documentation

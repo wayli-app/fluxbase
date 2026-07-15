@@ -140,7 +140,7 @@ if (error) throw error;
 
 ## OAuth / Social Login
 
-**Supported providers:** Google, GitHub, Microsoft, GitLab, Bitbucket, Facebook, Twitter/X, Discord, Slack
+**Supported providers:** Google, GitHub, Microsoft, Apple, GitLab, Bitbucket, Facebook, Twitter/X, LinkedIn
 
 **Configuration:**
 
@@ -164,12 +164,11 @@ if (data) window.location.href = data.url;
 
 ## Anonymous Authentication
 
-```typescript
-const { data, error } = await client.auth.signInAnonymously();
-if (error) throw error;
-```
+Anonymous access uses the `anon` role, activated by making requests with the publishable/anon client key (no user JWT). There is no `signInAnonymously` endpoint — anonymous requests are simply unauthenticated requests scoped by RLS policies written for the `anon` role.
 
-> **Note:** Anonymous sessions cannot be converted to permanent accounts. Users must sign up separately and link manually.
+:::note
+Anonymous sessions are not upgraded to authenticated accounts automatically. Users must sign up separately; link any anon-created data via a shared identifier if you need continuity.
+:::
 
 ## Two-Factor Authentication
 
@@ -386,7 +385,7 @@ Fluxbase supports multiple CAPTCHA providers:
 security:
   captcha:
     enabled: true
-    provider: turnstile # recaptcha, hcaptcha, turnstile, captcha-v2, cap
+    provider: turnstile # hcaptcha, recaptcha_v3, turnstile, cap
     site_key: your-site-key
     secret_key: your-secret-key
 ```
@@ -408,10 +407,7 @@ Administrators can impersonate other users for debugging and support purposes.
 
 ### Enable Impersonation
 
-```yaml
-auth:
-  impersonation_enabled: true
-```
+Impersonation is gated by role, not a config toggle — no `impersonation_enabled` setting exists. The `POST /api/v1/auth/impersonate*` routes require the `admin`, `instance_admin`, or `tenant_admin` role.
 
 ### Usage (Admin Dashboard)
 
@@ -429,10 +425,9 @@ await client.admin.impersonation.stop();
 
 ⚠️ **Impersonation is a powerful feature - use with caution:**
 
-- Only enable `impersonation_enabled` for admin users
 - All impersonation actions are logged
-- Requires dashboard admin role
-- Cannot impersonate other admins (prevents privilege escalation)
+- Requires `admin`, `instance_admin`, or `tenant_admin` role
+- Three modes: user, anonymous, and service impersonation (see [User Impersonation](/guides/admin/user-impersonation/))
 
 ## Next Steps
 

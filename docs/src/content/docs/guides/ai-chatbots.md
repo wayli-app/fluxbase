@@ -894,7 +894,7 @@ The static prefix is cached up to the first differing token. To maximize cache h
 ## Next Steps
 
 - [Knowledge Bases & RAG](/guides/knowledge-bases) - Create knowledge bases for RAG-powered chatbots
-- [TypeScript SDK Reference](/api/sdk) - Full SDK API documentation
+- [TypeScript SDK Reference](/api/sdk/readme/) - Full SDK API documentation
 - [Row-Level Security](/guides/row-level-security) - Secure your data access
 - [Authentication](/guides/authentication) - User authentication setup
 - [Rate Limiting](/guides/rate-limiting) - Configure rate limits

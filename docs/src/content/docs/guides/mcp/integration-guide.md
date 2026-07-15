@@ -245,7 +245,7 @@ Function executed successfully. The welcome email has been sent to user@example.
 
 **Claude**: Let me check the storage.
 
-_Uses `list_files` tool_
+_Uses `list_objects` tool_
 
 Found 3 files in the uploads bucket:
 
@@ -259,7 +259,7 @@ Found 3 files in the uploads bucket:
 
 **Claude**: I'll search your knowledge base.
 
-_Uses `vector_search` tool_
+_Uses `search_vectors` tool_
 
 Found 3 relevant documents:
 
@@ -269,34 +269,39 @@ Found 3 relevant documents:
 
 ## Available Tools
 
+The MCP server exposes 46 built-in tools. The most common ones:
+
 | Tool              | Scope Required      | Description             |
 | ----------------- | ------------------- | ----------------------- |
-| `query_table`     | `read:tables`       | Query database tables   |
-| `insert_record`   | `write:tables`      | Create new records      |
-| `update_record`   | `write:tables`      | Update existing records |
-| `delete_record`   | `write:tables`      | Delete records          |
-| `invoke_function` | `execute:functions` | Call edge functions     |
-| `invoke_rpc`      | `execute:rpc`       | Execute SQL procedures  |
-| `list_files`      | `read:storage`      | List storage files      |
-| `download_file`   | `read:storage`      | Get file contents       |
-| `upload_file`     | `write:storage`     | Upload files            |
-| `delete_file`     | `write:storage`     | Remove files            |
+| `query_table`     | `tables:read`       | Query database tables   |
+| `insert_record`   | `tables:write`      | Create new records      |
+| `update_record`   | `tables:write`      | Update existing records |
+| `delete_record`   | `tables:write`      | Delete records          |
+| `invoke_function` | `functions:execute` | Call edge functions     |
+| `invoke_rpc`      | `rpc:execute`       | Execute SQL procedures  |
+| `list_objects`    | `storage:read`      | List storage objects    |
+| `download_object` | `storage:read`      | Get object contents     |
+| `upload_object`   | `storage:write`     | Upload objects          |
+| `delete_object`   | `storage:write`     | Remove objects          |
 | `submit_job`      | `execute:jobs`      | Start background jobs   |
 | `get_job_status`  | `execute:jobs`      | Check job status        |
-| `vector_search`   | `read:vectors`      | Similarity search       |
+| `search_vectors`  | `read:vectors`      | Similarity search       |
+
+See the full [Tools Reference](/guides/mcp/tools/) for all 46 tools (including DDL, branching, knowledge-graph, sync, `think`, and `http_request`).
 
 ## Available Resources
 
 Resources provide context information to the AI:
 
-| Resource                  | Description                 |
-| ------------------------- | --------------------------- |
-| `schema://tables`         | Database schema information |
-| `schema://tables/{table}` | Specific table structure    |
-| `functions://list`        | Deployed edge functions     |
-| `functions://{name}`      | Function details            |
-| `storage://buckets`       | Storage bucket list         |
-| `rpc://list`              | Available RPC procedures    |
+| Resource                                  | Description                 |
+| ----------------------------------------- | --------------------------- |
+| `fluxbase://schema/tables`                | Database schema information |
+| `fluxbase://schema/tables/{schema}/{table}` | Specific table structure  |
+| `fluxbase://functions`                    | Deployed edge functions     |
+| `fluxbase://storage/buckets`              | Storage bucket list         |
+| `fluxbase://rpc`                          | Available RPC procedures    |
+
+See [Resources](/guides/mcp/resources/) for details.
 
 ## Troubleshooting
 
