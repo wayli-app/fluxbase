@@ -292,6 +292,31 @@ Available metadata annotations:
 | `@fluxbase:required-settings`        | Setting keys to load for template resolution                       | -                         |
 | `@fluxbase:mcp-tools`                | Comma-separated MCP tools to enable (see [MCP Tools](#mcp-tools))  | `""` (legacy execute_sql) |
 | `@fluxbase:use-mcp-schema`           | Fetch schema from MCP resources instead of direct DB introspection | `false`                   |
+| `@fluxbase:model`                    | LLM model override (e.g. `gpt-4o`, `claude-3-5-sonnet`)            | provider default          |
+| `@fluxbase:reasoning-mode`           | `react` (think-before-act), `strict`, or `none`                    | `react`                   |
+| `@fluxbase:max-iterations`           | Max tool-call iterations per turn                                  | `5`                       |
+| `@fluxbase:show-reasoning`           | Expose the agent's reasoning steps to the user                     | `false`                   |
+| `@fluxbase:intent-rules`             | JSON array of keyword → required/forbidden table/tool rules        | `[]`                      |
+
+### Reasoning Mode
+
+The `@fluxbase:reasoning-mode` annotation controls how the chatbot uses tools:
+
+- **`react`** (default) — the chatbot runs the `think` tool to plan before calling data tools (ReAct pattern). Recommended for accuracy.
+- **`strict`** — stricter planning discipline; the chatbot must produce an explicit plan and stays within it.
+- **`none`** — no `think` step; tools may be called directly. Faster but less reliable for multi-step questions.
+
+Combine with `@fluxbase:max-iterations` (tool-call rounds, default `5`) and `@fluxbase:show-reasoning true` to surface the planning steps in the streamed response.
+
+### Intent Rules
+
+`@fluxbase:intent-rules` accepts a JSON array that gates the conversation based on the user's message. When a keyword matches, you can require a specific table or forbid a tool:
+
+```typescript
+ * @fluxbase:intent-rules [{"keywords":["restaurant","cafe"],"requiredTable":"public.places"},{"keywords":["payment"],"forbiddenTool":"execute_sql"}]
+```
+
+Matched rules are surfaced in the chat done event's `matched_intent_rules` field.
 
 ### HTTP Tool
 

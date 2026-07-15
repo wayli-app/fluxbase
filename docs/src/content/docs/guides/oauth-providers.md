@@ -189,6 +189,9 @@ FLUXBASE_AUTH_OAUTH_PROVIDERS_2_CLIENT_SECRET=your-keycloak-secret
 | `/api/v1/auth/oauth/providers`           | GET    | List available OAuth providers (public)     |
 | `/api/v1/auth/oauth/:provider/authorize` | GET    | Initiate OAuth flow (redirects to provider) |
 | `/api/v1/auth/oauth/:provider/callback`  | GET    | OAuth callback handler                      |
+| `/api/v1/auth/oauth/:provider/token`     | GET    | Retrieve the provider access token (authenticated) |
+| `/api/v1/auth/oauth/:provider/logout`    | POST   | Initiate provider-side logout (OIDC/RP)     |
+| `/api/v1/auth/oauth/:provider/logout/callback` | GET | OAuth logout callback                  |
 | `/api/v1/admin/oauth/providers`          | GET    | List all providers (admin)                  |
 | `/api/v1/admin/oauth/providers`          | POST   | Create new provider (admin)                 |
 | `/api/v1/admin/oauth/providers/:id`      | PUT    | Update provider (admin)                     |

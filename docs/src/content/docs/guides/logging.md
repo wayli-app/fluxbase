@@ -1133,6 +1133,15 @@ Authorization: Bearer <admin-token>
 
 Manually flush buffered logs to storage. Useful before shutting down or for immediate log persistence.
 
+### Generate Test Logs
+
+```bash
+POST /api/v1/admin/logs/test
+Authorization: Bearer <admin-token>
+```
+
+Emits sample log entries across categories — handy for verifying pipeline configuration and backend connectivity.
+
 ---
 
 ## Summary
