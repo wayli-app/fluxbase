@@ -1163,6 +1163,21 @@ async function handler(req) {
 
 Control how many requests each user or IP can make to your function within a time window.
 
+**Resource & Permissions Annotations**
+
+| Annotation | Description | Default |
+| --- | --- | --- |
+| `@fluxbase:timeout <seconds>` | Execution timeout | `30` |
+| `@fluxbase:memory <mb>` | Memory limit in MB | `128` |
+| `@fluxbase:disable-logs` / `@fluxbase:disable-execution-logs` | Disable verbose step-by-step execution logging | `false` |
+| `@fluxbase:allowed-domains <csv>` | Domains the function may call (SSRF allowlist) | server default (blocks metadata endpoints) |
+| `@fluxbase:allow-net` / `@fluxbase:deny-net` | Network access flags | net allowed by default |
+| `@fluxbase:allow-env` / `@fluxbase:deny-env` | Environment-variable access flags | env denied by default |
+
+:::note
+`FLUXBASE_SECRET_*` secrets and a curated allowlist of runtime env vars are always injected; sensitive vars (DB URL, JWT secret, email API keys) are blocked. See [Secrets Management](/guides/secrets-management/).
+:::
+
 **`@fluxbase:rate-limit`** - Limit requests per user/IP with format `N/unit` where unit is `min`, `hour`, or `day`:
 
 ```typescript

@@ -428,6 +428,10 @@ security:
 | `FLUXBASE_SECURITY_CAPTCHA_SECRET_KEY`      | Secret key for verification                  |
 | `FLUXBASE_SECURITY_CAPTCHA_SCORE_THRESHOLD` | Score threshold (reCAPTCHA v3 only)          |
 | `FLUXBASE_SECURITY_CAPTCHA_ENDPOINTS`       | Comma-separated list of endpoints            |
+| `FLUXBASE_SECURITY_CAPTCHA_ADAPTIVE_TRUST_ENABLED`          | Enable adaptive trust (skip CAPTCHA for trusted users) |
+| `FLUXBASE_SECURITY_CAPTCHA_ADAPTIVE_TRUST_CAPTCHA_THRESHOLD` | Trust score below this requires CAPTCHA (default `50`) |
+| `FLUXBASE_SECURITY_CAPTCHA_ADAPTIVE_TRUST_TRUST_TOKEN_TTL`  | How long a solved CAPTCHA is trusted (default `15m`) |
+| `FLUXBASE_SECURITY_CAPTCHA_ADAPTIVE_TRUST_WEIGHT_*`         | Trust-signal weights: `weight_known_ip` (30), `weight_known_device` (25), `weight_recent_captcha` (40) |
 
 ### Cap Provider Configuration
 

@@ -527,7 +527,13 @@ Control job behavior with JSDoc-style annotations:
 - `@fluxbase:require-role <role>` - Require specific user role (admin, authenticated, custom)
 - `@fluxbase:timeout <seconds>` - Maximum execution time (default: 300)
 - `@fluxbase:max-retries <count>` - Number of retry attempts (default: 0)
+- `@fluxbase:memory <mb>` - Memory limit in MB (default: 256)
+- `@fluxbase:progress-timeout <duration>` - Max gap between progress reports before the job is considered stuck (default: 60s)
 - `@fluxbase:schedule <cron>` - Cron expression for scheduled execution
+- `@fluxbase:schedule-params <json>` - JSON object injected as `_schedule_params` when the scheduler triggers the job
+- `@fluxbase:enabled <bool>` - Whether the job is enabled (default: true)
+- `@fluxbase:allow-net` / `@fluxbase:deny-net` - Network access flags
+- `@fluxbase:allow-env` / `@fluxbase:allow-read` / `@fluxbase:allow-write` - Capability flags
 - `@fluxbase:description <text>` - Human-readable job description
 
 ### Admin-Only Job
