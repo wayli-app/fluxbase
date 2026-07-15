@@ -315,6 +315,7 @@ await client.admin.rpc.cancelExecution("execution-uuid");
 | `POST`   | `/api/v1/admin/rpc/sync`                        | Sync procedures     |
 | `GET`    | `/api/v1/admin/rpc/executions`                  | List executions     |
 | `GET`    | `/api/v1/admin/rpc/executions/:id`              | Get execution       |
+| `POST`   | `/api/v1/admin/rpc/executions/:id/cancel`       | Cancel execution    |
 | `GET`    | `/api/v1/admin/rpc/executions/:id/logs`         | Get execution logs  |
 
 ### Invoke Request
