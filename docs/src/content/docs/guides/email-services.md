@@ -129,9 +129,11 @@ FLUXBASE_EMAIL_SES_REGION=us-east-1
 
 ## Email Templates
 
-Fluxbase includes default HTML templates for magic links, email verification, and password resets.
+Fluxbase ships default HTML/text templates for transactional emails: **magic link**, **email verification**, and **password reset**. Each template exposes `Subject`, `HTMLBody`, and `TextBody`.
 
-**Custom templates:**
+### File-based overrides
+
+Point config at custom template files:
 
 ```yaml
 email:
@@ -140,10 +142,47 @@ email:
   password_reset_template: /path/to/password-reset.html
 ```
 
-**Template variables:**
+### Template variables
 
-- `{{.Link}}` - Full action URL
-- `{{.Token}}` - Token only
+| Variable | Meaning |
+|----------|---------|
+| `{{.AppName}}` | Application name (from settings) |
+| `{{.MagicLink}}` | Full magic-link sign-in URL (magic-link template) |
+| `{{.VerificationLink}}` | Full email-verification URL (verification template) |
+| `{{.Link}}` | Full action URL (generic) |
+| `{{.Token}}` | The bare token |
+
+### Template Management API
+
+Manage templates at runtime (requires `admin`/`instance_admin`/`tenant_admin`). Paths are under `/api/v1/admin/email`:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/templates` | List all templates (defaults + overrides) |
+| `GET` | `/templates/:name` | Get a template |
+| `PUT` | `/templates/:name` | Create/update a custom override |
+| `POST` | `/templates/:name/test` | Send a test email using the template |
+| `POST` | `/templates/:name/reset` | Reset a template to its default |
+
+Example — override the magic-link template:
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/admin/email/templates/magic_link \
+  -H "Authorization: Bearer <service-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"subject": "Your sign-in link", "html_body": "<a href=\"{{.MagicLink}}\">Sign in</a>"}'
+```
+
+### Per-Tenant Email Overrides
+
+Tenants can override the instance email configuration (provider, credentials, sender). Requires `admin`/`instance_admin`/`tenant_admin`:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/admin/email/settings/tenant` | Get the tenant's email settings |
+| `PUT` | `/api/v1/admin/email/settings/tenant` | Set/update tenant overrides |
+| `DELETE` | `/api/v1/admin/email/settings/tenant/:field` | Clear a single override field |
+| `POST` | `/api/v1/admin/email/settings/tenant/test` | Send a test email using the tenant's config |
 
 ---
 
