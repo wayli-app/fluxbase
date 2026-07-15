@@ -186,7 +186,7 @@ curl -X POST http://localhost:8080/api/v1/admin/ai/knowledge-bases/KB_ID/documen
 
 ### Best Practices for File Uploads
 
-1. **Clean PDFs**: Ensure PDFs are text-based, not scanned images (OCR not supported)
+1. **Scanned PDFs**: Image-based and scanned PDFs are supported via OCR (Tesseract). Enable with `ai.ocr_enabled` and configure languages via `ai.ocr_languages` (default `["eng"]`). Text-based PDFs extract faster and more accurately, so prefer them when available
 2. **Simple formatting**: Documents with simpler formatting extract more cleanly
 3. **File size**: Smaller files process faster; split very large documents if needed
 4. **Text density**: Avoid uploading files with mostly images or charts
@@ -842,4 +842,4 @@ fluxbase kb chatbots <kb-id>
 
 - [AI Chatbots](/guides/ai-chatbots) - Chatbot configuration and usage
 - [Vector Search](/guides/vector-search) - Direct vector search operations
-- [TypeScript SDK Reference](/api/sdk/) - Full SDK documentation
+- [TypeScript SDK Reference](/api/sdk/readme/) - Full SDK documentation

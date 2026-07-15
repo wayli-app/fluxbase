@@ -292,6 +292,27 @@ await client.tenant.repair(tenant.id);
 await client.tenant.migrate(tenant.id);
 ```
 
+### Members & Admins
+
+```typescript
+// List tenant admins
+const { data: admins } = await client.tenant.listAdmins(tenant.id);
+
+// Assign / remove an admin
+await client.tenant.assignAdmin(tenant.id, { user_id: "..." });
+await client.tenant.removeAdmin(tenant.id, userId);
+```
+
+General membership is managed over HTTP:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/admin/tenants/:id/members` | List members |
+| `POST` | `/admin/tenants/:id/members` | Add a member |
+| `DELETE` | `/admin/tenants/:id/members/:user_id` | Remove a member |
+
+Tenant settings also support single-key operations via `GET` and `DELETE /admin/tenants/:id/settings/*` (in addition to the bulk `GET`/`PATCH`).
+
 ### Service Key Management
 
 ```typescript

@@ -337,6 +337,13 @@ export default defineConfig({
           autogenerate: { directory: "sdk" },
         },
         {
+          label: "React SDK",
+          collapsed: true,
+          items: [
+            { label: "Getting Started", link: "/sdk-react/getting-started/" },
+          ],
+        },
+        {
           label: "CLI",
           collapsed: true,
           items: [
@@ -354,6 +361,7 @@ export default defineConfig({
                 { label: "Storage", link: "/cli/commands/#storage-commands" },
                 { label: "Chatbots", link: "/cli/commands/#chatbot-commands" },
                 { label: "Knowledge Bases (kb)", link: "/cli/commands/#knowledge-base-commands" },
+                { label: "AI Providers", link: "/cli/commands/#ai-providers-commands" },
                 { label: "Tables", link: "/cli/commands/#table-commands" },
                 { label: "Types", link: "/cli/commands/#type-generation-commands" },
                 { label: "GraphQL", link: "/cli/commands/#graphql-commands" },
@@ -361,6 +369,7 @@ export default defineConfig({
                 { label: "Webhooks", link: "/cli/commands/#webhook-commands" },
                 { label: "Client Keys", link: "/cli/commands/#client-key-commands" },
                 { label: "Migrations", link: "/cli/commands/#migration-commands" },
+                { label: "Internal Schema", link: "/cli/commands/#internal-schema-commands" },
                 { label: "Extensions", link: "/cli/commands/#extension-commands" },
                 { label: "Realtime", link: "/cli/commands/#realtime-commands" },
                 { label: "Settings", link: "/cli/commands/#settings-commands" },

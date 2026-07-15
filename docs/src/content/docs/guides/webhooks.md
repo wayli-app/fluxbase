@@ -256,7 +256,9 @@ func handleWebhook(body []byte, signatureHeader, secret string) error {
 ```javascript
 const crypto = require('crypto');
 
-function verifyWebhookSignature(payload, header, secret, toleranceMs = 300000) {
+function verifyWebhookSignature(rawBody, header, secret, toleranceMs = 300000) {
+  // rawBody must be the EXACT raw request body string (bytes) — re-serializing
+  // JSON (e.g. JSON.stringify) changes whitespace/key order and breaks the HMAC.
   // Parse header: t=timestamp,v1=signature
   const parts = header.split(',').reduce((acc, part) => {
     const [key, value] = part.split('=');
@@ -271,8 +273,8 @@ function verifyWebhookSignature(payload, header, secret, toleranceMs = 300000) {
     throw new Error('Signature timestamp too old or in future');
   }
 
-  // Compute expected signature
-  const signedPayload = `${parts.timestamp}.${JSON.stringify(payload)}`;
+  // Compute expected signature over the raw body
+  const signedPayload = `${parts.timestamp}.${rawBody}`;
   const expectedSig = crypto
     .createHmac('sha256', secret)
     .update(signedPayload)

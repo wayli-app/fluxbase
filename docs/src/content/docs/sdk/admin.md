@@ -983,6 +983,6 @@ import type {
 ## Next Steps
 
 - [Authentication Guide](/guides/authentication) - User authentication methods
-- [SDK Reference](/api/sdk/) - Query and manipulate data
+- [SDK Reference](/api/sdk/readme/) - Query and manipulate data
 - [Storage Guide](/guides/storage) - File upload and management
 - [Realtime Guide](/guides/realtime) - WebSocket subscriptions

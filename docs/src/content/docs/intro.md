@@ -122,7 +122,7 @@ WebSocket-based AI chatbot integration:
 | **Multi-Tenancy**      | ✅ Database-per-tenant        | ⚠️ RLS-based only                      | ⚠️ Namespaces       |
 | **Database**           | PostgreSQL 15+                | PostgreSQL 15+                         | Proprietary (NoSQL) |
 | **Row-Level Security** | ✅ Yes                        | ✅ Yes                                 | ⚠️ Rules-based      |
-| **Client SDK**         | TypeScript, React, Go         | JS, Flutter, Python, Swift, Kotlin, C# | TypeScript/JS       |
+| **Client SDK**         | TypeScript, React             | JS, Flutter, Python, Swift, Kotlin, C# | TypeScript/JS       |
 | **Horizontal Scaling** | ✅ Yes (distributed backends) | ✅ Yes (read replicas)                 | ✅ Yes (auto)       |
 | **Open Source**        | ✅ AGPLv3                     | ✅ Apache 2.0                          | ❌ Proprietary      |
 
@@ -221,7 +221,7 @@ graph TB
 - [Multi-Tenancy](/guides/multi-tenancy/) - Build multi-tenant SaaS applications
 - [AI Chatbots Guide](/guides/ai-chatbots/) - Build natural language interfaces to your database
 - [Configuration Reference](/reference/configuration/) - Customize Fluxbase for your needs
-- [TypeScript SDK Reference](/api/sdk/) - Learn how to use the TypeScript SDK
+- [TypeScript SDK Reference](/api/sdk/readme/) - Learn how to use the TypeScript SDK
 
 ## Community & Support
 

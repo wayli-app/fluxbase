@@ -33,11 +33,13 @@ FLUXBASE_JOBS_AUTO_LOAD_ON_BOOT=true
 # Number of embedded worker threads
 FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT=4
 
-# Default timeout for job execution (seconds)
-FLUXBASE_JOBS_DEFAULT_TIMEOUT=300
+# Default max duration for job execution
+FLUXBASE_JOBS_DEFAULT_MAX_DURATION=5m
 
-# Default maximum retry attempts
-FLUXBASE_JOBS_DEFAULT_MAX_RETRIES=3
+# Maximum allowed job duration
+FLUXBASE_JOBS_MAX_MAX_DURATION=1h
+
+# Retries are configured per-job via the @fluxbase:max-retries annotation (default: 0)
 ```
 
 ## Worker Architecture
@@ -524,8 +526,14 @@ Control job behavior with JSDoc-style annotations:
 - `@fluxbase:namespace <name>` - Specify namespace (overrides CLI `--namespace` flag)
 - `@fluxbase:require-role <role>` - Require specific user role (admin, authenticated, custom)
 - `@fluxbase:timeout <seconds>` - Maximum execution time (default: 300)
-- `@fluxbase:max-retries <count>` - Number of retry attempts (default: 3)
+- `@fluxbase:max-retries <count>` - Number of retry attempts (default: 0)
+- `@fluxbase:memory <mb>` - Memory limit in MB (default: 256)
+- `@fluxbase:progress-timeout <duration>` - Max gap between progress reports before the job is considered stuck (default: 60s)
 - `@fluxbase:schedule <cron>` - Cron expression for scheduled execution
+- `@fluxbase:schedule-params <json>` - JSON object injected as `_schedule_params` when the scheduler triggers the job
+- `@fluxbase:enabled <bool>` - Whether the job is enabled (default: true)
+- `@fluxbase:allow-net` / `@fluxbase:deny-net` - Network access flags
+- `@fluxbase:allow-env` / `@fluxbase:allow-read` / `@fluxbase:allow-write` - Capability flags
 - `@fluxbase:description <text>` - Human-readable job description
 
 ### Admin-Only Job
@@ -737,7 +745,7 @@ See the [Edge Functions guide](/guides/edge-functions/#secrets) for full secrets
 :::note[SDK Configuration]
 The SDK clients are automatically configured using `FLUXBASE_URL`. If your `fluxbase` or `fluxbaseService` parameters are `null`, check that:
 
-1. `FLUXBASE_BASE_URL` is set in your server configuration
+1. `FLUXBASE_URL` is set in your server configuration
 2. `FLUXBASE_AUTH_JWT_SECRET` is configured
 3. Check server logs for "Initializing jobs manager" message
 

@@ -342,7 +342,7 @@ func (s *CustomSettingsService) ListSettings(ctx context.Context, userRole strin
 	var settings []CustomSetting
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			SELECT id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
+			SELECT id, key, value, value_type, COALESCE(description, ''), editable_by, metadata, created_by, updated_by, created_at, updated_at
 			FROM app.settings
 			WHERE category = 'custom'
 			ORDER BY key

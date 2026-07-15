@@ -64,7 +64,7 @@ View data with service-level permissions.
 
 **How it works:**
 
-- Generates a JWT with `role: "service"`
+- Generates a JWT with `role: "service_role"` (or `role: "tenant_service"` when tenant-scoped)
 - May bypass RLS (depending on configuration)
 - Elevated permissions for admin tasks
 
@@ -165,7 +165,7 @@ Every impersonation session is logged in the `auth.impersonation_sessions` table
 
 ### Access Control
 
-- ✅ Only users with `role = 'admin'` can impersonate
+- ✅ Requires `admin`, `instance_admin`, or `tenant_admin` role
 - ✅ Self-impersonation is prevented (for user mode)
 - ✅ Reason field is required (cannot be empty)
 - ✅ Only one active session per admin at a time

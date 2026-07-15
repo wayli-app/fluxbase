@@ -64,6 +64,8 @@ OFFSET COALESCE($offset, 0);
 | `@fluxbase:require-role`       | Required role to execute (e.g., `authenticated`, `admin`) | None     |
 | `@fluxbase:public`             | Show in public procedure list                             | `false`  |
 | `@fluxbase:version`            | Procedure version number                                  | `1`      |
+| `@fluxbase:schedule`           | Cron expression to execute on a schedule (e.g. `0 * * * *`) | None  |
+| `@fluxbase:disable-execution-logs` | Disable verbose step-by-step execution logging       | `false`  |
 
 ### Schema Types
 
@@ -165,6 +167,20 @@ console.log("Final result:", final.result);
 ```
 
 > **Note:** Even with `@fluxbase:disable-execution-logs` enabled, async executions will still create execution records so that `getStatus()` works. The flag only disables the verbose step-by-step log messages.
+
+### Scheduled Execution (Cron)
+
+Add a `@fluxbase:schedule` annotation with a standard cron expression and the procedure runs automatically on that schedule. Scheduled procedures are registered with the RPC scheduler when synced and re-registered on server restart.
+
+```sql
+-- @fluxbase:name nightly-rollup
+-- @fluxbase:schedule 0 2 * * *
+-- @fluxbase:input {"date?": "date"}
+
+SELECT rollup_for_day(COALESCE($date, current_date - 1));
+```
+
+Update or remove the annotation and re-sync to change or stop the schedule. Scheduler-triggered executions appear alongside manual ones in [Monitoring Executions](#monitoring-executions) and the execution logs.
 
 ### Execution Logs
 
@@ -299,6 +315,7 @@ await client.admin.rpc.cancelExecution("execution-uuid");
 | `POST`   | `/api/v1/admin/rpc/sync`                        | Sync procedures     |
 | `GET`    | `/api/v1/admin/rpc/executions`                  | List executions     |
 | `GET`    | `/api/v1/admin/rpc/executions/:id`              | Get execution       |
+| `POST`   | `/api/v1/admin/rpc/executions/:id/cancel`       | Cancel execution    |
 | `GET`    | `/api/v1/admin/rpc/executions/:id/logs`         | Get execution logs  |
 
 ### Invoke Request
@@ -370,12 +387,14 @@ JOIN products ON order_items.product_id = products.id;
 
 | Variable                                  | Description                   | Default |
 | ----------------------------------------- | ----------------------------- | ------- |
-| `FLUXBASE_RPC_ENABLED`                    | Enable RPC functionality      | `true`  |
-| `FLUXBASE_RPC_PROCEDURES_DIR`             | Directory for procedure files | `./rpc` |
-| `FLUXBASE_RPC_AUTO_LOAD_ON_BOOT`          | Load procedures on startup    | `true`  |
-| `FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME` | Default timeout               | `30s`   |
-| `FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME`     | Maximum allowed timeout       | `5m`    |
-| `FLUXBASE_RPC_DEFAULT_MAX_ROWS`           | Default max rows returned     | `1000`  |
+| `FLUXBASE_RPC_ENABLED`           | Enable RPC functionality      | `true`  |
+| `FLUXBASE_RPC_PROCEDURES_DIR`    | Directory for procedure files | `./rpc` |
+| `FLUXBASE_RPC_AUTO_LOAD_ON_BOOT` | Load procedures on startup    | `true`  |
+| `FLUXBASE_RPC_DEFAULT_MAX_ROWS`  | Default max rows returned     | `1000`  |
+
+:::note
+Per-procedure execution-time limits are set via the `@fluxbase:max-execution-time` annotation (default `30s`), not a global config key.
+:::
 
 ## Examples
 

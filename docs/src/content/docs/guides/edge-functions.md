@@ -114,7 +114,7 @@ async function handler(req) {
   // Create a service client using the per-request token
   // Edge functions receive FLUXBASE_SERVICE_TOKEN (tenant-scoped) automatically
   const client = createClient(
-    Deno.env.get("FLUXBASE_BASE_URL")!,
+    Deno.env.get("FLUXBASE_URL")!,
     Deno.env.get("FLUXBASE_SERVICE_TOKEN")!,
   );
 
@@ -180,7 +180,7 @@ async function handler(req) {
 ```typescript
 async function handler(req) {
   // Use the Fluxbase SDK via environment variables for database access
-  const baseUrl = Deno.env.get("FLUXBASE_BASE_URL") || "http://localhost:8080";
+  const baseUrl = Deno.env.get("FLUXBASE_URL") || "http://localhost:8080";
   const token = Deno.env.get("FLUXBASE_SERVICE_TOKEN") || Deno.env.get("FLUXBASE_USER_TOKEN");
 
   // Query using the REST API
@@ -370,7 +370,7 @@ Common bundling errors:
 
 - **Package not found** - Check package name and version
 - **Network timeout** - npm registry may be slow/unavailable
-- **Bundle too large** - Limit is 5MB after bundling
+- **Bundle too large** - Limit is 50MB after bundling
 - **Blocked package** - Using a restricted security package
 
 ### Air-Gapped / Private Registry Environments
@@ -1163,6 +1163,21 @@ async function handler(req) {
 
 Control how many requests each user or IP can make to your function within a time window.
 
+**Resource & Permissions Annotations**
+
+| Annotation | Description | Default |
+| --- | --- | --- |
+| `@fluxbase:timeout <seconds>` | Execution timeout | `30` |
+| `@fluxbase:memory <mb>` | Memory limit in MB | `128` |
+| `@fluxbase:disable-logs` / `@fluxbase:disable-execution-logs` | Disable verbose step-by-step execution logging | `false` |
+| `@fluxbase:allowed-domains <csv>` | Domains the function may call (SSRF allowlist) | server default (blocks metadata endpoints) |
+| `@fluxbase:allow-net` / `@fluxbase:deny-net` | Network access flags | net allowed by default |
+| `@fluxbase:allow-env` / `@fluxbase:deny-env` | Environment-variable access flags | env denied by default |
+
+:::note
+`FLUXBASE_SECRET_*` secrets and a curated allowlist of runtime env vars are always injected; sensitive vars (DB URL, JWT secret, email API keys) are blocked. See [Secrets Management](/guides/secrets-management/).
+:::
+
 **`@fluxbase:rate-limit`** - Limit requests per user/IP with format `N/unit` where unit is `min`, `hour`, or `day`:
 
 ```typescript
@@ -1298,8 +1313,8 @@ executions.forEach((exec) => {
 
 ## Limitations
 
-- Maximum execution time: 60 seconds (configurable)
-- Maximum response size: 6MB
+- Maximum execution time: 30s default / 300s max (`functions.max_timeout`)
+- Maximum response size: 10MB (`functions.max_output_size`)
 - No filesystem persistence (use database or external storage)
 - Limited Deno permissions by default (configurable)
 
@@ -1460,7 +1475,7 @@ When a function calls `secrets.get("openai_api_key")`:
 
 ## REST API
 
-For direct HTTP access without the SDK, see the [SDK Documentation](/api/sdk).
+For direct HTTP access without the SDK, see the [SDK Documentation](/api/sdk/readme/).
 
 ## Troubleshooting
 
@@ -1662,4 +1677,4 @@ async function handler(req) {
 
 - [Authentication](/guides/authentication) - Secure function access
 - [Webhooks](/guides/webhooks) - Trigger functions from events
-- [SDK Documentation](/api/sdk) - Complete SDK documentation
+- [SDK Documentation](/api/sdk/readme/) - Complete SDK documentation

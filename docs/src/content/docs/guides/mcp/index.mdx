@@ -112,7 +112,7 @@ Enable the MCP server in your `fluxbase.yaml`:
 mcp:
   enabled: true
   base_path: /mcp
-  session_timeout: 3600s
+  session_timeout: 30m
   max_message_size: 10485760 # 10MB
   rate_limit_per_min: 100
   allowed_tools: [] # Empty = all tools enabled
@@ -123,9 +123,9 @@ mcp:
 
 | Option               | Default    | Description                     |
 | -------------------- | ---------- | ------------------------------- |
-| `enabled`            | `false`    | Enable the MCP server endpoint  |
+| `enabled`            | `true`     | Enable the MCP server endpoint  |
 | `base_path`          | `/mcp`     | URL path for MCP endpoints      |
-| `session_timeout`    | `3600s`    | Session timeout for connections |
+| `session_timeout`    | `30m`      | Session timeout for connections |
 | `max_message_size`   | `10485760` | Maximum request size in bytes   |
 | `rate_limit_per_min` | `100`      | Requests per minute per client  |
 | `allowed_tools`      | `[]`       | Whitelist of allowed tools      |

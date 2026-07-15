@@ -22,7 +22,7 @@ Fluxbase provides API-compatible alternatives to Supabase's core features in a s
 | **Background Jobs**    | ✅ Built-in                   | ✅ pg_cron (ext)                       | ❌ No               |
 | **Database**           | PostgreSQL 15+                | PostgreSQL 15+                         | Proprietary (NoSQL) |
 | **Row-Level Security** | ✅ Yes                        | ✅ Yes                                 | ⚠️ Rules-based      |
-| **Client SDK**         | TypeScript, React, Go         | JS, Flutter, Python, Swift, Kotlin, C# | TypeScript/JS       |
+| **Client SDK**         | TypeScript, React             | JS, Flutter, Python, Swift, Kotlin, C# | TypeScript/JS       |
 | **Horizontal Scaling** | ✅ Yes (distributed backends) | ✅ Yes (read replicas)                 | ✅ Yes (auto)       |
 | **Open Source**        | ✅ AGPLv3                     | ✅ Apache 2.0                          | ❌ Proprietary      |
 | **CLI**                | ✅ Fluxbase CLI               | ⚠️ Only cloud version                  | ⚠️ Only cloud       |

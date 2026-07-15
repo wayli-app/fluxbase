@@ -2028,6 +2028,92 @@ After installation, restart your shell or source the completion file to enable a
 
 ---
 
+## AI Providers Commands
+
+Manage AI providers (OpenAI, Azure, Ollama) used by chatbots, embeddings, and vector search. The command group is `providers` (alias `provider`).
+
+:::note
+The command is `fluxbase providers`, **not** `fluxbase ai providers`. (Some older examples referenced an `ai` parent that does not exist.)
+:::
+
+### `fluxbase providers list`
+
+List configured AI providers.
+
+```bash
+fluxbase providers list
+fluxbase providers list -o json
+```
+
+### `fluxbase providers get [id]`
+
+Get a provider by ID.
+
+### `fluxbase providers create [name]`
+
+Create a new provider.
+
+```bash
+fluxbase providers create openai \
+  --type openai \
+  --display-name "OpenAI" \
+  --api-key sk-... \
+  --model gpt-4o \
+  --default
+```
+
+**Flags:** `--type` (`openai`, `azure`, `ollama`), `--display-name`, `--api-key`, `--base-url` (Ollama/custom), `--model`, `--default` (set as default), `--enabled` (default `true`).
+
+### `fluxbase providers update [id]`
+
+Update a provider. **Flags:** `--display-name`, `--api-key`, `--base-url`, `--model`, `--embedding-model`, `--enabled`, `--set-enabled`.
+
+### `fluxbase providers delete [id]`
+
+Delete a provider (aliases: `rm`, `remove`).
+
+### `fluxbase providers set-default [id]`
+
+Set a provider as the default for chat/completions.
+
+### `fluxbase providers set-embedding [id]` / `clear-embedding [id]`
+
+Set or clear the provider used for embeddings.
+
+### `fluxbase providers metrics`
+
+Show AI usage metrics (token spend, request counts).
+
+## Internal Schema Commands
+
+Manage Fluxbase's internal database schemas (auth, storage, jobs, functions, realtime, ai, rpc, platform, etc.) declaratively. Powered by pgschema diff/apply.
+
+### `fluxbase internal-schema dump`
+
+Dump the current internal schema to SQL.
+
+### `fluxbase internal-schema plan`
+
+Show the planned changes between the desired and live internal schema.
+
+### `fluxbase internal-schema apply`
+
+Apply planned changes. **Flags:** `--auto-approve` (skip confirmation), `--allow-destructive` (permit `DROP`/`ALTER`).
+
+### `fluxbase internal-schema validate`
+
+Validate the internal schema against the live database. **Flag:** `--fail-on-drift` (exit non-zero if drift is detected — useful in CI).
+
+### `fluxbase internal-schema status`
+
+Show the current internal-schema status.
+
+### `fluxbase internal-schema migrate`
+
+One-time migration from imperative internal migrations to the declarative schema. **Flag:** `--keep-old-migrations` (retain the old migration records).
+
+**Persistent flag:** `--file` — path to a schema file (for backward compatibility).
+
 ## Command Aliases
 
 Many commands have shorter aliases for convenience:

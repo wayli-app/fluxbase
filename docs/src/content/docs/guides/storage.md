@@ -21,7 +21,7 @@ Fluxbase provides file storage supporting local filesystem or S3-compatible stor
 storage:
   provider: "local" # or "s3"
   local_path: "./storage"
-  max_upload_size: 10485760 # 10MB
+  max_upload_size: 2147483648 # 2GB (default)
 
   # S3 Configuration (when provider: "s3")
   s3_endpoint: "s3.amazonaws.com"
@@ -36,7 +36,7 @@ storage:
 ```bash
 FLUXBASE_STORAGE_PROVIDER=local  # or s3
 FLUXBASE_STORAGE_LOCAL_PATH=./storage
-FLUXBASE_STORAGE_MAX_UPLOAD_SIZE=10485760
+FLUXBASE_STORAGE_MAX_UPLOAD_SIZE=2147483648
 
 # S3 Configuration
 FLUXBASE_STORAGE_S3_ENDPOINT=s3.amazonaws.com
@@ -478,27 +478,9 @@ fluxbase server
 
 ### Secret Management Systems (Recommended for Production)
 
-#### HashiCorp Vault
-
-```yaml
-# fluxbase.yaml
-storage:
-  provider: "s3"
-  s3_endpoint: "{{ vault `secret/storage/s3#endpoint` }}"
-  s3_access_key: "{{ vault `secret/storage/s3#access_key` }}"
-  s3_secret_key: "{{ vault `secret/storage/s3#secret_key` }}"
-```
-
-#### AWS Secrets Manager
-
-```yaml
-# fluxbase.yaml
-storage:
-  provider: "s3"
-  s3_endpoint: "{{ aws_secret `fluxbase/storage/s3_endpoint` }}"
-  s3_access_key: "{{ aws_secret `fluxbase/storage/access_key` }}"
-  s3_secret_key: "{{ aws_secret `fluxbase/storage/secret_key` }}"
-```
+:::note
+Fluxbase does **not** support inline secret templating (e.g. `{{ vault ... }}`) in `fluxbase.yaml`. Inject credentials via environment variables (loaded from `.env`), your orchestrator's secret mechanism (Docker Secrets, Kubernetes Secrets), or IAM roles.
+:::
 
 #### Docker Secrets
 
@@ -572,114 +554,9 @@ Regularly rotate S3 credentials:
 
 Automation tools like AWS Secrets Manager or HashiCorp Vault can automate this process.
 
-## Malware Scanning Integration
+## Malware Scanning
 
-Fluxbase supports integration with malware scanning services to automatically scan uploaded files for viruses, malware, and malicious content.
-
-### ClamAV (Self-Hosted)
-
-Install ClamAV and configure Fluxbase to scan files:
-
-```yaml
-# fluxbase.yaml
-storage:
-  malware_scanning:
-    enabled: true
-    provider: "clamav"
-    clamav_socket: "/var/run/clamav/clamd.ctl"
-    scan_on_upload: true
-    quarantine_infected: true
-    quarantine_bucket: "quarantine"
-```
-
-Install ClamAV:
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install clamav clamav-daemon
-
-# Start ClamAV daemon
-sudo systemctl start clamav-daemon
-sudo systemctl enable clamav-daemon
-```
-
-### AWS Advanced Virus Protection
-
-For AWS S3 buckets, enable AWS Advanced Virus Protection:
-
-```yaml
-# fluxbase.yaml
-storage:
-  malware_scanning:
-    enabled: true
-    provider: "aws_avp"
-    aws_region: "us-east-1"
-    scan_on_upload: true
-    quarantine_infected: true
-```
-
-Enable in AWS S3:
-
-```bash
-# Enable AVP for S3 bucket
-aws s3api put-bucket-configuration \
-  --bucket my-app-storage \
-  --configuration '{
-    "AdvancedVirusProtectionConfiguration": {
-      "AdvancedVirusProtection": "Enabled"
-    }
-  }'
-```
-
-### VirusTotal API
-
-Use VirusTotal API for cloud-based scanning:
-
-```yaml
-# fluxbase.yaml
-storage:
-  malware_scanning:
-    enabled: true
-    provider: "virustotal"
-    virustotal_api_key: "${VIRUSTOTAL_API_KEY}"
-    scan_on_upload: true
-    quarantine_infected: true
-```
-
-Get API key from [VirusTotal Developer Portal](https://www.virustotal.com/).
-
-### Scanning Behavior
-
-When malware scanning is enabled:
-
-1. **Upload receives file** -> File stored temporarily
-2. **Scanner processes file** -> Asynchronous scan
-3. **Scan results:**
-   - **Clean**: File moved to permanent storage
-   - **Infected**: File moved to quarantine bucket, upload rejected
-   - **Error**: Configurable fail-open or fail-closed
-
-### Quarantine Management
-
-```bash
-# List quarantined files
-fluxbase-cli storage list --bucket quarantine
-
-# Download quarantined file for analysis
-fluxbase-cli storage download --bucket quarantine --path suspicious.exe
-
-# Delete quarantined files (after review)
-fluxbase-cli storage delete --bucket quarantine --path suspicious.exe
-```
-
-### Best Practices
-
-- **Enable in production**: Always scan files from untrusted sources
-- **Quarantine first**: Review quarantined files before permanent deletion
-- **Rate limiting**: Malware scanning can be slow, implement rate limiting
-- **Async scanning**: Consider async scanning for better UX
-- **False positives**: Whitelist known-safe files as needed
-- **Regular updates**: Keep ClamAV definitions updated
+Fluxbase does not include built-in malware scanning. For untrusted uploads, scan files in an edge function or job (e.g. calling ClamAV or a scanning API) before serving them.
 
 ## Error Handling
 
@@ -706,7 +583,38 @@ try {
 
 ## REST API
 
-For direct HTTP access without the SDK, see the [Storage SDK Documentation](/api/sdk/classes/fluxbasestorage/).
+All storage endpoints are under `/api/v1/storage`. Bucket and object operations require authentication and the `storage:read` / `storage:write` scopes.
+
+### Uploads
+
+| Mode | Method & Path | When to use |
+|------|---------------|-------------|
+| Simple | `POST /storage/{bucket}/{key}` | Typical uploads (request body is the file) |
+| Multipart | `POST /storage/{bucket}/multipart` | S3-style multipart uploads |
+| Streaming | `POST /storage/{bucket}/stream/{key}` | Large streamed request bodies |
+| Resumable (chunked) | `POST /storage/{bucket}/chunked/init` → `PUT /storage/{bucket}/chunked/{uploadId}/{chunkIndex}` → `POST /storage/{bucket}/chunked/{uploadId}/complete` | Very large files; resumable across dropped connections |
+
+Resumable uploads also expose `GET /storage/{bucket}/chunked/{uploadId}/status` (progress) and `DELETE /storage/{bucket}/chunked/{uploadId}` (abort).
+
+### Downloads
+
+`GET` or `HEAD` `/storage/{bucket}/{key}` downloads an object or fetches its metadata. `GET /storage/object` downloads via a signed-URL token (public, no auth header required).
+
+### Signed URLs
+
+`POST /storage/{bucket}/sign/{key}` generates a time-limited signed URL for a private object, with optional image-transform parameters.
+
+### File Sharing
+
+Share an object with another user and manage grants:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/storage/{bucket}/{key}/share` | Share a file with a user (read/write) |
+| `GET` | `/storage/{bucket}/{key}/shares` | List a file's shares |
+| `DELETE` | `/storage/{bucket}/{key}/share/{user_id}` | Revoke a share |
+
+For SDK usage, see the [Storage SDK reference](/api/sdk/classes/fluxbasestorage/).
 
 ## Related Documentation
 

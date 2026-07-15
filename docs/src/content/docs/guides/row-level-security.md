@@ -179,7 +179,7 @@ Background job processing. Users can view, submit, and cancel their own jobs. Da
 
 #### migrations
 
-Internal migration tracking. System migrations are tracked in `migrations.fluxbase`. All user-facing migrations (filesystem and API-managed) are tracked in `migrations.app` with different namespaces (`filesystem` for local files, custom namespaces for API). Only the service role has access. This schema is not exposed to regular users.
+Internal migration tracking. Internal declarative-schema state is tracked in `platform.declarative_state`; all user-facing migrations (filesystem and API-managed) are tracked in `platform.migrations` with different namespaces (`filesystem` for local files, custom namespaces for API). Only the service role has access. This schema is not exposed to regular users.
 
 #### public
 
@@ -610,5 +610,5 @@ const allUsers = await adminClient.from("users").select("*");
 ## Related Documentation
 
 - [Authentication](/guides/authentication) - JWT tokens and roles
-- [SDK Reference](/api/sdk/) - Table management and querying
+- [SDK Reference](/api/sdk/readme/) - Table management and querying
 - [Security](/security/overview) - Overall security best practices

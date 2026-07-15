@@ -556,14 +556,7 @@ const anonChannel = client.realtime
 
 ### Rate Limiting
 
-Presence tracking is subject to rate limits:
-
-```yaml
-realtime:
-  presence:
-    max_presences_per_channel: 1000  # Max users tracking presence in a channel
-    max_channels_per_connection: 10   # Max presence channels per connection
-```
+Presence tracking is subject to the connection limits in [Configuration](/reference/configuration/#realtime) (`max_connections`, `max_connections_per_user`, `max_connections_per_ip`). There are no `realtime.presence.*` config keys.
 
 ## Security
 

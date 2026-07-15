@@ -64,7 +64,7 @@ await client.auth.signOut();
 ### Get Current User
 
 ```typescript
-const user = await client.auth.getCurrentUser();
+const { user } = await client.auth.getCurrentUser();
 if (user) {
   console.log("Logged in as:", user.email);
 }
@@ -73,14 +73,12 @@ if (user) {
 ### Password Reset
 
 ```typescript
-// Request reset
-await client.auth.resetPassword({ email: "user@example.com" });
+// Request a password-reset email
+await client.auth.sendPasswordReset("user@example.com");
+// `resetPasswordForEmail(email)` is a Supabase-compatible alias
 
-// User receives email with token, then:
-await client.auth.confirmPasswordReset({
-  token: "reset-token",
-  password: "NewPassword123",
-});
+// The user receives an email with a token, then confirms the new password:
+await client.auth.resetPassword("reset-token-from-email", "NewPassword123");
 ```
 
 ## Database Operations
@@ -359,7 +357,8 @@ await client.storage.from("avatars").remove(["user-123.png"]);
 ### Get Public URL
 
 ```typescript
-const url = client.storage.from("public-bucket").getPublicUrl("logo.svg");
+const { data } = client.storage.from("public-bucket").getPublicUrl("logo.svg");
+console.log("Public URL:", data.publicUrl);
 ```
 
 ### Create Signed URL (Private Files)
@@ -367,7 +366,7 @@ const url = client.storage.from("public-bucket").getPublicUrl("logo.svg");
 ```typescript
 const { data } = await client.storage
   .from("private-docs")
-  .createSignedUrl("document.pdf", 3600); // 1 hour expiry
+  .createSignedUrl("document.pdf", { expiresIn: 3600 }); // 1 hour expiry
 
 console.log("Temporary URL:", data.signedUrl);
 ```
@@ -613,7 +612,7 @@ try {
 ## Related Documentation
 
 - [Authentication Guide](/guides/authentication)
-- [TypeScript SDK Reference](/api/sdk/)
+- [TypeScript SDK Reference](/api/sdk/readme/)
 - [Realtime](/guides/realtime)
 - [Storage](/guides/storage)
 - [Row-Level Security](/guides/row-level-security)

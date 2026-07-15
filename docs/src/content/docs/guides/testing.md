@@ -428,7 +428,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25"
 
       - name: Setup test database
         run: ./test/scripts/setup_test_db.sh
@@ -488,11 +488,11 @@ open coverage.html  # macOS
 xdg-open coverage.html  # Linux
 ```
 
-**Coverage Targets**:
+**Coverage Targets** (enforced in CI via go-test-coverage):
 
-- Overall: > 70%
-- Critical paths (auth, RLS, security): > 90%
-- Utilities: > 80%
+- Overall: 25%+ (starting point, increasing over time)
+- Core business logic: 50%+ per file
+- Critical modules (auth, API): 70%+ per file
 
 ### SDK Coverage
 

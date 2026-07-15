@@ -34,6 +34,10 @@ Fluxbase includes built-in support for well-known providers and custom OIDC prov
 | Authelia           | Custom OIDC | Requires `issuer_url` |
 | Any OIDC Provider  | Custom OIDC | Requires `issuer_url` |
 
+:::note[`issuer_url` requirement]
+Config validation currently requires `issuer_url` for all providers **except** Google, Apple, and Microsoft. Even for providers Fluxbase knows about (GitHub, GitLab, Bitbucket, Facebook, Twitter/X, LinkedIn), supply `issuer_url` (or the provider's OAuth endpoints) — otherwise config validation rejects the provider.
+:::
+
 ### Provider-Specific Configuration
 
 Each OAuth provider has different requirements for scopes and refresh tokens:
@@ -185,6 +189,9 @@ FLUXBASE_AUTH_OAUTH_PROVIDERS_2_CLIENT_SECRET=your-keycloak-secret
 | `/api/v1/auth/oauth/providers`           | GET    | List available OAuth providers (public)     |
 | `/api/v1/auth/oauth/:provider/authorize` | GET    | Initiate OAuth flow (redirects to provider) |
 | `/api/v1/auth/oauth/:provider/callback`  | GET    | OAuth callback handler                      |
+| `/api/v1/auth/oauth/:provider/token`     | GET    | Retrieve the provider access token (authenticated) |
+| `/api/v1/auth/oauth/:provider/logout`    | POST   | Initiate provider-side logout (OIDC/RP)     |
+| `/api/v1/auth/oauth/:provider/logout/callback` | GET | OAuth logout callback                  |
 | `/api/v1/admin/oauth/providers`          | GET    | List all providers (admin)                  |
 | `/api/v1/admin/oauth/providers`          | POST   | Create new provider (admin)                 |
 | `/api/v1/admin/oauth/providers/:id`      | PUT    | Update provider (admin)                     |

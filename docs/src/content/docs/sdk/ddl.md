@@ -910,5 +910,5 @@ These features may be added in future releases based on user feedback.
 
 - Learn about [Admin SDK](/sdk/admin) for user management
 - Explore [Settings SDK](/sdk/settings) for configuration management
-- Read [SDK Reference](/api/sdk/) for data operations
+- Read [SDK Reference](/api/sdk/readme/) for data operations
 - Check out [Advanced Features](/sdk/advanced-features) for schema design patterns

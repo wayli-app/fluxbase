@@ -1,5 +1,5 @@
 ---
-title: Getting Started
+title: React SDK Getting Started
 description: React hooks for Fluxbase — provider setup, queries, mutations, and auth.
 ---
 

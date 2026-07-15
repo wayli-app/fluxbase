@@ -20,7 +20,7 @@ graph LR
     end
 
     subgraph "User Schema (Imperative)"
-        U1[Migration Files] --> U2[migrations.app]
+        U1[Migration Files] --> U2[platform.migrations]
         U2 --> U3[Application Tables]
     end
 
@@ -37,7 +37,7 @@ The internal Fluxbase schema (auth, storage, functions, jobs, etc.) is managed d
 - **bootstrap.sql** - Creates schemas, extensions, roles, and default privileges (idempotent)
 - **pgschema** - Compares desired schema files to actual database state and applies diffs
 
-**Tracking:** `migrations.declarative_state` table stores schema fingerprint
+**Tracking:** `platform.declarative_state` table stores schema fingerprint
 
 **Execution:** Automatically applied on server startup
 
@@ -63,7 +63,7 @@ The internal Fluxbase schema (auth, storage, functions, jobs, etc.) is managed d
 
 User migrations allow you to add your own custom database schema using traditional imperative migration files.
 
-**Tracking:** `migrations.app` table
+**Tracking:** `platform.migrations` table
 
 **Execution:** Run on startup if `FLUXBASE_DATABASE_USER_MIGRATIONS_PATH` is configured
 
@@ -383,10 +383,10 @@ If a migration fails partway through, check the logs and fix the issue:
 psql -h localhost -U fluxbase -d fluxbase
 
 -- Check migration state
-SELECT * FROM migrations.app WHERE status = 'failed';
+SELECT * FROM platform.migrations WHERE status = 'failed';
 
 -- After fixing the issue, mark as pending to retry
-UPDATE migrations.app SET status = 'pending', error_message = '' WHERE name = 'failed_migration';
+UPDATE platform.migrations SET status = 'pending', error_message = '' WHERE name = 'failed_migration';
 ```
 
 ### Migration Not Running
@@ -405,7 +405,7 @@ To see which user migrations have been applied:
 
 ```sql
 -- Check user migrations
-SELECT * FROM migrations.app ORDER BY applied_at DESC;
+SELECT * FROM platform.migrations ORDER BY applied_at DESC;
 ```
 
 ### Checking Declarative Schema Status
@@ -414,7 +414,7 @@ To check the internal declarative schema status:
 
 ```sql
 -- Check declarative state
-SELECT * FROM migrations.declarative_state;
+SELECT * FROM platform.declarative_state;
 ```
 
 Or use the admin API:

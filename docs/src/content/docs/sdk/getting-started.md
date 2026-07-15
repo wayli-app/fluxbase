@@ -20,10 +20,10 @@ yarn add @nimbleflux/fluxbase-sdk
 ```typescript
 import { createClient } from "@nimbleflux/fluxbase-sdk";
 
-const client = createClient({
-  url: "https://your-fluxbase-instance.com",
-  apiKey: "your-api-key", // client key (publishable) or service key (secret)
-});
+const client = createClient(
+  "https://your-fluxbase-instance.com",
+  "your-api-key", // client key (publishable) or service key (secret)
+);
 
 // Query a table
 const { data, error } = await client
@@ -106,6 +106,7 @@ const { error } = await client
 
 ```typescript
 const channel = client
+  .realtime
   .channel("products-changes")
   .on("postgres_changes", { table: "products" }, (payload) => {
     console.log("Change:", payload);

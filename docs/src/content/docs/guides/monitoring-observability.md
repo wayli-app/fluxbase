@@ -116,19 +116,20 @@ curl http://localhost:8080/api/v1/monitoring/metrics -H "Authorization: Bearer T
 
 ## Health Checks
 
-Endpoint: `/api/v1/monitoring/health`
+Endpoint: `/api/v1/monitoring/health` — requires authentication and the `monitoring:read` scope.
 
 ```bash
-curl http://localhost:8080/api/v1/monitoring/health
+curl -H "Authorization: Bearer <service-key>" \
+     http://localhost:8080/api/v1/monitoring/health
 ```
 
 Returns `200 OK` if healthy, `503` if unhealthy. Checks database, realtime, and storage services.
 
-**Docker Compose:**
+**Docker Compose healthcheck:** use the public, unauthenticated `/health` endpoint (the `/monitoring/health` endpoint requires auth and will fail a bare healthcheck):
 
 ```yaml
 healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/monitoring/health"]
+  test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
   interval: 30s
   timeout: 5s
   retries: 3

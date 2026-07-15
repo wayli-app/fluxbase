@@ -207,9 +207,9 @@ Create a chatbot file (e.g., `chatbots/my-assistant/index.ts`):
  * @fluxbase:persist-conversations true
  * @fluxbase:conversation-ttl 24
  * @fluxbase:max-turns 50
- * @fluxbase:rate-limit 20
+ * @fluxbase:rate-limit 20/min
  * @fluxbase:daily-limit 500
- * @fluxbase:token-budget 100000
+ * @fluxbase:token-budget 100000/day
  * @fluxbase:allow-unauthenticated false
  * @fluxbase:public true
  */
@@ -279,9 +279,9 @@ Available metadata annotations:
 | `@fluxbase:persist-conversations`    | Save conversation history                                          | `false`                   |
 | `@fluxbase:conversation-ttl`         | Conversation TTL in hours                                          | `24`                      |
 | `@fluxbase:max-turns`                | Max messages in conversation                                       | `50`                      |
-| `@fluxbase:rate-limit`               | Requests per minute                                                | `10`                      |
-| `@fluxbase:daily-limit`              | Requests per day                                                   | `100`                     |
-| `@fluxbase:token-budget`             | Max tokens per day                                                 | `50000`                   |
+| `@fluxbase:rate-limit`               | Requests per minute (write as `N/min`)                            | `20`                      |
+| `@fluxbase:daily-limit`              | Requests per day                                                   | `500`                     |
+| `@fluxbase:token-budget`             | Max tokens per day (write as `N/day`)                              | `100000`                  |
 | `@fluxbase:allow-unauthenticated`    | Allow anonymous access                                             | `false`                   |
 | `@fluxbase:public`                   | Show in public chatbot list                                        | `true`                    |
 | `@fluxbase:http-allowed-domains`     | Domains chatbot can fetch (comma-separated)                        | `""` (disabled)           |
@@ -292,6 +292,31 @@ Available metadata annotations:
 | `@fluxbase:required-settings`        | Setting keys to load for template resolution                       | -                         |
 | `@fluxbase:mcp-tools`                | Comma-separated MCP tools to enable (see [MCP Tools](#mcp-tools))  | `""` (legacy execute_sql) |
 | `@fluxbase:use-mcp-schema`           | Fetch schema from MCP resources instead of direct DB introspection | `false`                   |
+| `@fluxbase:model`                    | LLM model override (e.g. `gpt-4o`, `claude-3-5-sonnet`)            | provider default          |
+| `@fluxbase:reasoning-mode`           | `react` (think-before-act), `strict`, or `none`                    | `react`                   |
+| `@fluxbase:max-iterations`           | Max tool-call iterations per turn                                  | `5`                       |
+| `@fluxbase:show-reasoning`           | Expose the agent's reasoning steps to the user                     | `false`                   |
+| `@fluxbase:intent-rules`             | JSON array of keyword → required/forbidden table/tool rules        | `[]`                      |
+
+### Reasoning Mode
+
+The `@fluxbase:reasoning-mode` annotation controls how the chatbot uses tools:
+
+- **`react`** (default) — the chatbot runs the `think` tool to plan before calling data tools (ReAct pattern). Recommended for accuracy.
+- **`strict`** — stricter planning discipline; the chatbot must produce an explicit plan and stays within it.
+- **`none`** — no `think` step; tools may be called directly. Faster but less reliable for multi-step questions.
+
+Combine with `@fluxbase:max-iterations` (tool-call rounds, default `5`) and `@fluxbase:show-reasoning true` to surface the planning steps in the streamed response.
+
+### Intent Rules
+
+`@fluxbase:intent-rules` accepts a JSON array that gates the conversation based on the user's message. When a keyword matches, you can require a specific table or forbid a tool:
+
+```typescript
+ * @fluxbase:intent-rules [{"keywords":["restaurant","cafe"],"requiredTable":"public.places"},{"keywords":["payment"],"forbiddenTool":"execute_sql"}]
+```
+
+Matched rules are surfaced in the chat done event's `matched_intent_rules` field.
 
 ### HTTP Tool
 
@@ -741,9 +766,9 @@ Protect your API with rate limits and token budgets:
 
 ```typescript
 /**
- * @fluxbase:rate-limit 20        # 20 requests per minute
- * @fluxbase:daily-limit 500      # 500 requests per day
- * @fluxbase:token-budget 100000  # 100k tokens per day
+ * @fluxbase:rate-limit 20/min        # 20 requests per minute
+ * @fluxbase:daily-limit 500          # 500 requests per day
+ * @fluxbase:token-budget 100000/day  # 100k tokens per day
  */
 ```
 
@@ -894,7 +919,7 @@ The static prefix is cached up to the first differing token. To maximize cache h
 ## Next Steps
 
 - [Knowledge Bases & RAG](/guides/knowledge-bases) - Create knowledge bases for RAG-powered chatbots
-- [TypeScript SDK Reference](/api/sdk) - Full SDK API documentation
+- [TypeScript SDK Reference](/api/sdk/readme/) - Full SDK API documentation
 - [Row-Level Security](/guides/row-level-security) - Secure your data access
 - [Authentication](/guides/authentication) - User authentication setup
 - [Rate Limiting](/guides/rate-limiting) - Configure rate limits

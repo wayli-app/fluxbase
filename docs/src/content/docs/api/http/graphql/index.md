@@ -17,9 +17,10 @@ The GraphQL API provides:
 
 ## Endpoint
 
-```
-POST /api/v1/graphql
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/graphql` | Execute GraphQL queries and mutations |
+| `GET` | `/api/v1/graphql` | Return the GraphQL introspection schema (when `graphql.introspection` is enabled) |
 
 ## Authentication
 
@@ -137,7 +138,16 @@ The GraphQL API supports PostgREST-compatible filter operators, specified as fla
 | `_in` | In list | `{ status_in: ["active", "pending"] }` |
 | `_is_null` | Is null | `{ deletedAt_is_null: true }` |
 
-Multiple conditions in a single filter object are combined with AND.
+Multiple conditions in a single filter object are combined with AND. Each filter type also exposes logical combinators — `AND`, `OR`, and `NOT` — so you can nest arbitrarily:
+
+```graphql
+query {
+  users(filter: { OR: [{ status_eq: "active" }, { featured_eq: true }] }) {
+    id
+    email
+  }
+}
+```
 
 ## Mutations
 
