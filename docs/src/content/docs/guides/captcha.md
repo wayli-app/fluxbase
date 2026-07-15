@@ -915,7 +915,7 @@ classDiagram
 | `internal/auth/captcha_turnstile.go` | Cloudflare Turnstile provider                               |
 | `internal/auth/captcha_cap.go`       | Self-hosted Cap provider with SSRF protection               |
 | `internal/api/auth_handler.go`       | Auth endpoint handlers with CAPTCHA verification            |
-| `internal/config/config.go`          | CAPTCHA configuration structures                            |
+| `internal/config/config_security.go`  | CAPTCHA configuration structures (`CaptchaConfig`, `AdaptiveTrustConfig`) |
 
 ## Next Steps
 

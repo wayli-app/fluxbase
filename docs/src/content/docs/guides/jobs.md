@@ -526,7 +526,7 @@ Control job behavior with JSDoc-style annotations:
 - `@fluxbase:namespace <name>` - Specify namespace (overrides CLI `--namespace` flag)
 - `@fluxbase:require-role <role>` - Require specific user role (admin, authenticated, custom)
 - `@fluxbase:timeout <seconds>` - Maximum execution time (default: 300)
-- `@fluxbase:max-retries <count>` - Number of retry attempts (default: 3)
+- `@fluxbase:max-retries <count>` - Number of retry attempts (default: 0)
 - `@fluxbase:schedule <cron>` - Cron expression for scheduled execution
 - `@fluxbase:description <text>` - Human-readable job description
 
@@ -739,7 +739,7 @@ See the [Edge Functions guide](/guides/edge-functions/#secrets) for full secrets
 :::note[SDK Configuration]
 The SDK clients are automatically configured using `FLUXBASE_URL`. If your `fluxbase` or `fluxbaseService` parameters are `null`, check that:
 
-1. `FLUXBASE_BASE_URL` is set in your server configuration
+1. `FLUXBASE_URL` is set in your server configuration
 2. `FLUXBASE_AUTH_JWT_SECRET` is configured
 3. Check server logs for "Initializing jobs manager" message
 

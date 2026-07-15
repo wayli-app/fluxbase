@@ -207,9 +207,9 @@ Create a chatbot file (e.g., `chatbots/my-assistant/index.ts`):
  * @fluxbase:persist-conversations true
  * @fluxbase:conversation-ttl 24
  * @fluxbase:max-turns 50
- * @fluxbase:rate-limit 20
+ * @fluxbase:rate-limit 20/min
  * @fluxbase:daily-limit 500
- * @fluxbase:token-budget 100000
+ * @fluxbase:token-budget 100000/day
  * @fluxbase:allow-unauthenticated false
  * @fluxbase:public true
  */
@@ -279,9 +279,9 @@ Available metadata annotations:
 | `@fluxbase:persist-conversations`    | Save conversation history                                          | `false`                   |
 | `@fluxbase:conversation-ttl`         | Conversation TTL in hours                                          | `24`                      |
 | `@fluxbase:max-turns`                | Max messages in conversation                                       | `50`                      |
-| `@fluxbase:rate-limit`               | Requests per minute                                                | `10`                      |
-| `@fluxbase:daily-limit`              | Requests per day                                                   | `100`                     |
-| `@fluxbase:token-budget`             | Max tokens per day                                                 | `50000`                   |
+| `@fluxbase:rate-limit`               | Requests per minute (write as `N/min`)                            | `20`                      |
+| `@fluxbase:daily-limit`              | Requests per day                                                   | `500`                     |
+| `@fluxbase:token-budget`             | Max tokens per day (write as `N/day`)                              | `100000`                  |
 | `@fluxbase:allow-unauthenticated`    | Allow anonymous access                                             | `false`                   |
 | `@fluxbase:public`                   | Show in public chatbot list                                        | `true`                    |
 | `@fluxbase:http-allowed-domains`     | Domains chatbot can fetch (comma-separated)                        | `""` (disabled)           |
@@ -741,9 +741,9 @@ Protect your API with rate limits and token budgets:
 
 ```typescript
 /**
- * @fluxbase:rate-limit 20        # 20 requests per minute
- * @fluxbase:daily-limit 500      # 500 requests per day
- * @fluxbase:token-budget 100000  # 100k tokens per day
+ * @fluxbase:rate-limit 20/min        # 20 requests per minute
+ * @fluxbase:daily-limit 500          # 500 requests per day
+ * @fluxbase:token-budget 100000/day  # 100k tokens per day
  */
 ```
 

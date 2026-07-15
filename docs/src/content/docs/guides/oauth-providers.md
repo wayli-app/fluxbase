@@ -34,6 +34,10 @@ Fluxbase includes built-in support for well-known providers and custom OIDC prov
 | Authelia           | Custom OIDC | Requires `issuer_url` |
 | Any OIDC Provider  | Custom OIDC | Requires `issuer_url` |
 
+:::note[`issuer_url` requirement]
+Config validation currently requires `issuer_url` for all providers **except** Google, Apple, and Microsoft. Even for providers Fluxbase knows about (GitHub, GitLab, Bitbucket, Facebook, Twitter/X, LinkedIn), supply `issuer_url` (or the provider's OAuth endpoints) — otherwise config validation rejects the provider.
+:::
+
 ### Provider-Specific Configuration
 
 Each OAuth provider has different requirements for scopes and refresh tokens:

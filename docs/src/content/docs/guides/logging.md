@@ -81,7 +81,7 @@ Configure your logging backend in `fluxbase.yaml`:
 logging:
   backend: postgres
   batch_size: 100
-  flush_interval: 5s
+  flush_interval: 1s
 ```
 
 #### TimescaleDB
