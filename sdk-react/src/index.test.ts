@@ -235,6 +235,81 @@ describe('Module Exports', () => {
     });
   });
 
+  describe('Function hook exports', () => {
+    it('should export useFunctions', () => {
+      expect(exports.useFunctions).toBeDefined();
+    });
+  });
+
+  describe('Job hook exports', () => {
+    it('should export useJobs', () => {
+      expect(exports.useJobs).toBeDefined();
+    });
+    it('should export useCancelJob', () => {
+      expect(exports.useCancelJob).toBeDefined();
+    });
+    it('should export useRetryJob', () => {
+      expect(exports.useRetryJob).toBeDefined();
+    });
+  });
+
+  describe('Branching hook exports', () => {
+    it('should export useCreateBranch', () => {
+      expect(exports.useCreateBranch).toBeDefined();
+    });
+    it('should export useDeleteBranch', () => {
+      expect(exports.useDeleteBranch).toBeDefined();
+    });
+    it('should export useResetBranch', () => {
+      expect(exports.useResetBranch).toBeDefined();
+    });
+  });
+
+  describe('DDL hook exports', () => {
+    it('should export useSchemas', () => {
+      expect(exports.useSchemas).toBeDefined();
+    });
+    it('should export useTables', () => {
+      expect(exports.useTables).toBeDefined();
+    });
+    it('should export useCreateSchema', () => {
+      expect(exports.useCreateSchema).toBeDefined();
+    });
+    it('should export useDeleteTable', () => {
+      expect(exports.useDeleteTable).toBeDefined();
+    });
+  });
+
+  describe('Impersonation hook exports', () => {
+    it('should export useImpersonationSessions', () => {
+      expect(exports.useImpersonationSessions).toBeDefined();
+    });
+    it('should export useCurrentImpersonation', () => {
+      expect(exports.useCurrentImpersonation).toBeDefined();
+    });
+    it('should export useImpersonateUser', () => {
+      expect(exports.useImpersonateUser).toBeDefined();
+    });
+    it('should export useStopImpersonation', () => {
+      expect(exports.useStopImpersonation).toBeDefined();
+    });
+  });
+
+  describe('Migration hook exports', () => {
+    it('should export useMigrations', () => {
+      expect(exports.useMigrations).toBeDefined();
+    });
+    it('should export useApplyMigration', () => {
+      expect(exports.useApplyMigration).toBeDefined();
+    });
+    it('should export useRollbackMigration', () => {
+      expect(exports.useRollbackMigration).toBeDefined();
+    });
+    it('should export useSyncMigrations', () => {
+      expect(exports.useSyncMigrations).toBeDefined();
+    });
+  });
+
   describe('Total export count', () => {
     it('should export the expected number of items', () => {
       // Count the exports (functions and types are counted)

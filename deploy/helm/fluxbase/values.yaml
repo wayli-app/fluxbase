@@ -356,22 +356,10 @@ config:
   ## Realtime/WebSocket configuration
   ## @param config.realtime.enabled Enable realtime subscriptions
   ## @param config.realtime.max_connections Maximum WebSocket connections
-  ## @param config.realtime.ping_interval WebSocket ping interval
-  ## @param config.realtime.pong_timeout WebSocket pong timeout
-  ## @param config.realtime.write_buffer_size WebSocket write buffer size
-  ## @param config.realtime.read_buffer_size WebSocket read buffer size
-  ## @param config.realtime.message_size_limit Maximum message size
-  ## @param config.realtime.channel_buffer_size Channel buffer size
   ##
   realtime:
     enabled: null
     max_connections: null
-    ping_interval: null
-    pong_timeout: null
-    write_buffer_size: null
-    read_buffer_size: null
-    message_size_limit: null
-    channel_buffer_size: null
 
   ## Email configuration
   ## @param config.email.enabled Enable email sending
@@ -452,9 +440,6 @@ config:
   ## @param config.jobs.worker_heartbeat_interval Worker heartbeat interval
   ## @param config.jobs.worker_timeout Worker timeout
   ## @param config.jobs.sync_allowed_ip_ranges IP ranges allowed for job sync
-  ## @param config.jobs.functions_logs_retention_days Function logs retention (days)
-  ## @param config.jobs.rpc_logs_retention_days RPC logs retention (days)
-  ## @param config.jobs.jobs_logs_retention_days Job logs retention (days)
   ##
   jobs:
     enabled: null
@@ -471,9 +456,6 @@ config:
     worker_heartbeat_interval: null
     worker_timeout: null
     sync_allowed_ip_ranges: []
-    functions_logs_retention_days: 30
-    rpc_logs_retention_days: 30
-    jobs_logs_retention_days: 30
 
   ## REST API configuration
   ## @param config.api.max_page_size Maximum rows per request (-1 for unlimited)
@@ -505,19 +487,15 @@ config:
   ## Migrations configuration
   ## @param config.migrations.enabled Enable migrations API
   ## @param config.migrations.allowed_ip_ranges IP ranges allowed for migrations
-  ## @param config.migrations.require_service_key Require service key for migrations
   ##
   migrations:
     enabled: null
     allowed_ip_ranges: []
-    require_service_key: null
 
   ## RPC configuration
   ## @param config.rpc.enabled Enable RPC procedures
   ## @param config.rpc.procedures_dir Procedures directory path
   ## @param config.rpc.auto_load_on_boot Auto-load procedures on startup
-  ## @param config.rpc.default_max_execution_time Default max execution time
-  ## @param config.rpc.max_max_execution_time Maximum allowed execution time
   ## @param config.rpc.default_max_rows Default max rows returned
   ## @param config.rpc.sync_allowed_ip_ranges IP ranges allowed for RPC sync
   ##
@@ -525,8 +503,6 @@ config:
     enabled: null
     procedures_dir: "/app/procedures"
     auto_load_on_boot: true
-    default_max_execution_time: null
-    max_max_execution_time: null
     default_max_rows: null
     sync_allowed_ip_ranges: []
 

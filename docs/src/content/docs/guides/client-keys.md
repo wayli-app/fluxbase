@@ -23,7 +23,7 @@ Client keys enable:
 | **Rate limiting** | Per-key configurable               | Global tenant limits                |
 | **Management**    | Users manage their own keys        | Admin-only management               |
 | **Auth header**   | `X-Client-Key`                     | `X-Service-Key`                     |
-| **Expiration**    | Optional                           | No expiration                       |
+| **Expiration**    | Optional                           | Optional (enforced via `expires_at`) |
 
 ## API Endpoints
 
@@ -127,5 +127,6 @@ curl -H "X-Client-Key: <your-client-key>" \
 ## Learn More
 
 - [Authentication](/guides/authentication/) - JWT and service key authentication
+- [Service Keys](/guides/service-keys/) - Admin-managed privileged keys (rotate/revoke/audit)
 - [Rate Limiting](/guides/rate-limiting/) - Global rate limiting configuration
 - [Multi-Tenancy](/guides/multi-tenancy/) - Tenant-scoped access control

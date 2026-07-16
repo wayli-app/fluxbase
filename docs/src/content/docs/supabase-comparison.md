@@ -94,8 +94,8 @@ client
 
 // Fluxbase
 client.realtime
-  .channel("table:public.posts")
-  .on("*", (payload) => console.log(payload))
+  .channel("posts-changes")
+  .on("postgres_changes", { table: "posts" }, (payload) => console.log(payload))
   .subscribe();
 ```
 

@@ -380,11 +380,17 @@ window.location.href = data.url;
 const code = searchParams.get("code");
 const state = searchParams.get("state");
 
-const { user, session } = await client.auth.exchangeCodeForSession(code, state);
+const { data, error } = await client.auth.exchangeCodeForSession(code, state);
+if (error) throw error;
+const { user, session } = data;
 
 // User is now authenticated
 console.log("Logged in as:", user.email);
 ```
+
+:::note
+`exchangeCodeForSession` relies on an earlier `signInWithOAuth(...)` call having stored the chosen provider; without it the call throws "No OAuth provider found".
+:::
 
 ### React SDK
 

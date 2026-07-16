@@ -136,13 +136,46 @@ export {
 } from "./use-table-export";
 
 // Function hooks
-export { useInvokeFunction } from "./use-functions";
+export { useInvokeFunction, useFunctions } from "./use-functions";
 
 // Job hooks
-export { useSubmitJob, useJobStatus } from "./use-jobs";
+export {
+  useSubmitJob,
+  useJobStatus,
+  useJobs,
+  useCancelJob,
+  useRetryJob,
+  type UseJobsOptions,
+} from "./use-jobs";
 
 // Branching hooks
-export { useBranches } from "./use-branches";
+export {
+  useBranches,
+  useCreateBranch,
+  useDeleteBranch,
+  useResetBranch,
+  type UseCreateBranchParams,
+  type UseBranchesOptions,
+} from "./use-branches";
+
+// DDL hooks
+export { useSchemas, useTables, useCreateSchema, useDeleteTable } from "./use-ddl";
+
+// Impersonation hooks
+export {
+  useImpersonationSessions,
+  useCurrentImpersonation,
+  useImpersonateUser,
+  useStopImpersonation,
+} from "./use-impersonation";
+
+// Migration hooks
+export {
+  useMigrations,
+  useApplyMigration,
+  useRollbackMigration,
+  useSyncMigrations,
+} from "./use-migrations";
 
 // RPC hooks
 export { useRPCList, useInvokeRPC } from "./use-rpc";

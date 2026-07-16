@@ -208,7 +208,7 @@ graph TB
 5. **Deno Runtime** (For Edge Functions)
    - Required only if using Edge Functions
    - Installed automatically in Docker images
-   - Version: 2.5.4+
+   - Version: 2.6.4+
 
 ## Security Checklist
 
@@ -248,7 +248,7 @@ Example: 5 pods × 25 connections + 25 buffer = 150 total PostgreSQL connections
 
 ### Caching Strategy
 
-1. **Application-level caching**: Redis for session storage
+1. **Application-level caching**: Redis for distributed rate limiting / caching (sessions are stored in PostgreSQL, not Redis)
 2. **Database query caching**: PostgreSQL shared_buffers
 3. **CDN**: For static assets and Admin UI
 4. **Client-side caching**: HTTP cache headers

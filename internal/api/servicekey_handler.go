@@ -476,27 +476,53 @@ func (h *ServiceKeyHandler) RevokeServiceKey(c fiber.Ctx) error {
 		userID, _ = uuid.Parse(userIDStr)
 	}
 	reason := c.FormValue("reason", "")
+	tenantIDStr := middleware.GetTenantID(c)
+	var tenantArg interface{}
+	if tenantIDStr != "" {
+		if tid, perr := uuid.Parse(tenantIDStr); perr == nil {
+			tenantArg = tid
+		}
+	}
+	var revokedByArg interface{}
+	if userID != uuid.Nil {
+		revokedByArg = userID
+	}
 
 	pool, err := h.checkDB(c)
 	if err != nil {
 		return SendInternalError(c, "Database connection not initialized")
 	}
 
-	result, err := pool.Exec(c.RequestCtx(), `
+	tx, err := pool.Begin(c.RequestCtx())
+	if err != nil {
+		return SendInternalError(c, "Failed to begin transaction")
+	}
+	defer func() { _ = tx.Rollback(c.RequestCtx()) }()
+
+	var keyPrefix string
+	err = tx.QueryRow(c.RequestCtx(), `
 		UPDATE auth.service_keys
 		SET revoked_at = NOW(),
 		    revoked_by = $1,
 		    revocation_reason = $2,
 		    enabled = false
 		WHERE id = $3
-	`, userID, reason, id)
+		RETURNING key_prefix
+	`, userID, reason, id).Scan(&keyPrefix)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to revoke service key")
-		return SendInternalError(c, "Failed to revoke service key")
+		return SendNotFound(c, "Service key not found")
 	}
 
-	if result.RowsAffected() == 0 {
-		return SendNotFound(c, "Service key not found")
+	if _, err := tx.Exec(c.RequestCtx(), `
+		INSERT INTO auth.service_key_revocations (key_id, key_prefix, revoked_by, reason, revocation_type, tenant_id)
+		VALUES ($1, $2, $3, $4, 'emergency', $5)
+	`, id, keyPrefix, revokedByArg, reason, tenantArg); err != nil {
+		log.Error().Err(err).Msg("Failed to record service key revocation audit")
+		return SendInternalError(c, "Failed to record revocation audit")
+	}
+
+	if err := tx.Commit(c.RequestCtx()); err != nil {
+		return SendInternalError(c, "Failed to commit transaction")
 	}
 
 	log.Warn().Str("key_id", id.String()).Str("reason", reason).Msg("Service key revoked")
@@ -634,6 +660,27 @@ func (h *ServiceKeyHandler) RotateServiceKey(c fiber.Ctx) error {
 		return SendInternalError(c, "Failed to deprecate old key")
 	}
 
+	// Record the rotation in the revocation audit log
+	var rotUserID uuid.UUID
+	if uidStr := middleware.GetUserID(c); uidStr != "" {
+		rotUserID, _ = uuid.Parse(uidStr)
+	}
+	var rotRevokedByArg interface{}
+	if rotUserID != uuid.Nil {
+		rotRevokedByArg = rotUserID
+	}
+	var rotTenantArg interface{}
+	if tenantID != "" {
+		rotTenantArg = tenantUUID
+	}
+	if _, err := tx.Exec(c.RequestCtx(), `
+		INSERT INTO auth.service_key_revocations (key_id, key_prefix, revoked_by, reason, revocation_type, tenant_id)
+		VALUES ($1, $2, $3, 'rotated', 'rotation', $4)
+	`, oldID, oldKey.KeyPrefix, rotRevokedByArg, rotTenantArg); err != nil {
+		log.Error().Err(err).Msg("Failed to record service key rotation audit")
+		return SendInternalError(c, "Failed to record rotation audit")
+	}
+
 	if err := tx.Commit(c.RequestCtx()); err != nil {
 		return SendInternalError(c, "Failed to commit transaction")
 	}
@@ -673,22 +720,48 @@ func (h *ServiceKeyHandler) GetRevocationHistory(c fiber.Ctx) error {
 		return SendInternalError(c, "Database connection not initialized")
 	}
 
-	var key ServiceKey
-	err = pool.QueryRow(c.RequestCtx(), `
-		SELECT id, name, revoked_at, revoked_by, revocation_reason
-		FROM auth.service_keys
-		WHERE id = $1
-	`, id).Scan(&key.ID, &key.Name, &key.RevokedAt, &key.ReplacedBy, &key.Description)
+	rows, err := pool.Query(c.RequestCtx(), `
+		SELECT id, key_id, key_prefix, revoked_by, reason, revocation_type, created_at, tenant_id
+		FROM auth.service_key_revocations
+		WHERE key_id = $1
+		ORDER BY created_at DESC
+	`, id)
 	if err != nil {
-		return SendNotFound(c, "Service key not found")
+		log.Error().Err(err).Msg("Failed to fetch service key revocation history")
+		return SendInternalError(c, "Failed to fetch revocation history")
+	}
+	defer rows.Close()
+
+	type revocationEvent struct {
+		ID             uuid.UUID  `json:"id"`
+		KeyID          uuid.UUID  `json:"key_id"`
+		KeyPrefix      string     `json:"key_prefix"`
+		RevokedBy      *uuid.UUID `json:"revoked_by"`
+		Reason         string     `json:"reason"`
+		RevocationType string     `json:"revocation_type"`
+		CreatedAt      time.Time  `json:"created_at"`
+		TenantID       *uuid.UUID `json:"tenant_id"`
+	}
+
+	history := []revocationEvent{}
+	for rows.Next() {
+		var r revocationEvent
+		var revokedBy, tenantID uuid.UUID
+		if err := rows.Scan(&r.ID, &r.KeyID, &r.KeyPrefix, &revokedBy, &r.Reason, &r.RevocationType, &r.CreatedAt, &tenantID); err != nil {
+			return SendInternalError(c, "Failed to scan revocation history")
+		}
+		if revokedBy != uuid.Nil {
+			r.RevokedBy = &revokedBy
+		}
+		if tenantID != uuid.Nil {
+			r.TenantID = &tenantID
+		}
+		history = append(history, r)
 	}
 
 	return c.JSON(fiber.Map{
-		"id":                key.ID,
-		"name":              key.Name,
-		"revoked_at":        key.RevokedAt,
-		"revoked_by":        key.ReplacedBy,
-		"revocation_reason": key.Description,
+		"key_id":  id,
+		"history": history,
 	})
 }
 

@@ -4517,8 +4517,15 @@ export interface ServiceKey {
   description?: string;
   /** Key prefix (first 16 chars, for identification) */
   key_prefix: string;
-  /** Key type: anon (anonymous access) or service (elevated privileges) */
-  key_type: "anon" | "service";
+  /**
+   * Key type.
+   * - `anon` — anonymous access
+   * - `publishable` — publishable client key (browser-safe)
+   * - `service` — elevated privileges, bypasses RLS (legacy admin-API type)
+   * - `tenant_service` — elevated, tenant-scoped (RLS-enforced)
+   * - `global_service` — elevated, cross-tenant, bypasses RLS
+   */
+  key_type: "anon" | "publishable" | "service" | "tenant_service" | "global_service";
   /** Permission scopes */
   scopes: string[];
   /** Allowed table namespaces */

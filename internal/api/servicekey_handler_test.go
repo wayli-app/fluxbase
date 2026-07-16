@@ -856,6 +856,21 @@ func TestGetRevocationHistory_Validation(t *testing.T) {
 
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 	})
+
+	t.Run("valid UUID, no DB proceeds to db check", func(t *testing.T) {
+		app := newTestApp(t)
+		handler := NewServiceKeyHandler(nil)
+
+		app.Get("/service-keys/:id/revocations", handler.GetRevocationHistory)
+
+		req := httptest.NewRequest(http.MethodGet, "/service-keys/550e8400-e29b-41d4-a716-446655440000/revocations", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+
+		// Nil DB → checkDB returns error → 500
+		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	})
 }
 
 // =============================================================================

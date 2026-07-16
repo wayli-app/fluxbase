@@ -11,7 +11,7 @@ title: "useBranches"
 
 | Parameter | Type |
 | ------ | ------ |
-| `options?` | `UseBranchesOptions` |
+| `options?` | [`UseBranchesOptions`](/api/sdk-react/interfaces/usebranchesoptions/) |
 
 ## Returns
 
