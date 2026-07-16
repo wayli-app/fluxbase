@@ -26,7 +26,7 @@ Each tenant has their own service_keys table in their database
 | <a id="grace_period_ends_at"></a> `grace_period_ends_at?` | `string` | Grace period end for deprecated keys |
 | <a id="id"></a> `id` | `string` | Unique identifier |
 | <a id="key_prefix"></a> `key_prefix` | `string` | Key prefix (first 16 chars, for identification) |
-| <a id="key_type"></a> `key_type` | `"anon"` \| `"service"` | Key type: anon (anonymous access) or service (elevated privileges) |
+| <a id="key_type"></a> `key_type` | `"anon"` \| `"service"` \| `"publishable"` \| `"tenant_service"` \| `"global_service"` | Key type. - `anon` — anonymous access - `publishable` — publishable client key (browser-safe) - `service` — elevated privileges, bypasses RLS (legacy admin-API type) - `tenant_service` — elevated, tenant-scoped (RLS-enforced) - `global_service` — elevated, cross-tenant, bypasses RLS |
 | <a id="last_used_at"></a> `last_used_at?` | `string` | Last usage timestamp |
 | <a id="name"></a> `name` | `string` | Display name |
 | <a id="rate_limit_per_hour"></a> `rate_limit_per_hour?` | `number` | Rate limit per hour |
