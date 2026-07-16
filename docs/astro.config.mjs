@@ -274,8 +274,10 @@ export default defineConfig({
               autogenerate: { directory: "guides/branching" },
             },
             { label: "Client Keys", link: "/guides/client-keys/" },
+            { label: "Service Keys", link: "/guides/service-keys/" },
 
             // Advanced Auth
+            { label: "Dashboard Auth", link: "/guides/dashboard-auth/" },
             { label: "OAuth Providers", link: "/guides/oauth-providers/" },
             { label: "SAML SSO", link: "/guides/saml-sso/" },
             { label: "Captcha", link: "/guides/captcha/" },

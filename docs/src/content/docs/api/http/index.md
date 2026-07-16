@@ -560,6 +560,19 @@ Admin dashboard authentication endpoints. All endpoints are public (no auth requ
 | `POST` | `/admin/logout` | Dashboard admin logout |
 | `GET` | `/admin/me` | Get current admin user |
 
+### Dashboard User Auth (`/dashboard/auth`)
+
+A parallel auth surface for Fluxbase **operators** (`platform.users`, `instance_admin`/`tenant_admin` roles), distinct from application auth (`/api/v1/auth/*`). See the [Dashboard Auth guide](/guides/dashboard-auth/) for the full route reference. Key endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/dashboard/auth/login` | Operator login (returns tokens or `requires_2fa`) |
+| `POST` | `/dashboard/auth/refresh` | Refresh an operator token |
+| `POST` | `/dashboard/auth/2fa/{setup,enable,disable,verify}` | TOTP management |
+| `POST` | `/dashboard/auth/password/{reset,reset/verify,reset/confirm,change}` | Password flows |
+| `GET` | `/dashboard/auth/sso/{providers,oauth/:provider,saml/:provider}` | Dashboard SSO |
+| `GET` | `/dashboard/auth/me` | Current operator (protected) |
+
 ### Health
 
 Public health check endpoints (no auth required).
