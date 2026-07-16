@@ -4,7 +4,7 @@
 # This Dockerfile generates TypeDoc API documentation from the SDK source files
 # and builds the complete documentation site.
 
-FROM oven/bun:1.3.10-debian AS builder
+FROM oven/bun:1.3.14-debian AS builder
 
 WORKDIR /app
 

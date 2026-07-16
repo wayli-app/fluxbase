@@ -78,7 +78,7 @@ jobs:
     if: needs.check-label.outputs.should_run == 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -89,19 +89,19 @@ jobs:
           path: /tmp
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
-          version: 11.8.0
+          version: 11.9.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24.14.1'
+          node-version: '24.18.0'
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.1'
+          go-version: '1.26.4'
 
       - name: Install Claude Code CLI
         run: pnpm add -g @anthropic-ai/claude-code
