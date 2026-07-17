@@ -40,26 +40,26 @@
   },
   "peerDependencies": {
     "@nimbleflux/fluxbase-sdk": "^2026.7.2",
-    "@tanstack/react-query": "^5.96.2",
+    "@tanstack/react-query": "^5.101.2",
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@nimbleflux/fluxbase-sdk": "workspace:*",
-    "@tanstack/react-query": "^5.96.2",
+    "@tanstack/react-query": "^5.101.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/react": "^19.2.14",
-    "@vitest/coverage-v8": "^4.1.3",
-    "jsdom": "^29.0.2",
-    "prettier": "^3.8.1",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "@types/react": "^19.2.17",
+    "@vitest/coverage-v8": "^4.1.9",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.9.4",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "tsup": "^8.5.1",
-    "typedoc": "^0.28.18",
-    "typescript": "^6.0.2",
-    "vitest": "^4.1.3"
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   },
   "engines": {
-    "node": ">=24.14.1"
+    "node": ">=24.18.0"
   }
 }

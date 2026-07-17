@@ -32,7 +32,7 @@ jobs:
       ci-config: ${{ steps.filter.outputs.ci-config }}
       code-any: ${{ steps.filter.outputs.code-any }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dorny/paths-filter@v4
         id: filter
@@ -147,7 +147,7 @@ jobs:
       needs.changes.outputs.ci-config == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -163,12 +163,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js for embedded SDK generation
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Generate embedded SDK for Jobs runtime
         run: |
@@ -215,17 +215,17 @@ jobs:
       needs.changes.outputs.ci-config == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Install dependencies (workspace)
         run: bun install --frozen-lockfile
@@ -245,17 +245,17 @@ jobs:
       needs.changes.outputs.ci-config == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Install dependencies (workspace)
         run: bun install --frozen-lockfile
@@ -348,7 +348,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -364,12 +364,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js for embedded SDK generation
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Generate embedded SDK for Jobs runtime
         run: |
@@ -380,7 +380,7 @@ jobs:
       - name: Install Deno
         uses: denoland/setup-deno@v2
         with:
-          deno-version: 2.7.11
+          deno-version: 2.9.1
 
       - name: Create dist directory with placeholder for embed directive
         run: |
@@ -591,7 +591,7 @@ jobs:
           fi
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.out
@@ -657,7 +657,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -673,17 +673,17 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Install Deno
         uses: denoland/setup-deno@v2
         with:
-          deno-version: 2.7.11
+          deno-version: 2.9.1
 
       - name: Install workspace dependencies
         run: bun install --frozen-lockfile
@@ -908,17 +908,17 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Install dependencies (workspace)
         run: bun install --frozen-lockfile
@@ -991,7 +991,7 @@ jobs:
        needs.changes.outputs.go == 'true' ||
        needs.changes.outputs.ci-config == 'true')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -1016,17 +1016,17 @@ jobs:
        needs.changes.outputs.sdk == 'true' ||
        needs.changes.outputs.ci-config == 'true')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Install dependencies (workspace)
         run: bun install --frozen-lockfile

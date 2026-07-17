@@ -14,12 +14,15 @@
     "prepare": "command -v lefthook >/dev/null 2>&1 && lefthook install || true"
   },
   "devDependencies": {
-    "picomatch": "^4.0.4"
+    "picomatch": "^4.0.5"
   },
   "overrides": {
     "esbuild": "^0.28.1",
     "h3": "^1.15.11",
-    "smol-toml": "^1.6.1",
-    "picomatch": "^4.0.4"
+    "smol-toml": "^1.7.0",
+    "picomatch": "^4.0.5",
+    "form-data": "^4.0.6",
+    "js-yaml": "^4.2.0",
+    "postcss": "^8.5.10"
   }
 }

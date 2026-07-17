@@ -130,7 +130,7 @@ jobs:
       tag_name: ${{ steps.get_version.outputs.tag_name }}
       is_prerelease: ${{ steps.get_version.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Fetch all history for all tags
 
@@ -286,7 +286,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && !inputs.skip_validation
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check CI workflow status
         env:
@@ -387,7 +387,7 @@ jobs:
       changelog: ${{ steps.changelog.outputs.changelog }}
       ai_summary: ${{ steps.ai_summary.outputs.summary }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -581,7 +581,7 @@ jobs:
       (needs.pre-release-checks.result == 'success' || needs.pre-release-checks.result == 'skipped') &&
       needs.generate-changelog.result == 'success'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -668,19 +668,19 @@ jobs:
     # Run on workflow dispatch OR when a tag is pushed (but not on release publish to avoid double-run)
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Update version in files
         run: |
@@ -760,17 +760,17 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Install dependencies (workspace)
         run: bun install --frozen-lockfile
@@ -797,7 +797,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.1"
+          go-version: "1.26.4"
 
       - name: Install native dependencies
         run: |
@@ -877,12 +877,12 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.1"
+          go-version: "1.26.4"
 
       - name: Build CLI binary
         env:
@@ -924,7 +924,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -957,7 +957,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -1026,17 +1026,17 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_docs
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Install dependencies (workspace)
         run: bun install --frozen-lockfile
@@ -1094,17 +1094,17 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_npm_sdk
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies (workspace)
@@ -1137,17 +1137,17 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_npm_sdk
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.14
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies (workspace)
@@ -1188,12 +1188,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_go_module
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.1"
+          go-version: "1.26.4"
 
       - name: Publish Go module
         run: |
@@ -1221,7 +1221,7 @@ jobs:
       (needs.publish-postgres-manifests.result == 'success' || needs.publish-postgres-manifests.result == 'skipped') &&
       (needs.update-postgres-version.result == 'success' || needs.update-postgres-version.result == 'skipped')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
 
@@ -1313,7 +1313,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Generate build matrix from versions.json
         id: set-matrix
@@ -1330,7 +1330,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.get-postgres-versions.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -1364,7 +1364,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.get-postgres-versions.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -1453,7 +1453,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_postgres
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
 
@@ -1510,12 +1510,12 @@ jobs:
       (needs.publish-docker-manifest.result == 'success' || needs.publish-docker-manifest.result == 'skipped') &&
       (needs.publish-npm-sdk.result == 'success' || needs.publish-npm-sdk.result == 'skipped')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.14.1"
+          node-version: "24.18.0"
 
       - name: Test Docker image availability
         if: needs.publish-docker-manifest.result == 'success'
