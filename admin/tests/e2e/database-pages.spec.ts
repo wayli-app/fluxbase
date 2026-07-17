@@ -50,7 +50,11 @@ test.describe("SQL Editor page", () => {
   test("can interact with SQL Editor page", async ({ adminPage }) => {
     await adminPage.goto("sql-editor", { waitUntil: "networkidle" });
 
-    const editor = adminPage.locator("textarea, [contenteditable='true'], .cm-content, .monaco-editor textarea").first();
+    // ponytail: target the actual editor surface, not Monaco's hidden IME
+    // textarea (.ime-textarea) which is always covered by rendered view-lines
+    // and causes clicks to be intercepted. .first() on a generic textarea
+    // selector resolves to that hidden element and hangs the test.
+    const editor = adminPage.locator(".cm-content, .monaco-editor .view-lines").first();
     if (await editor.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await editor.click();
       await adminPage.keyboard.type("SELECT 1");
