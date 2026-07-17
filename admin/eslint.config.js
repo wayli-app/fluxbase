@@ -29,6 +29,14 @@ export default defineConfig(
         'warn',
         { allowConstantExport: true },
       ],
+      // ponytail: new rules added in eslint-plugin-react-hooks 7.1.x are
+      // intentionally disabled — the codebase predates them and addressing
+      // each violation is a separate refactor. Re-enable per-file when ready.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/set-state-in-render': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/immutability': 'off',
       'no-console': 'error',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [

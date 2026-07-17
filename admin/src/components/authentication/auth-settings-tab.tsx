@@ -72,7 +72,6 @@ export function AuthSettingsTab() {
   useEffect(() => {
     if (fetchedSettings && prevFetchedRef.current !== fetchedSettings) {
       prevFetchedRef.current = fetchedSettings;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSettings(fetchedSettings);
     }
   }, [fetchedSettings]);
