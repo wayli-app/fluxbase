@@ -357,14 +357,35 @@ func runChatbotsSync(cmd *cobra.Command, args []string) error {
 		updated := getIntValue(summary, "updated")
 		deleted := getIntValue(summary, "deleted")
 		unchanged := getIntValue(summary, "unchanged")
+		errorCount := getIntValue(summary, "errors")
 
 		fmt.Printf("Synced %d chatbots to namespace '%s':\n", len(chatbots), cbNamespace)
 		fmt.Printf("  Created: %d\n", created)
 		fmt.Printf("  Updated: %d\n", updated)
 		fmt.Printf("  Deleted: %d\n", deleted)
 		fmt.Printf("  Unchanged: %d\n", unchanged)
+		if errorCount > 0 {
+			fmt.Printf("  Errors: %d\n", errorCount)
+		}
 	} else {
 		fmt.Printf("Synced %d chatbots to namespace '%s'.\n", len(chatbots), cbNamespace)
+	}
+
+	// Display errors if any
+	if errors, ok := result["errors"].([]interface{}); ok && len(errors) > 0 {
+		fmt.Println("\nErrors:")
+		for _, e := range errors {
+			if errMap, ok := e.(map[string]interface{}); ok {
+				name := getStringValue(errMap, "name")
+				errMsg := getStringValue(errMap, "error")
+				action := getStringValue(errMap, "action")
+				if action != "" {
+					fmt.Printf("  - %s (%s): %s\n", name, action, errMsg)
+				} else {
+					fmt.Printf("  - %s: %s\n", name, errMsg)
+				}
+			}
+		}
 	}
 
 	return nil
