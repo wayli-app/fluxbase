@@ -223,7 +223,8 @@ func (a *VerifierAgent) languageCheck(ctx context.Context, response, expectedLan
 		`Is the following text written in %s? Reply with a JSON object: {"yes": true} or {"yes": false}.
 
 Text:
-%s`, expectedLanguage, response)
+%s`, expectedLanguage, response,
+	)
 
 	messages := []Message{
 		{Role: RoleSystem, Content: "You are a language classifier. Reply with JSON only, no prose."},

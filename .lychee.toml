@@ -62,8 +62,13 @@ timeout = 30
 # Maximum number of concurrent requests (lower to avoid rate limits)
 max_concurrency = 8
 
-# Don't check fragments/anchors (can be flaky for external sites)
-include_fragments = false
+# Don't check fragments/anchors (can be flaky for external sites).
+# In lychee v0.24+, this option takes a string strategy, not a boolean:
+#   "none"        — don't check fragments (was `false` pre-v0.24)
+#   "anchor-only" — check only anchor fragments like `#section`
+#   "text-only"   — check only text fragments like `#:~:text=example`
+#   "full"        — check both anchor and text fragments
+include_fragments = "none"
 
 # User agent to use for requests
 user_agent = "Mozilla/5.0 (compatible; lychee-link-checker)"
