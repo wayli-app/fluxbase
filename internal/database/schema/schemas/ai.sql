@@ -1046,6 +1046,7 @@ CREATE TABLE IF NOT EXISTS messages (
     prompt_tokens integer,
     completion_tokens integer,
     query_results jsonb,
+    metadata jsonb,
     created_at timestamptz DEFAULT now(),
     sequence_number integer NOT NULL,
     tenant_id uuid,

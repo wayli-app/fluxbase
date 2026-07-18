@@ -1114,3 +1114,19 @@ DO $$ BEGIN
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Realtime schema registry seed skipped: %', SQLERRM;
 END $$;
+
+-- ============================================================================
+-- AI MESSAGES METADATA — add metadata column to ai.messages for supervisor
+-- turn context (agent_outputs, supervisor_plan, detected language).
+-- ============================================================================
+-- CREATE TABLE IF NOT EXISTS won't add new columns to existing tables.
+-- Idempotent ALTER so installs created before this column ship get it on
+-- next server start.
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='ai' AND table_name='messages' AND column_name='metadata') THEN
+        ALTER TABLE ai.messages ADD COLUMN metadata jsonb;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'ai.messages.metadata migration skipped: %', SQLERRM;
+END $$;

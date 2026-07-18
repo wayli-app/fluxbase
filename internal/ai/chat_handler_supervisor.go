@@ -41,12 +41,16 @@ func (h *ChatHandler) runSupervisorTurn(ctx context.Context, chatCtx *ChatContex
 	state := NewState()
 	state.SetUserMessage(msg.Content)
 	state.SetPageContext(msg.PageContext)
-	state.SetConversationHistory(state.ConversationHistory()) // placeholder, real history below
 
-	// Get conversation history (last few messages) — bounded so token costs
-	// don't explode for long conversations.
+	// Read conversation history from the live chat session. Depth respects
+	// the chatbot's MaxConversationTurns (each turn = 1 user + 1 assistant
+	// message, so multiply by 2). Fallback to 6 when unset.
+	historyDepth := 6
+	if chatbot.MaxConversationTurns > 0 {
+		historyDepth = chatbot.MaxConversationTurns * 2
+	}
 	if state2, ok := chatCtx.Conversations[msg.ConversationID]; ok && len(state2.Messages) > 0 {
-		state.SetConversationHistory(tailMessages(state2.Messages, 6))
+		state.SetConversationHistory(tailMessages(state2.Messages, historyDepth))
 	}
 
 	// Resolve page profile from chatbot config (if any)
@@ -66,12 +70,14 @@ func (h *ChatHandler) runSupervisorTurn(ctx context.Context, chatCtx *ChatContex
 		SchemaBuilder:  h.schemaBuilder,
 		RAGService:     h.ragService,
 		MCPExecutor:    h.mcpExecutor,
+		ChatCtx:        chatCtx,
 		ConversationID: msg.ConversationID,
 		Sender: &chatHandlerSender{
 			h:              h,
 			chatCtx:        chatCtx,
 			conversationID: msg.ConversationID,
 			pageContext:    msg.PageContext,
+			showReasoning:  chatbot.ShowReasoning,
 		},
 	}
 
@@ -96,11 +102,15 @@ func (h *ChatHandler) runSupervisorTurn(ctx context.Context, chatCtx *ChatContex
 		Delta:          finalResponse,
 	})
 
-	// Save assistant message with query results
+	// Save assistant message with query results + supervisor turn metadata.
+	// Metadata captures per-agent outputs and the supervisor plan so later
+	// turns (and debugging tools) can recover what each specialist concluded
+	// without re-reading the whole conversation.
 	assistantMsg := Message{
 		Role:         RoleAssistant,
 		Content:      finalResponse,
 		QueryResults: state.ToolResults(),
+		Metadata:     buildSupervisorTurnMetadata(state),
 	}
 	totalUsage := state.Usage()
 	_ = h.conversations.AddMessage(ctx, msg.ConversationID, assistantMsg, totalUsage.PromptTokens, totalUsage.CompletionTokens)
@@ -156,13 +166,67 @@ func (h *ChatHandler) runSupervisorTurn(ctx context.Context, chatCtx *ChatContex
 	return true, nil
 }
 
+// buildSupervisorTurnMetadata captures the supervisor's routing decision
+// and each specialist agent's output for the turn. Stored on the persisted
+// assistant message's metadata field so subsequent turns (and debugging
+// tools) can recover what each agent concluded.
+func buildSupervisorTurnMetadata(state *State) map[string]any {
+	meta := map[string]any{}
+
+	// Supervisor plan
+	if v, ok := state.Get(SupervisorPlanKey); ok {
+		if plan, ok := v.(*SupervisorPlan); ok && plan != nil {
+			meta["supervisor_plan"] = plan
+		}
+	}
+
+	// Per-agent outputs
+	outputs := state.AgentOutputs()
+	if len(outputs) > 0 {
+		agentOutputs := make(map[string]string, len(outputs))
+		for _, o := range outputs {
+			// Last write wins per agent name — specialists only Run once
+			// per turn, so this is well-defined.
+			agentOutputs[o.Name] = o.Content
+		}
+		meta["agent_outputs"] = agentOutputs
+	}
+
+	// Detected language
+	if lang := state.UserLanguage(); lang != "" {
+		meta["user_language"] = lang
+	}
+
+	// Verifier report
+	if v, ok := state.Get(VerifyReportKey); ok {
+		if report, ok := v.(*VerifyReport); ok && report != nil {
+			meta["verify_report"] = map[string]any{
+				"language_ok":  report.LanguageOK,
+				"grounding_ok": report.GroundingOK,
+				"issues":       report.Issues,
+			}
+		}
+	}
+
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
+}
+
 // chatHandlerSender bridges AgentEventSender to the ChatHandler's WS send.
 // Each agent calls these methods to emit events to the connected client.
+//
+// ShowReasoning controls whether kind=reasoning agent_thought events are
+// emitted. When false (the chatbot's @fluxbase:show-reasoning false), only
+// structural events (plan / tool_call / tool_result) are emitted — clients
+// still see what tools the agent ran, but not the streamed reasoning text.
 type chatHandlerSender struct {
 	h              *ChatHandler
 	chatCtx        *ChatContext
 	conversationID string
 	pageContext    string
+	showReasoning  bool
 }
 
 // SendProgress emits a progress event.
@@ -213,6 +277,25 @@ func (s *chatHandlerSender) SendAgentTransition(ctx context.Context, conversatio
 		Agent:           transition.To,
 		AgentTransition: &transition,
 		PageContext:     s.pageContext,
+	})
+}
+
+// SendAgentThought emits an agent_thought event. Reasoning chunks are
+// suppressed when the chatbot has @fluxbase:show-reasoning false. Other
+// kinds (plan / tool_call / tool_result) always emit so clients can
+// still render the action flow.
+func (s *chatHandlerSender) SendAgentThought(ctx context.Context, conversationID string, thought AgentThought) {
+	if s == nil || s.h == nil {
+		return
+	}
+	if thought.Kind == "reasoning" && !s.showReasoning {
+		return
+	}
+	s.h.send(s.chatCtx, ServerMessage{
+		Type:           "agent_thought",
+		ConversationID: conversationID,
+		AgentThought:   &thought,
+		PageContext:    s.pageContext,
 	})
 }
 

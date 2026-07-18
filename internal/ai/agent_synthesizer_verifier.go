@@ -120,8 +120,37 @@ func (a *VerifierAgent) Run(ctx context.Context, state *State) error {
 	userMsg := state.UserMessage()
 	response := state.FinalResponse()
 
+	chatbot := a.deps.Chatbot
+
+	// Determine the expected language: prefer the chatbot's configured
+	// ResponseLanguage when set, else fall back to the supervisor's
+	// detected language from state.
+	expectedLanguage := state.UserLanguage()
+	if chatbot != nil && chatbot.ResponseLanguage != "" && chatbot.ResponseLanguage != "auto" {
+		expectedLanguage = chatbot.ResponseLanguage
+	}
+
 	// Always: rule-based language script check
 	report.LanguageOK = checkLanguageScriptMatch(userMsg, response)
+
+	// Conditional LLM language check: run when (a) the script check was
+	// ambiguous (Latin family — can't distinguish English/German/French
+	// etc. by script alone), AND (b) we have a concrete expected language
+	// to check against. This catches the regression where the supervisor
+	// mis-detects language on a Latin-script conversation. Skipped for
+	// non-Latin scripts (CJK, Arabic, etc.) where the script check is
+	// already conclusive.
+	if report.LanguageOK && a.deps.Provider != nil && expectedLanguage != "" {
+		if needsLLMLanguageCheck(userMsg, response, expectedLanguage) {
+			if a.deps.Sender != nil {
+				a.deps.Sender.SendAgentTransition(ctx, a.deps.ConversationID, AgentTransition{To: "verifier"})
+			}
+			ok, err := a.languageCheck(ctx, response, expectedLanguage)
+			if err == nil {
+				report.LanguageOK = ok
+			}
+		}
+	}
 
 	// Conditional LLM grounding check
 	plan, _ := state.Get(SupervisorPlanKey)
@@ -155,6 +184,92 @@ type VerifyReport struct {
 
 // VerifyReportKey is the state key for the verifier's report.
 const VerifyReportKey = "verify_report"
+
+// needsLLMLanguageCheck decides whether the cheap Unicode-script check
+// was conclusive enough or whether we need a real LLM call to verify
+// language. Returns true only when:
+//   - Both user message and response are Latin-script (script check is
+//     ambiguous among English / German / French / Spanish / etc.).
+//   - We have a concrete expected language to verify against.
+//   - The response is long enough to give the LLM something to classify.
+//
+// For CJK, Arabic, Hebrew, etc. the script alone is conclusive — no LLM
+// call needed. For very short messages (< 20 chars), we also skip: too
+// little signal to make the LLM call worthwhile.
+func needsLLMLanguageCheck(userMsg, response, expectedLanguage string) bool {
+	if expectedLanguage == "" {
+		return false
+	}
+	userScript := dominantScript(userMsg)
+	respScript := dominantScript(response)
+	if userScript != "latin" || respScript != "latin" {
+		return false
+	}
+	if len(response) < 20 {
+		return false
+	}
+	// Many languages share Latin script — they all need LLM disambiguation.
+	return true
+}
+
+// languageCheck runs a single cheap LLM call asking "is this text in <lang>?".
+// Returns true when the response is in the expected language, false otherwise.
+// On parse failure, returns true (don't fail the response on a verifier bug).
+func (a *VerifierAgent) languageCheck(ctx context.Context, response, expectedLanguage string) (bool, error) {
+	chatbot := a.deps.Chatbot
+	provider := a.deps.Provider
+
+	prompt := fmt.Sprintf(
+		`Is the following text written in %s? Reply with a JSON object: {"yes": true} or {"yes": false}.
+
+Text:
+%s`, expectedLanguage, response)
+
+	messages := []Message{
+		{Role: RoleSystem, Content: "You are a language classifier. Reply with JSON only, no prose."},
+		{Role: RoleUser, Content: prompt},
+	}
+
+	model := chatbot.Model
+	if override, ok := chatbot.SupervisorAgentModels["verifier"]; ok && override != "" {
+		model = override
+	}
+
+	req := &ChatRequest{
+		Messages:    messages,
+		Model:       model,
+		MaxTokens:   30,
+		Temperature: 0,
+		Stream:      false,
+	}
+
+	resp, err := provider.Chat(ctx, req)
+	if err != nil {
+		return true, err
+	}
+	if resp == nil || len(resp.Choices) == 0 {
+		return true, fmt.Errorf("empty verifier response")
+	}
+	if resp.Usage != nil {
+		s := getStateFromContext(ctx)
+		if s != nil {
+			s.AddUsage(*resp.Usage)
+		}
+	}
+
+	content := resp.Choices[0].Message.Content
+	cleaned := extractJSONObjectFromString(content)
+	if cleaned == "" {
+		return true, nil
+	}
+	var verdict struct {
+		Yes bool `json:"yes"`
+	}
+	if err := json.Unmarshal([]byte(cleaned), &verdict); err != nil {
+		return true, nil
+	}
+	return verdict.Yes, nil
+}
 
 // groundingCheck runs the LLM grounding check and returns its verdict.
 func (a *VerifierAgent) groundingCheck(ctx context.Context, userMsg, response string, toolResults []QueryResult, plan *SupervisorPlan) (*verifierLLMReport, error) {

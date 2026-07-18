@@ -57,11 +57,25 @@ func (s *Storage) UserExists(ctx context.Context, userID string) (bool, error) {
 // CreateChatbot creates a new chatbot in the database
 // Deprecated: Use CreateChatbotWithTenant for tenant-scoped operations
 func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
-	return s.CreateChatbotWithTenant(ctx, "", chatbot)
+	// Resolve tenant from context (matches CreateProcedure's pattern) so the
+	// INSERT writes tenant_id explicitly. Previously this hardcoded "" which
+	// produced rows with NULL tenant_id when the role wrapper's GUC was not
+	// set — see CreateChatbotWithTenant for the full explanation.
+	tenantID := database.TenantFromContext(ctx)
+	return s.CreateChatbotWithTenant(ctx, tenantID, chatbot)
 }
 
 // CreateChatbotWithTenant creates a new chatbot in the database with tenant context
 func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, chatbot *Chatbot) error {
+	// IMPORTANT: include tenant_id in the INSERT column list explicitly.
+	// The chatbots table has a BEFORE INSERT trigger
+	// (auth.set_tenant_id_from_context) that auto-populates tenant_id from
+	// the app.current_tenant_id GUC when NEW.tenant_id IS NULL. But that
+	// GUC is only set by WrapWithTenantAwareRole when tenantID != "". When
+	// callers pass empty string (which the deprecated CreateChatbot wrapper
+	// used to do unconditionally), the trigger leaves tenant_id NULL and
+	// the row becomes invisible to tenant-scoped list queries, breaking
+	// subsequent syncs (the procedure oscillation bug).
 	query := `
 		INSERT INTO ai.chatbots (
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
@@ -72,7 +86,7 @@ func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, 
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
 			allow_unauthenticated, is_public, require_roles, response_language, disable_execution_logs,
 			mcp_tools, use_mcp_schema,
-			version, source, created_by, created_at, updated_at
+			version, source, created_by, created_at, updated_at, tenant_id
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
 			$9, $10, $11, $12,
@@ -82,7 +96,7 @@ func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, 
 			$23, $24, $25,
 			$26, $27, $28, $29, $30,
 			$31, $32,
-			$33, $34, $35, $36, $37
+			$33, $34, $35, $36, $37, $38
 		)
 	`
 
@@ -93,6 +107,12 @@ func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, 
 		chatbot.CreatedAt = time.Now()
 	}
 	chatbot.UpdatedAt = time.Now()
+
+	// Resolve tenant ID: prefer the explicit parameter; fall back to context.
+	resolvedTenant := tenantID
+	if resolvedTenant == "" {
+		resolvedTenant = database.TenantFromContext(ctx)
+	}
 
 	// Serialize intent rules and required columns to JSON
 	var intentRulesJSON, requiredColumnsJSON []byte
@@ -110,7 +130,7 @@ func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, 
 		}
 	}
 
-	err = database.WrapWithTenantAwareRole(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+	err = database.WrapWithTenantAwareRole(ctx, s.db, resolvedTenant, func(tx pgx.Tx) error {
 		_, err := tx.Exec(
 			ctx, query,
 			chatbot.ID, chatbot.Name, chatbot.Namespace, chatbot.Description,
@@ -124,6 +144,7 @@ func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, 
 			chatbot.MCPTools, chatbot.UseMCPSchema,
 			chatbot.Version, chatbot.Source,
 			chatbot.CreatedBy, chatbot.CreatedAt, chatbot.UpdatedAt,
+			database.TenantOrNil(resolvedTenant),
 		)
 		return err
 	})
@@ -135,7 +156,7 @@ func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, 
 		Str("id", chatbot.ID).
 		Str("name", chatbot.Name).
 		Str("namespace", chatbot.Namespace).
-		Str("tenant_id", tenantID).
+		Str("tenant_id", resolvedTenant).
 		Msg("Created chatbot")
 
 	return nil

@@ -34,6 +34,11 @@ type Message struct {
 	ToolCallID   string        `json:"tool_call_id,omitempty"`
 	Name         string        `json:"name,omitempty"`
 	QueryResults []QueryResult `json:"query_results,omitempty"` // SQL query results for assistant messages
+	// Metadata carries optional turn-level context for assistant messages
+	// produced by the supervisor pipeline: agent_outputs, supervisor_plan,
+	// detected language, etc. Persists to the messages.metadata column so
+	// subsequent turns can read what each specialist agent concluded.
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // QueryResult represents the result of a SQL query execution

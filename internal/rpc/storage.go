@@ -38,17 +38,27 @@ func (s *Storage) CreateProcedure(ctx context.Context, proc *Procedure) error {
 
 // CreateProcedureWithTenant creates a new procedure in the database with tenant context
 func (s *Storage) CreateProcedureWithTenant(ctx context.Context, tenantID string, proc *Procedure) error {
+	// IMPORTANT: include tenant_id in the INSERT column list explicitly.
+	// The chatbots/procedures tables have a BEFORE INSERT trigger
+	// (auth.set_tenant_id_from_context) that auto-populates tenant_id from
+	// the app.current_tenant_id GUC when NEW.tenant_id IS NULL. But that
+	// GUC is only set by WrapWithTenantAwareRole when tenantID != "" — and
+	// some call paths (e.g. CreateChatbot wrapper) pass empty string while
+	// relying on context propagation. Setting tenant_id explicitly here
+	// removes the dependency on the GUC being set and prevents the
+	// silent-corruption bug where rows are created with NULL tenant_id and
+	// then become invisible to tenant-scoped list queries.
 	query := `
 		INSERT INTO rpc.procedures (
 			id, name, namespace, description, sql_query, original_code,
 			input_schema, output_schema, allowed_tables, allowed_schemas,
 			max_execution_time_seconds, require_roles, is_public, disable_execution_logs, schedule,
-			enabled, version, source, created_by, created_at, updated_at
+			enabled, version, source, created_by, created_at, updated_at, tenant_id
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10,
 			$11, $12, $13, $14, $15,
-			$16, $17, $18, $19, $20, $21
+			$16, $17, $18, $19, $20, $21, $22
 		)
 	`
 
@@ -60,13 +70,22 @@ func (s *Storage) CreateProcedureWithTenant(ctx context.Context, tenantID string
 	}
 	proc.UpdatedAt = time.Now()
 
-	err := database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
+	// Resolve tenant ID: prefer the explicit parameter; fall back to context.
+	// This matches the resolution done inside WrapWithTenantAwareRole and
+	// keeps the INSERT correct regardless of which wrapper the caller used.
+	resolvedTenant := tenantID
+	if resolvedTenant == "" {
+		resolvedTenant = database.TenantFromContext(ctx)
+	}
+
+	err := database.WrapWithTenantAwareRole(ctx, s.DB, resolvedTenant, func(tx pgx.Tx) error {
 		_, err := tx.Exec(
 			ctx, query,
 			proc.ID, proc.Name, proc.Namespace, proc.Description, proc.SQLQuery, proc.OriginalCode,
 			proc.InputSchema, proc.OutputSchema, proc.AllowedTables, proc.AllowedSchemas,
 			proc.MaxExecutionTimeSeconds, proc.RequireRoles, proc.IsPublic, proc.DisableExecutionLogs, proc.Schedule,
 			proc.Enabled, proc.Version, proc.Source, proc.CreatedBy, proc.CreatedAt, proc.UpdatedAt,
+			database.TenantOrNil(resolvedTenant),
 		)
 		return err
 	})
@@ -78,7 +97,7 @@ func (s *Storage) CreateProcedureWithTenant(ctx context.Context, tenantID string
 		Str("id", proc.ID).
 		Str("name", proc.Name).
 		Str("namespace", proc.Namespace).
-		Str("tenant_id", tenantID).
+		Str("tenant_id", resolvedTenant).
 		Msg("Created RPC procedure")
 
 	return nil
