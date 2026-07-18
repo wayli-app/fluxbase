@@ -61,6 +61,47 @@ func TestChatbotsList_APIError(t *testing.T) {
 	assert.Contains(t, err.Error(), "database error")
 }
 
+func TestChatbotsList_NamespaceFilter_SendsQueryParam(t *testing.T) {
+	resetChatbotFlags()
+	cbListNamespace = "wayli"
+
+	_, _, cleanup := setupTestEnvWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "wayli", r.URL.Query().Get("namespace"),
+			"CLI must forward --namespace as a query param to the API")
+
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"chatbots": []map[string]interface{}{
+				{"id": "cb1", "name": "wayli-bot", "model": "gpt-4", "enabled": true},
+			},
+			"count": 1,
+		})
+	})
+	defer cleanup()
+
+	err := runChatbotsList(nil, []string{})
+	require.NoError(t, err)
+}
+
+func TestChatbotsList_NoNamespaceFilter_OmitsQueryParam(t *testing.T) {
+	resetChatbotFlags()
+
+	_, _, cleanup := setupTestEnvWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		// When --namespace not set, the API call must not include the param
+		// so the server lists across all namespaces.
+		_, hasNs := r.URL.Query()["namespace"]
+		assert.False(t, hasNs, "expected no namespace query param when flag unset")
+
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"chatbots": []map[string]interface{}{}, "count": 0,
+		})
+	})
+	defer cleanup()
+
+	err := runChatbotsList(nil, []string{})
+	require.NoError(t, err)
+}
+
 func TestChatbotsGet_Success(t *testing.T) {
 	resetChatbotFlags()
 	_, buf, cleanup := setupTestEnvWithHandler(t, func(w http.ResponseWriter, r *http.Request) {

@@ -111,7 +111,15 @@ func (h *Handler) ValidateConfig() {
 func (h *Handler) ListChatbots(c fiber.Ctx) error {
 	ctx := middleware.CtxWithTenant(c)
 
-	chatbots, err := h.storage.ListChatbots(ctx, false)
+	// Optional namespace filter. Empty/unset → list across all namespaces
+	// (filtered by tenant context as usual).
+	var chatbots []*Chatbot
+	var err error
+	if ns := c.Query("namespace"); ns != "" {
+		chatbots, err = h.storage.ListChatbotsByNamespace(ctx, ns)
+	} else {
+		chatbots, err = h.storage.ListChatbots(ctx, false)
+	}
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list chatbots")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
