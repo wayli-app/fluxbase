@@ -12,6 +12,7 @@ import type {
   AIUserConversationDetail,
   AIDailyQuotaSnapshot,
   AIMatchedIntentRule,
+  AIAgentTransition,
   ListConversationsOptions,
   ListConversationsResult,
   UpdateConversationOptions,
@@ -27,6 +28,7 @@ export type AIChatEventType =
   | "content"
   | "query_result"
   | "tool_result"
+  | "agent_transition"
   | "done"
   | "error"
   | "cancelled"
@@ -47,6 +49,12 @@ export interface AIChatEvent {
   rowCount?: number;
   data?: Record<string, any>[];
   usage?: AIUsageStats;
+  /** Agent transition payload, present on agent_transition events (supervisor mode). */
+  agentTransition?: AIAgentTransition;
+  /** Currently-active specialist agent name, on agent_transition events. */
+  agent?: string;
+  /** Echo of the client's page_context, on agent_transition events. */
+  pageContext?: string;
   error?: string;
   code?: string;
 }
@@ -85,6 +93,16 @@ export interface AIChatOptions {
       matched_intent_rules?: AIMatchedIntentRule[];
       daily_quota?: AIDailyQuotaSnapshot;
     },
+  ) => void;
+  /**
+   * Callback for agent transition events (supervisor mode only). Fires
+   * when the supervisor routes to a specialist agent, when one agent
+   * hands off to another, and when the synthesizer/verifier engage.
+   * Use this to render the multi-agent flow as observable UI.
+   */
+  onAgentTransition?: (
+    transition: AIAgentTransition,
+    conversationId: string,
   ) => void;
   /** Callback for errors */
   onError?: (
@@ -275,8 +293,17 @@ export class FluxbaseAIChat {
    *
    * @param conversationId - Conversation ID
    * @param content - Message content
+   * @param options - Optional per-message options
+   * @param options.pageContext - Page context string for page-aware chatbots.
+   *   The supervisor looks up the matching PageProfile (if any) and uses it
+   *   to bias routing and override per-page config. Missing or unknown
+   *   values fall back to the chatbot's global config.
    */
-  sendMessage(conversationId: string, content: string): void {
+  sendMessage(
+    conversationId: string,
+    content: string,
+    options?: { pageContext?: string },
+  ): void {
     if (!this.isConnected()) {
       throw new Error("Not connected to AI chat");
     }
@@ -289,6 +316,9 @@ export class FluxbaseAIChat {
       conversation_id: conversationId,
       content,
     };
+    if (options?.pageContext) {
+      message.page_context = options.pageContext;
+    }
 
     this.ws!.send(JSON.stringify(message));
   }
@@ -399,6 +429,18 @@ export class FluxbaseAIChat {
           }
           break;
 
+        case "agent_transition":
+          // Supervisor-mode event: one agent handed off to another (or the
+          // supervisor made its initial routing decision). Surfaces the
+          // multi-agent flow to clients that want to render it.
+          if (message.conversation_id && message.agent_transition) {
+            this.options.onAgentTransition?.(
+              message.agent_transition,
+              message.conversation_id,
+            );
+          }
+          break;
+
         case "done":
           if (message.conversation_id) {
             this.options.onDone?.(
@@ -448,6 +490,9 @@ export class FluxbaseAIChat {
       rowCount: message.row_count,
       data: message.data,
       usage: message.usage,
+      agentTransition: message.agent_transition,
+      agent: message.agent,
+      pageContext: message.page_context,
       error: message.error,
       code: message.code,
     };

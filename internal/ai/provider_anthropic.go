@@ -78,6 +78,18 @@ type anthropicRequest struct {
 	Tools       []anthropicTool        `json:"tools,omitempty"`
 	Stream      bool                   `json:"stream,omitempty"`
 	StopSeqs    []string               `json:"stop_sequences,omitempty"`
+	// ToolChoice mirrors OpenAI's tool_choice. Anthropic accepts:
+	//   {"type": "auto"} (default when tools are present)
+	//   {"type": "any"}  (force a tool call, equivalent to OpenAI's "required")
+	//   {"type": "tool", "name": "<tool_name>"} (force a specific tool)
+	// nil → provider default (auto when tools are present).
+	ToolChoice *anthropicToolChoice `json:"tool_choice,omitempty"`
+}
+
+// anthropicToolChoice is Anthropic's shaped tool_choice object.
+type anthropicToolChoice struct {
+	Type string `json:"type"`
+	Name string `json:"name,omitempty"`
 }
 
 // anthropicSystemBlock is a content block in the top-level system field.
@@ -362,6 +374,33 @@ func (p *anthropicProvider) buildRequest(req *ChatRequest) anthropicRequest {
 		}
 		tools[len(tools)-1].CacheControl = &anthropicCacheControl{Type: "ephemeral"}
 		out.Tools = tools
+	}
+
+	// Translate OpenAI-style ToolChoice to Anthropic's shape.
+	// OpenAI accepts: "none", "auto", "required", or {"type":"function","function":{"name":"x"}}
+	// Anthropic accepts: {"type":"auto"}, {"type":"any"}, or {"type":"tool","name":"x"}
+	// "none" is expressed on Anthropic by omitting tools entirely; we translate
+	// it to nil here and the caller is responsible for not sending tools.
+	if req.ToolChoice != nil {
+		switch tc := req.ToolChoice.(type) {
+		case string:
+			switch tc {
+			case "auto":
+				out.ToolChoice = &anthropicToolChoice{Type: "auto"}
+			case "required":
+				out.ToolChoice = &anthropicToolChoice{Type: "any"}
+				// "none" falls through — leave nil, no tool_choice sent
+			}
+		case map[string]any:
+			// OpenAI shape: {"type":"function","function":{"name":"x"}}
+			if t, ok := tc["type"].(string); ok && t == "function" {
+				if fn, ok := tc["function"].(map[string]any); ok {
+					if name, ok := fn["name"].(string); ok {
+						out.ToolChoice = &anthropicToolChoice{Type: "tool", Name: name}
+					}
+				}
+			}
+		}
 	}
 
 	return out

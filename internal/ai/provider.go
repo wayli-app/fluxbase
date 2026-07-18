@@ -315,12 +315,31 @@ func NewAnthropicProvider(config ProviderConfig) (Provider, error) {
 	return newAnthropicProviderInternal(config.Name, anthropicConfig)
 }
 
-// ExecuteSQLTool is the standard tool definition for SQL execution
+// ExecuteSQLTool is the standard tool definition for SQL execution.
+// Description mirrors the richer MCP variant in mcp_tools.go so legacy
+// (non-MCP) chatbots get the same "when to use" framing as MCP-enabled ones.
 var ExecuteSQLTool = Tool{
 	Type: "function",
 	Function: ToolFunction{
-		Name:        "execute_sql",
-		Description: "Execute a read-only SQL query against the database. Returns a summary of results.",
+		Name: "execute_sql",
+		Description: `Execute a custom SQL SELECT query against the database.
+
+WHEN TO USE:
+- Complex queries spanning multiple tables (JOINs)
+- Aggregations (COUNT, SUM, AVG, GROUP BY)
+- Queries that can't be expressed with simple filters
+- Need precise control over the query structure
+- The user asks a factual question about data (counts, lists, "show me", "how many")
+
+WHEN NOT TO USE:
+- For conceptual information you don't have data for (say so honestly instead)
+- For greetings, chitchat, or clarifying questions
+
+EXAMPLE: "Count visits by city" → SELECT city, COUNT(*) FROM visits GROUP BY city
+
+Always investigate with SQL before answering factual data questions. Never answer
+from memory when a query could verify the data. You will receive a summary plus
+sample rows, not raw data.`,
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

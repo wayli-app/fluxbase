@@ -162,6 +162,31 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	// Save user message to conversation
 	_ = h.conversations.AddMessage(ctx, msg.ConversationID, userMsg, 0, 0)
 
+	// ── Supervisor mode branch ────────────────────────────────────────────
+	// When the chatbot's reasoning mode is "supervisor" (the default for new
+	// chatbots), the turn is handled by the multi-agent graph in
+	// supervisor_graph.go. On any failure (provider down, parse error, etc.),
+	// we fall back to the legacy ReAct loop below so a supervisor bug never
+	// breaks the chatbot entirely.
+	if chatbot.ReasoningMode == "supervisor" && h.canRunSupervisor(chatbot) {
+		supervisorRan, supervisorErr := h.runSupervisorTurn(ctx, chatCtx, chatbot, msg, userID, provider)
+		if supervisorRan {
+			if supervisorErr != nil {
+				// Supervisor completed but reported an error (e.g., a node
+				// failed mid-graph). Surface as a soft warning and continue
+				// to the legacy loop as a safety net.
+				log.Warn().Err(supervisorErr).
+					Str("chatbot", chatbot.Name).
+					Str("conversation_id", msg.ConversationID).
+					Msg("Supervisor turn reported an error; falling back to ReAct loop")
+			} else {
+				return
+			}
+		}
+		// supervisorRan == false means we couldn't build a graph for this
+		// chatbot (e.g., no provider). Fall through to legacy path.
+	}
+
 	// Tool calling loop - continue until AI generates content without tool calls
 	var totalUsage UsageStats
 	var accumulatedQueryResults []QueryResult // Accumulate query results for persistence

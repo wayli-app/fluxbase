@@ -90,9 +90,15 @@ type Chatbot struct {
 	RAGContentColumn       string   `json:"rag_content_column,omitempty"`     // Text content column in RAG table
 
 	// Agent behavior settings
-	ReasoningMode     string `json:"reasoning_mode,omitempty"`      // "none" (default), "react", "strict" - controls think tool usage
-	MaxToolIterations int    `json:"max_tool_iterations,omitempty"` // Max tool calling iterations (default: 5)
-	ShowReasoning     bool   `json:"show_reasoning,omitempty"`      // If true, expose agent reasoning to users
+	ReasoningMode     string       `json:"reasoning_mode,omitempty"`      // "supervisor" (default), "react", "strict", "none"
+	MaxToolIterations int          `json:"max_tool_iterations,omitempty"` // Max tool calling iterations (default: 5)
+	ShowReasoning     bool         `json:"show_reasoning,omitempty"`      // If true, expose agent reasoning to users
+	PageProfiles      PageProfiles `json:"page_profiles,omitempty"`       // Per-page routing/config overrides (Level 2 page-aware chatbots)
+	// SupervisorAgentModels optionally overrides the model used per specialist
+	// agent in supervisor mode. Keys are agent names: "supervisor", "sql",
+	// "kb", "action", "chat", "synthesizer", "verifier". Missing keys fall
+	// back to the chatbot's main Model.
+	SupervisorAgentModels map[string]string `json:"supervisor_agent_models,omitempty"`
 
 	Version   int       `json:"version"`
 	Source    string    `json:"source"` // "filesystem" or "api"
@@ -157,9 +163,11 @@ type ChatbotConfig struct {
 	UseMCPSchema bool     // If true, fetch schema from MCP resources
 
 	// Agent behavior settings
-	ReasoningMode     string // "none" (default), "react", "strict" - controls think tool usage
-	MaxToolIterations int    // Max tool calling iterations (default: 5)
-	ShowReasoning     bool   // If true, expose agent reasoning to users
+	ReasoningMode         string            // "supervisor" (default), "react", "strict", "none"
+	MaxToolIterations     int               // Max tool calling iterations (default: 5)
+	ShowReasoning         bool              // If true, expose agent reasoning to users
+	PageProfiles          PageProfiles      // Per-page routing/config overrides
+	SupervisorAgentModels map[string]string // Optional per-agent model overrides in supervisor mode
 
 	// Metadata
 	Version int
@@ -186,7 +194,7 @@ func DefaultChatbotConfig() ChatbotConfig {
 		RAGMaxChunks:           5,
 		RAGSimilarityThreshold: 0.7,
 		ResponseLanguage:       "auto",
-		ReasoningMode:          "react", // Default: require think tool before other tools (ReAct pattern)
+		ReasoningMode:          "supervisor", // Default: multi-agent supervisor pipeline. Pin "react" for the legacy ReAct loop.
 		MaxToolIterations:      5,
 		ShowReasoning:          false,
 		Version:                1,
@@ -298,8 +306,16 @@ var (
 	useMCPSchemaPattern = regexp.MustCompile(`@fluxbase:use-mcp-schema(?:\s+(true|false))?`)
 
 	// Agent behavior annotations
-	// @fluxbase:reasoning-mode react|strict|none
-	reasoningModePattern = regexp.MustCompile(`@fluxbase:reasoning-mode\s+(react|strict|none)`)
+	// @fluxbase:reasoning-mode supervisor|react|strict|none
+	reasoningModePattern = regexp.MustCompile(`@fluxbase:reasoning-mode\s+(supervisor|react|strict|none)`)
+
+	// @fluxbase:page-contexts [{...}]
+	// JSON array of page profiles. See PageProfile struct in page_context.go.
+	pageContextsPattern = regexp.MustCompile(`@fluxbase:page-contexts\s+(\[)`)
+
+	// @fluxbase:supervisor-models {"sql":"gpt-4-turbo","chat":"gpt-4o-mini"}
+	// Optional per-agent model overrides for supervisor mode.
+	supervisorModelsPattern = regexp.MustCompile(`@fluxbase:supervisor-models\s+(\{)`)
 
 	// @fluxbase:max-iterations 10
 	maxToolIterationsPattern = regexp.MustCompile(`@fluxbase:max-iterations\s+(\d+)`)
@@ -523,6 +539,49 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		config.ReasoningMode = matches[1]
 	}
 
+	// Parse page contexts (JSON array of PageProfile objects)
+	// Supports multiple annotations — later ones merge with earlier ones (last wins per page name).
+	allPageLocs := pageContextsPattern.FindAllStringIndex(code, -1)
+	for _, loc := range allPageLocs {
+		bracketIdx := strings.Index(code[loc[0]:], "[")
+		if bracketIdx >= 0 {
+			jsonStr := extractBalancedJSON(code, loc[0]+bracketIdx)
+			if jsonStr != "" {
+				profiles, err := ParsePageProfilesJSON(jsonStr)
+				if err != nil {
+					// ponytail: skip malformed block, don't fail the whole parse
+					continue
+				}
+				if config.PageProfiles == nil {
+					config.PageProfiles = make(PageProfiles)
+				}
+				for name, p := range profiles {
+					config.PageProfiles[name] = p
+				}
+			}
+		}
+	}
+
+	// Parse supervisor per-agent model overrides (JSON object)
+	allModelLocs := supervisorModelsPattern.FindAllStringIndex(code, -1)
+	for _, loc := range allModelLocs {
+		braceIdx := strings.Index(code[loc[0]:], "{")
+		if braceIdx >= 0 {
+			jsonStr := extractBalancedJSONObject(code, loc[0]+braceIdx)
+			if jsonStr != "" {
+				var models map[string]string
+				if err := json.Unmarshal([]byte(jsonStr), &models); err == nil {
+					if config.SupervisorAgentModels == nil {
+						config.SupervisorAgentModels = make(map[string]string)
+					}
+					for k, v := range models {
+						config.SupervisorAgentModels[k] = v
+					}
+				}
+			}
+		}
+	}
+
 	// Parse max tool iterations
 	if matches := maxToolIterationsPattern.FindStringSubmatch(code); len(matches) > 1 {
 		if v, err := strconv.Atoi(matches[1]); err == nil && v > 0 {
@@ -590,7 +649,19 @@ func parseRequiredColumns(s string) RequiredColumnsMap {
 // extractBalancedJSON extracts a balanced JSON array starting from the given position
 // startIdx should point to the opening bracket '['
 func extractBalancedJSON(s string, startIdx int) string {
-	if startIdx >= len(s) || s[startIdx] != '[' {
+	return extractBalanced(s, startIdx, '[', ']')
+}
+
+// extractBalancedJSONObject extracts a balanced JSON object starting from the
+// given position. startIdx should point to the opening brace '{'.
+func extractBalancedJSONObject(s string, startIdx int) string {
+	return extractBalanced(s, startIdx, '{', '}')
+}
+
+// extractBalanced extracts a balanced bracketed region (array or object),
+// respecting string literals and escape sequences. Returns "" if unbalanced.
+func extractBalanced(s string, startIdx int, open, close byte) string {
+	if startIdx >= len(s) || s[startIdx] != open {
 		return ""
 	}
 
@@ -621,9 +692,9 @@ func extractBalancedJSON(s string, startIdx int) string {
 		}
 
 		switch c {
-		case '[':
+		case open:
 			depth++
-		case ']':
+		case close:
 			depth--
 			if depth == 0 {
 				return s[startIdx : i+1]
@@ -673,6 +744,8 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.ReasoningMode = config.ReasoningMode
 	c.MaxToolIterations = config.MaxToolIterations
 	c.ShowReasoning = config.ShowReasoning
+	c.PageProfiles = config.PageProfiles
+	c.SupervisorAgentModels = config.SupervisorAgentModels
 
 	// Only override version if explicitly set in annotation
 	if config.Version > 0 {
@@ -715,6 +788,74 @@ func (c *Chatbot) PopulateDerivedFields() {
 	if c.Model == "" && c.Code != "" {
 		if matches := modelPattern.FindStringSubmatch(c.Code); len(matches) > 1 {
 			c.Model = strings.TrimSpace(matches[1])
+		}
+	}
+
+	// Parse agent behavior annotations from code if not already set on the
+	// chatbot (DB-loaded chatbots don't have these columns). This is a
+	// best-effort parse — if it fails, defaults apply (supervisor mode).
+	if c.Code != "" {
+		// ReasoningMode: parse from code if empty, else default to "supervisor"
+		if c.ReasoningMode == "" {
+			if matches := reasoningModePattern.FindStringSubmatch(c.Code); len(matches) > 1 {
+				c.ReasoningMode = matches[1]
+			} else {
+				c.ReasoningMode = "supervisor"
+			}
+		}
+
+		// PageProfiles: parse from code (no DB column for this)
+		if c.PageProfiles == nil {
+			if locs := pageContextsPattern.FindAllStringIndex(c.Code, -1); len(locs) > 0 {
+				merged := make(PageProfiles)
+				for _, loc := range locs {
+					bracketIdx := strings.Index(c.Code[loc[0]:], "[")
+					if bracketIdx < 0 {
+						continue
+					}
+					jsonStr := extractBalancedJSON(c.Code, loc[0]+bracketIdx)
+					if jsonStr == "" {
+						continue
+					}
+					profiles, err := ParsePageProfilesJSON(jsonStr)
+					if err != nil {
+						continue
+					}
+					for name, p := range profiles {
+						merged[name] = p
+					}
+				}
+				if len(merged) > 0 {
+					c.PageProfiles = merged
+				}
+			}
+		}
+
+		// SupervisorAgentModels: parse from code (no DB column)
+		if c.SupervisorAgentModels == nil {
+			if locs := supervisorModelsPattern.FindAllStringIndex(c.Code, -1); len(locs) > 0 {
+				merged := make(map[string]string)
+				for _, loc := range locs {
+					braceIdx := strings.Index(c.Code[loc[0]:], "{")
+					if braceIdx < 0 {
+						continue
+					}
+					jsonStr := extractBalancedJSONObject(c.Code, loc[0]+braceIdx)
+					if jsonStr == "" {
+						continue
+					}
+					var models map[string]string
+					if err := json.Unmarshal([]byte(jsonStr), &models); err != nil {
+						continue
+					}
+					for k, v := range models {
+						merged[k] = v
+					}
+				}
+				if len(merged) > 0 {
+					c.SupervisorAgentModels = merged
+				}
+			}
 		}
 	}
 }

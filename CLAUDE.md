@@ -196,16 +196,26 @@ Server initialization uses a module-based dependency injection system:
 
 - `internal/ai/knowledge_base.go` - Core data models (incl. per-KB `EntityExtractionEnabled` toggle)
 - `internal/ai/knowledge_base_storage.go` - Storage operations
-- `internal/ai/provider_anthropic.go` - Native Anthropic Claude provider with explicit `cache_control` prompt caching
+- `internal/ai/provider_anthropic.go` - Native Anthropic Claude provider with explicit `cache_control` prompt caching; supports `tool_choice` (`auto`/`any`/`tool`)
 - `internal/ai/provider_openai.go` - OpenAI/Azure provider (parses `prompt_tokens_details.cached_tokens` from automatic prefix caching)
-- `internal/ai/chat_handler_message.go` - Turns assemble a static system message + dynamic context message (user ID, time, RAG) so the static prefix is byte-stable across turns for caching
+- `internal/ai/chat_handler_message.go` - Turns assemble a static system message + dynamic context message (user ID, time, RAG) so the static prefix is byte-stable across turns for caching. Branches on `ReasoningMode`: `"supervisor"` (default) delegates to the multi-agent graph in `chat_handler_supervisor.go`; `"react"`/`"strict"`/`"none"` use the legacy ReAct loop.
+- `internal/ai/chat_handler_supervisor.go` - `runSupervisorTurn` builds the `AgentDeps` bundle, runs the supervisor graph, streams the final response, and falls back to the legacy ReAct loop on any graph error.
 - `internal/ai/chat_handler_tools.go` - `execute_sql` / MCP tool execution; both paths emit `query_result` events for parity
 - `internal/ai/chat_handler_usage.go` - `GET /api/v1/ai/usage/:chatbotId` (per-user daily quota snapshot)
 - `internal/ai/chatbot_limiter.go` - In-memory per-`(chatbotID, userID)` counters; `GetDailyUsage` returns a `DailyUsage` snapshot; `AddTokenUsage` is called with cached-token-discounted spend
 - `internal/ai/intent_validator.go` - `GetMatchedRules` surfaces fired rules via the done event's `matched_intent_rules`
-- `internal/ai/rag_service.go` - `RetrieveContext` branches to graph-boosted per-KB retrieval when `GraphBoostWeight > 0`
-- `internal/ai/document_processor.go` - Entity extraction gated by per-KB `EntityExtractionEnabled`; re-extraction cleans stale `document_entities` mentions
-- `internal/ai/knowledge_graph.go` - Entity/relationship CRUD; `DeleteDocumentEntitiesByDocument` for stale-mention cleanup
+
+**Multi-Agent Supervisor (default ReasoningMode for all chatbots):**
+
+- `internal/ai/graph.go` - Generic graph executor: nodes, edges, conditional edges, parallel fan-out, cycle detection, mutex-safe `State` with typed accessors.
+- `internal/ai/supervisor_graph.go` - Concrete graph wiring for one chatbot turn: supervisor → router → specialists → synthesizer → verifier.
+- `internal/ai/agent_deps.go` - `AgentDeps` bundle (chatbot, provider, services, sender) + `AgentEventSender` interface for WS events.
+- `internal/ai/agent_supervisor.go` - Routing LLM call. Parses JSON `SupervisorPlan` (route, language, investigative flag, min_tool_calls). Applies page-profile whitelist.
+- `internal/ai/agent_specialists.go` - SQL, KB, Action, Chat agents. Each has a focused prompt + tool whitelist + bounded internal loop.
+- `internal/ai/agent_synthesizer_verifier.go` - Synthesizer (merges multi-agent output) + Verifier (Unicode-script language check + optional LLM grounding check on investigative turns).
+- `internal/ai/agent_prompts.go` - Per-agent static system prompts (focused ~100 lines each).
+- `internal/ai/page_context.go` - `PageProfile` + `PageProfiles` map + `@fluxbase:page-contexts` JSON parser. Level-2 page-aware chatbot overrides.
+- Reasoning modes: `"supervisor"` (default for new + existing chatbots via `PopulateDerivedFields`), `"react"`, `"strict"`, `"none"`. Pin via `@fluxbase:reasoning-mode` annotation.
 
 **Multi-Tenancy:**
 
