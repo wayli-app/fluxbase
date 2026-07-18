@@ -169,6 +169,9 @@ func syncRPCFromDir(ctx context.Context, dir, namespace string, dryRun, deleteMi
 		}
 
 		procName := strings.TrimSuffix(name, ".sql")
+		if IsDebug() {
+			fmt.Printf("  DEBUG: %s → read %d bytes, sending for sync\n", name, len(content))
+		}
 		procedures = append(procedures, map[string]interface{}{
 			"name": procName,
 			"code": string(content),
@@ -692,9 +695,15 @@ func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun, del
 			content, err := os.ReadFile(indexPath) //nolint:gosec
 			if err != nil {
 				// No index.ts, skip this directory
+				if IsDebug() {
+					fmt.Printf("  DEBUG: %s/ → no index.ts, skipping\n", name)
+				}
 				continue
 			}
 
+			if IsDebug() {
+				fmt.Printf("  DEBUG: %s/index.ts → read %d bytes, sending for sync\n", name, len(content))
+			}
 			chatbots = append(chatbots, map[string]interface{}{
 				"name": name,
 				"code": string(content),
@@ -712,6 +721,9 @@ func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun, del
 			}
 
 			cbName := strings.TrimSuffix(strings.TrimSuffix(name, ".ts"), ".js")
+			if IsDebug() {
+				fmt.Printf("  DEBUG: %s → read %d bytes, sending for sync\n", name, len(content))
+			}
 			chatbots = append(chatbots, map[string]interface{}{
 				"name": cbName,
 				"code": string(content),
@@ -807,6 +819,18 @@ func printSyncSummary(result map[string]interface{}, resourceType string) {
 		fmt.Println()
 	}
 
+	// Per-file debug logging. The server already returns Details (lists of
+	// names per action) — we just print them when --debug is set so users
+	// can self-diagnose sync convergence issues (bug 3).
+	if IsDebug() {
+		if details, ok := result["details"].(map[string]interface{}); ok {
+			printDebugList(details, "created", "create")
+			printDebugList(details, "updated", "update")
+			printDebugList(details, "deleted", "delete")
+			printDebugList(details, "unchanged", "unchanged")
+		}
+	}
+
 	// Print any errors from "errors" field (legacy format)
 	if errs, ok := result["errors"].([]interface{}); ok && len(errs) > 0 {
 		fmt.Println("  Errors:")
@@ -848,6 +872,20 @@ func printSyncSummary(result map[string]interface{}, resourceType string) {
 				}
 			}
 		}
+	}
+}
+
+// printDebugList prints a DEBUG line per file in the named details list.
+// Used by printSyncSummary to surface per-file sync decisions when --debug
+// is active. The key is the JSON field name in details; the label is what
+// to print as the human-readable decision.
+func printDebugList(details map[string]interface{}, key, label string) {
+	raw, ok := details[key].([]interface{})
+	if !ok || len(raw) == 0 {
+		return
+	}
+	for _, name := range raw {
+		fmt.Printf("  DEBUG: %v → decision: %s\n", name, label)
 	}
 }
 
