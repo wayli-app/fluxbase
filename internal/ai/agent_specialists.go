@@ -191,6 +191,16 @@ func (a *ActionAgent) Run(ctx context.Context, state *State) error {
 		}
 
 		msg := resp.Choices[0].Message
+
+		// Emit pre-tool reasoning as a thought-process chunk.
+		if msg.Content != "" && a.deps.Sender != nil {
+			a.deps.Sender.SendAgentThought(ctx, a.deps.ConversationID, AgentThought{
+				Agent: "action",
+				Kind:  "reasoning",
+				Delta: msg.Content,
+			})
+		}
+
 		if len(msg.ToolCalls) == 0 {
 			finalContent = msg.Content
 			break
@@ -198,7 +208,29 @@ func (a *ActionAgent) Run(ctx context.Context, state *State) error {
 		messages = append(messages, msg)
 
 		for _, tc := range msg.ToolCalls {
+			// Emit tool_call thought before executing so the client can
+			// render the action flow ("calling invoke_function with...").
+			if a.deps.Sender != nil {
+				a.deps.Sender.SendAgentThought(ctx, a.deps.ConversationID, AgentThought{
+					Agent:    "action",
+					Kind:     "tool_call",
+					ToolName: tc.Function.Name,
+					ToolArgs: json.RawMessage(tc.Function.Arguments),
+				})
+			}
 			resultStr := a.executeActionTool(ctx, tc, chatbot)
+			// Short tool_result summary in the thought stream.
+			if a.deps.Sender != nil {
+				summary := resultStr
+				if len(summary) > 200 {
+					summary = summary[:200] + "..."
+				}
+				a.deps.Sender.SendAgentThought(ctx, a.deps.ConversationID, AgentThought{
+					Agent: "action",
+					Kind:  "tool_result",
+					Delta: summary,
+				})
+			}
 			messages = append(messages, Message{
 				Role:       RoleTool,
 				Content:    resultStr,
@@ -239,6 +271,12 @@ func (a *ActionAgent) buildToolList(chatbot *Chatbot) []Tool {
 }
 
 // executeActionTool dispatches one MCP tool call.
+//
+// chatCtx is required — MCP tools (ChatbotAuthContext) read user/role from
+// it for RLS-scoped operations. The supervisor path passes deps.ChatCtx
+// (which is always populated when running under the WS handler). The
+// nil-safe fallback in ChatbotAuthContext covers tests that don't construct
+// a full ChatContext, but production paths must populate it.
 func (a *ActionAgent) executeActionTool(ctx context.Context, tc ToolCall, chatbot *Chatbot) string {
 	var args map[string]any
 	if err := parseJSONArgs(tc.Function.Arguments, &args); err != nil {
@@ -247,10 +285,7 @@ func (a *ActionAgent) executeActionTool(ctx context.Context, tc ToolCall, chatbo
 	if a.deps.Sender != nil {
 		a.deps.Sender.SendProgress(ctx, a.deps.ConversationID, "executing", fmt.Sprintf("Executing %s...", tc.Function.Name))
 	}
-	// Action agent doesn't have a ChatContext (we're outside the WS handler).
-	// Pass nil — ExecuteTool handles nil chatCtx for non-RLS tools. RLS-scoped
-	// tools (insert_record etc.) fall back to the chatbot's configured access.
-	result, err := a.deps.MCPExecutor.ExecuteTool(ctx, tc.Function.Name, args, nil, chatbot)
+	result, err := a.deps.MCPExecutor.ExecuteTool(ctx, tc.Function.Name, args, a.deps.ChatCtx, chatbot)
 	if err != nil {
 		return fmt.Sprintf("Error executing %s: %v", tc.Function.Name, err)
 	}

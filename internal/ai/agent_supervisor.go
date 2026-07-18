@@ -76,6 +76,11 @@ func (a *SupervisorAgent) Run(ctx context.Context, state *State) error {
 		return fmt.Errorf("supervisor: no provider available")
 	}
 
+	// Emit a routing transition event so the client can show "Investigating with SQL..."
+	if a.deps.Sender != nil {
+		a.deps.Sender.SendAgentTransition(ctx, a.deps.ConversationID, AgentTransition{To: "supervisor"})
+	}
+
 	// Build the supervisor's messages: static system prompt + dynamic
 	// context (per-page whitelist) + user message.
 	systemPrompt := BuildSupervisorPrompt(chatbot)
@@ -117,6 +122,18 @@ func (a *SupervisorAgent) Run(ctx context.Context, state *State) error {
 		return fmt.Errorf("supervisor: failed to parse plan: %w (content=%q)", err, content)
 	}
 
+	// Honor chatbot.ResponseLanguage: when set (anything other than "" or
+	// "auto"), the configured language WINS over the supervisor's detected
+	// language. This matches the legacy ReAct loop's behavior — see
+	// schema_builder.go's "Response Language" section. Without this
+	// override, a chatbot pinned to German via @fluxbase:response-language
+	// would still reply in whatever language the supervisor thought it
+	// detected, which is the reported regression ("asked in English, got
+	// German" was the supervisor mis-detecting on a German-configured bot).
+	if chatbot.ResponseLanguage != "" && chatbot.ResponseLanguage != "auto" {
+		plan.UserLanguage = chatbot.ResponseLanguage
+	}
+
 	// Apply page-profile whitelist: filter out agents the page doesn't allow.
 	if profile := state.PageProfile(); profile != nil && len(profile.Agents) > 0 {
 		filtered := make([]string, 0, len(plan.Route))
@@ -141,6 +158,17 @@ func (a *SupervisorAgent) Run(ctx context.Context, state *State) error {
 	// Default MinToolCalls when investigative but unset.
 	if plan.IsInvestigative && plan.MinToolCalls <= 0 {
 		plan.MinToolCalls = 1
+	}
+
+	// Emit the routing decision as a thought-process event so clients can
+	// render "Supervisor routed to: sql, kb because...". The plan carries
+	// the route + detected language + investigative flag.
+	if a.deps.Sender != nil {
+		a.deps.Sender.SendAgentThought(ctx, a.deps.ConversationID, AgentThought{
+			Agent: "supervisor",
+			Kind:  "plan",
+			Plan:  plan,
+		})
 	}
 
 	state.Set(SupervisorPlanKey, plan)

@@ -126,6 +126,19 @@ func (a *SQLAgent) Run(ctx context.Context, state *State) error {
 		}
 
 		msg := resp.Choices[0].Message
+
+		// Emit pre-tool reasoning as a thought-process chunk. The model's
+		// Content here is its explanation of what it's about to do ("Let
+		// me check the orders table first because..."). Suppressed on the
+		// wire when show_reasoning=false via chatHandlerSender.
+		if msg.Content != "" && a.deps.Sender != nil {
+			a.deps.Sender.SendAgentThought(ctx, a.deps.ConversationID, AgentThought{
+				Agent: "sql",
+				Kind:  "reasoning",
+				Delta: msg.Content,
+			})
+		}
+
 		if len(msg.ToolCalls) == 0 {
 			// Budget gate: if the supervisor said this turn is investigative
 			// with a min-tool-call floor and we haven't hit it yet, push
@@ -146,10 +159,30 @@ func (a *SQLAgent) Run(ctx context.Context, state *State) error {
 		// Append assistant tool-call message and execute each tool
 		messages = append(messages, msg)
 		for _, tc := range msg.ToolCalls {
+			// Emit a tool_call thought so clients can render "calling
+			// execute_sql with args..." before the result arrives.
+			if a.deps.Sender != nil {
+				a.deps.Sender.SendAgentThought(ctx, a.deps.ConversationID, AgentThought{
+					Agent:    "sql",
+					Kind:     "tool_call",
+					ToolName: tc.Function.Name,
+					ToolArgs: json.RawMessage(tc.Function.Arguments),
+				})
+			}
 			resultStr, queryResult := a.executeSQL(ctx, tc, chatbot, allowedTables)
 			toolCallCount++
 			if queryResult != nil {
 				state.AppendToolResult(*queryResult)
+				// Short tool_result summary in the thought stream. Full
+				// structured data still flows via the query_result event
+				// emitted by executeSQL.
+				if a.deps.Sender != nil {
+					a.deps.Sender.SendAgentThought(ctx, a.deps.ConversationID, AgentThought{
+						Agent: "sql",
+						Kind:  "tool_result",
+						Delta: queryResult.Summary,
+					})
+				}
 			}
 			messages = append(messages, Message{
 				Role:       RoleTool,

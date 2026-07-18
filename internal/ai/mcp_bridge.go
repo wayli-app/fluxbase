@@ -6,13 +6,23 @@ import (
 
 // ChatbotAuthContext creates an MCP AuthContext from a ChatContext and Chatbot configuration.
 // This bridges the chatbot's authentication context to MCP's authorization system.
+//
+// Nil-safe: a nil chatCtx returns an AuthContext with empty user/role fields
+// but still carries the chatbot's tool configuration in metadata. This is
+// the defense-in-depth path — callers should pass a real ChatContext when
+// available, but a nil deref here crashed the server once (agent_specialists.go
+// passing nil from the supervisor path) and we don't want a repeat.
 func ChatbotAuthContext(chatCtx *ChatContext, chatbot *Chatbot) *mcp.AuthContext {
 	// Derive scopes from chatbot's allowed MCP tools
 	scopes := DeriveScopes(chatbot.MCPTools)
 
 	var userID *string
-	if chatCtx.UserID != nil {
-		userID = chatCtx.UserID
+	var userRole string
+	if chatCtx != nil {
+		if chatCtx.UserID != nil {
+			userID = chatCtx.UserID
+		}
+		userRole = chatCtx.Role
 	}
 
 	// Build metadata with chatbot-specific configuration
@@ -50,7 +60,7 @@ func ChatbotAuthContext(chatCtx *ChatContext, chatbot *Chatbot) *mcp.AuthContext
 
 	return &mcp.AuthContext{
 		UserID:   userID,
-		UserRole: chatCtx.Role,
+		UserRole: userRole,
 		AuthType: "chatbot",
 		Scopes:   scopes,
 		// Chatbots never bypass RLS - they always operate as the authenticated user

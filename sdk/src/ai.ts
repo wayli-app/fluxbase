@@ -13,6 +13,7 @@ import type {
   AIDailyQuotaSnapshot,
   AIMatchedIntentRule,
   AIAgentTransition,
+  AIAgentThought,
   ListConversationsOptions,
   ListConversationsResult,
   UpdateConversationOptions,
@@ -29,6 +30,7 @@ export type AIChatEventType =
   | "query_result"
   | "tool_result"
   | "agent_transition"
+  | "agent_thought"
   | "done"
   | "error"
   | "cancelled"
@@ -51,6 +53,8 @@ export interface AIChatEvent {
   usage?: AIUsageStats;
   /** Agent transition payload, present on agent_transition events (supervisor mode). */
   agentTransition?: AIAgentTransition;
+  /** Agent thought payload, present on agent_thought events (supervisor mode). */
+  agentThought?: AIAgentThought;
   /** Currently-active specialist agent name, on agent_transition events. */
   agent?: string;
   /** Echo of the client's page_context, on agent_transition events. */
@@ -102,6 +106,20 @@ export interface AIChatOptions {
    */
   onAgentTransition?: (
     transition: AIAgentTransition,
+    conversationId: string,
+  ) => void;
+  /**
+   * Callback for agent thought events (supervisor mode only). Fires for
+   * each piece of agent reasoning: routing plan, streamed thought chunk,
+   * tool call decision, or tool result summary. Use this to render a
+   * "thought process" stream alongside the final response.
+   *
+   * Suppressed server-side when the chatbot has
+   * @fluxbase:show-reasoning false — only reasoning chunks are gated,
+   * tool_call/tool_result/plan events always fire so users see actions.
+   */
+  onAgentThought?: (
+    thought: AIAgentThought,
     conversationId: string,
   ) => void;
   /** Callback for errors */
@@ -441,6 +459,19 @@ export class FluxbaseAIChat {
           }
           break;
 
+        case "agent_thought":
+          // Supervisor-mode event: one piece of agent reasoning (routing
+          // plan, streamed thought chunk, tool call, or tool result
+          // summary). Surfaces the thought-process stream to clients that
+          // want to render it.
+          if (message.conversation_id && message.agent_thought) {
+            this.options.onAgentThought?.(
+              message.agent_thought,
+              message.conversation_id,
+            );
+          }
+          break;
+
         case "done":
           if (message.conversation_id) {
             this.options.onDone?.(
@@ -491,6 +522,7 @@ export class FluxbaseAIChat {
       data: message.data,
       usage: message.usage,
       agentTransition: message.agent_transition,
+      agentThought: message.agent_thought,
       agent: message.agent,
       pageContext: message.page_context,
       error: message.error,

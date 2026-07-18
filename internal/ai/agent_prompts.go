@@ -212,14 +212,31 @@ func BuildVerifierPrompt() string {
 // BuildDynamicContextForAgent builds the per-turn dynamic context that
 // accompanies each agent's static system prompt. This keeps the static
 // prefix byte-stable for caching while still threading per-turn details
-// (user ID, time, schema, page context) through.
+// (user ID, time, schema, page context, configured language) through.
 //
 // This is called by each agent's Run() method when it builds its ChatRequest.
+//
+// Language handling mirrors the legacy schema_builder.go logic:
+//   - If ResponseLanguage is set to a specific language (not "" or "auto"),
+//     emit a HARD directive to always reply in that language. This is the
+//     fix for the regression where a German-pinned chatbot replied in
+//     English because the supervisor's detected language won over the
+//     configured one.
+//   - Otherwise rely on per-agent static prompts ("match the user's
+//     language") plus the supervisor's detected language, which each
+//     agent reads from state.UserLanguage() separately.
 func BuildDynamicContextForAgent(chatbot *Chatbot, userID string, agentName string, pageProfile *PageProfile) string {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "Current user ID: %s\n", userID)
 	fmt.Fprintf(&sb, "Current date and time: %s\n", currentTimeForPrompt())
+
+	// Hard language directive when configured. Matches schema_builder.go's
+	// legacy behavior — pinned language wins over detected.
+	if chatbot.ResponseLanguage != "" && chatbot.ResponseLanguage != "auto" {
+		fmt.Fprintf(&sb, "\nIMPORTANT: Always respond in %s, regardless of the language the user writes in.\n",
+			chatbot.ResponseLanguage)
+	}
 
 	// Per-page focus suffix
 	if pageProfile != nil && pageProfile.Suffix != "" {

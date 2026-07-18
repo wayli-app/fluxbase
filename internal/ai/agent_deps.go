@@ -49,6 +49,12 @@ type AgentDeps struct {
 	// MCPAuthCtx is the auth context for MCP tool execution.
 	MCPAuthCtx *mcp.AuthContext
 
+	// ChatCtx is the live WebSocket chat session context. May be nil when
+	// the supervisor is invoked outside the WS handler (e.g., from tests
+	// or one-shot CLI invocations). Agents that call into MCP tools build
+	// a synthetic ChatCtx from this when nil — see ActionAgent.buildChatContext.
+	ChatCtx *ChatContext
+
 	// ConversationID is the active conversation (for audit logging,
 	// progress events, etc.).
 	ConversationID string
@@ -77,6 +83,11 @@ type AgentEventSender interface {
 	// SendAgentTransition emits an agent_transition event when one agent
 	// hands off to another (for client-side UI observability).
 	SendAgentTransition(ctx context.Context, conversationID string, transition AgentTransition)
+	// SendAgentThought emits a thought-process event carrying one piece of
+	// agent reasoning: a routing plan, a streamed reasoning chunk, a tool
+	// call decision, or a tool result summary. Used to render the
+	// thought-process UI alongside the final response.
+	SendAgentThought(ctx context.Context, conversationID string, thought AgentThought)
 }
 
 // AgentTransition is the wire payload for the agent_transition event.
@@ -86,4 +97,22 @@ type AgentTransition struct {
 	Route       []string `json:"route,omitempty"`
 	Reason      string   `json:"reason,omitempty"`
 	PageContext string   `json:"page_context,omitempty"`
+}
+
+// AgentThought is the wire payload for the agent_thought event. Each event
+// represents one discrete piece of agent reasoning — the client renders
+// them as a "thought process" stream alongside the final response.
+//
+// Kind is one of:
+//   - "plan":       the supervisor's routing decision (Plan field populated)
+//   - "reasoning":  a streamed text chunk from a specialist agent (Delta)
+//   - "tool_call":  a tool invocation the agent decided to make (ToolName + ToolArgs)
+//   - "tool_result": a short summary of what a tool returned (Delta carries the summary)
+type AgentThought struct {
+	Agent    string          `json:"agent"`               // supervisor|sql|kb|action|chat|synthesizer|verifier
+	Kind     string          `json:"kind"`                // plan|reasoning|tool_call|tool_result
+	Delta    string          `json:"delta,omitempty"`     // streamed reasoning or short result summary
+	ToolName string          `json:"tool_name,omitempty"` // for kind=tool_call
+	ToolArgs any             `json:"tool_args,omitempty"` // for kind=tool_call
+	Plan     *SupervisorPlan `json:"plan,omitempty"`      // for kind=plan
 }

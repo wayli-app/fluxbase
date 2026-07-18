@@ -195,8 +195,15 @@ type ServerMessage struct {
 	// PageContext echoes the page_context string from the client's message
 	// back in agent_transition events, so multi-page clients can correlate.
 	PageContext string `json:"page_context,omitempty"`
-	Error       string `json:"error,omitempty"`
-	Code        string `json:"code,omitempty"`
+	// AgentThought carries one piece of agent reasoning (routing plan,
+	// streamed thought chunk, tool call decision, tool result summary).
+	// Emitted as agent_thought events; clients render them as the
+	// thought-process stream alongside the final response. Suppressed
+	// when chatbot.ShowReasoning is false (only reasoning kind —
+	// tool_call/tool_result events still emit so users see actions).
+	AgentThought *AgentThought `json:"agent_thought,omitempty"`
+	Error        string        `json:"error,omitempty"`
+	Code         string        `json:"code,omitempty"`
 }
 
 // DailyQuotaSnapshot is a point-in-time view of the per-user daily counters

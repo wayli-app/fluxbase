@@ -84,8 +84,12 @@ type ConversationMessage struct {
 	QueryResults     []map[string]interface{} `json:"query_results,omitempty"` // Full query results for assistant messages
 	PromptTokens     *int                     `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int                     `json:"completion_tokens,omitempty"`
-	CreatedAt        time.Time                `json:"created_at"`
-	SequenceNumber   int                      `json:"sequence_number"`
+	// Metadata stores optional supervisor turn context (agent_outputs,
+	// supervisor_plan, detected language). Persisted to messages.metadata
+	// so subsequent turns can recover what each specialist concluded.
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt      time.Time              `json:"created_at"`
+	SequenceNumber int                    `json:"sequence_number"`
 }
 
 // NewConversationManager creates a new conversation manager
@@ -270,6 +274,12 @@ func (cm *ConversationManager) AddMessage(ctx context.Context, conversationID st
 			dbMsg.QueryResults = dbQueryResults
 		}
 
+		// Persist supervisor turn metadata (agent outputs + plan) so later
+		// turns can recover what each specialist concluded.
+		if len(msg.Metadata) > 0 {
+			dbMsg.Metadata = msg.Metadata
+		}
+
 		if err := cm.saveMessage(ctx, dbMsg); err != nil {
 			log.Error().Err(err).Msg("Failed to save message to database")
 		}
@@ -450,9 +460,9 @@ func (cm *ConversationManager) saveMessage(ctx context.Context, msg *Conversatio
 		INSERT INTO ai.messages (
 			id, conversation_id, role, content, tool_call_id, tool_name,
 			executed_sql, sql_result_summary, sql_row_count, sql_error, sql_duration_ms,
-			query_results, prompt_tokens, completion_tokens, created_at, sequence_number
+			query_results, prompt_tokens, completion_tokens, created_at, sequence_number, metadata
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		)
 	`
 
@@ -462,6 +472,7 @@ func (cm *ConversationManager) saveMessage(ctx context.Context, msg *Conversatio
 			msg.ID, msg.ConversationID, msg.Role, msg.Content, msg.ToolCallID, msg.ToolName,
 			msg.ExecutedSQL, msg.SQLResultSummary, msg.SQLRowCount, msg.SQLError, msg.SQLDurationMs,
 			msg.QueryResults, msg.PromptTokens, msg.CompletionTokens, msg.CreatedAt, msg.SequenceNumber,
+			msg.Metadata,
 		)
 		return err
 	})

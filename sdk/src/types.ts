@@ -3123,6 +3123,44 @@ export interface AIAgentTransition {
 }
 
 /**
+ * Supervisor routing plan, emitted as the payload of an agent_thought
+ * event with kind="plan". Mirrors the server-side SupervisorPlan struct.
+ */
+export interface AISupervisorPlan {
+  user_language?: string;
+  route?: string[];
+  sub_questions?: string[];
+  requires_synthesis?: boolean;
+  is_investigative?: boolean;
+  min_tool_calls?: number;
+}
+
+/**
+ * Agent thought payload, emitted on agent_thought events. Each event is
+ * one discrete piece of agent reasoning. Render as a "thought process"
+ * stream alongside the final response.
+ *
+ * Kind is one of:
+ *   - "plan":        the supervisor's routing decision (plan populated)
+ *   - "reasoning":   streamed reasoning text from a specialist (delta)
+ *   - "tool_call":   the agent decided to call a tool (tool_name + tool_args)
+ *   - "tool_result": short summary of a tool's result (delta)
+ */
+export interface AIAgentThought {
+  /** Agent that produced this thought: supervisor|sql|kb|action|chat|synthesizer|verifier. */
+  agent: string;
+  kind: "plan" | "reasoning" | "tool_call" | "tool_result";
+  /** Streamed reasoning or short tool_result summary. */
+  delta?: string;
+  /** Tool name for kind=tool_call. */
+  tool_name?: string;
+  /** Tool arguments for kind=tool_call (raw JSON). */
+  tool_args?: unknown;
+  /** Supervisor plan for kind=plan. */
+  plan?: AISupervisorPlan;
+}
+
+/**
  * AI chat server message
  */
 export interface AIChatServerMessage {
@@ -3133,6 +3171,7 @@ export interface AIChatServerMessage {
     | "query_result"
     | "tool_result"
     | "agent_transition"
+    | "agent_thought"
     | "done"
     | "error"
     | "cancelled";
@@ -3153,6 +3192,8 @@ export interface AIChatServerMessage {
   daily_quota?: AIDailyQuotaSnapshot;
   /** Agent transition payload, present on agent_transition events (supervisor mode). */
   agent_transition?: AIAgentTransition;
+  /** Agent thought payload, present on agent_thought events (supervisor mode). */
+  agent_thought?: AIAgentThought;
   /** Currently-active specialist agent name, on agent_transition events. */
   agent?: string;
   /** Echo of the client's page_context, on agent_transition events. */
