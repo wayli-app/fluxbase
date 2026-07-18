@@ -175,6 +175,7 @@ func resetChatbotFlags() {
 	cbKnowledgeBase = ""
 	cbSyncDir = ""
 	cbNamespace = ""
+	cbListNamespace = ""
 	cbDryRun = false
 	cbDeleteMissing = false
 }

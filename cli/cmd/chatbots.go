@@ -27,6 +27,11 @@ var (
 	cbTemperature   float64
 	cbMaxTokens     int
 	cbKnowledgeBase string
+	// cbListNamespace is the optional --namespace filter for `chatbots list`.
+	// Empty (default) means list across all namespaces. Kept separate from
+	// cbNamespace (used by sync as a target with default "default") so the
+	// two commands don't fight over the same var's initial value.
+	cbListNamespace string
 )
 
 var chatbotsListCmd = &cobra.Command{
@@ -36,6 +41,7 @@ var chatbotsListCmd = &cobra.Command{
 
 Examples:
   fluxbase chatbots list
+  fluxbase chatbots list --namespace wayli
   fluxbase chatbots list -o json`,
 	PreRunE: requireAuth,
 	RunE:    runChatbotsList,
@@ -111,6 +117,9 @@ var (
 )
 
 func init() {
+	// List flags
+	chatbotsListCmd.Flags().StringVar(&cbListNamespace, "namespace", "", "Filter by namespace")
+
 	// Create flags
 	chatbotsCreateCmd.Flags().StringVar(&cbSystemPrompt, "system-prompt", "", "System prompt for the chatbot")
 	chatbotsCreateCmd.Flags().StringVar(&cbModel, "model", "gpt-3.5-turbo", "AI model to use")
@@ -144,17 +153,28 @@ func runChatbotsList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Build optional query params. Empty namespace = list across all.
+	var query url.Values
+	if cbListNamespace != "" {
+		query = url.Values{}
+		query.Set("namespace", cbListNamespace)
+	}
+
 	var response struct {
 		Chatbots []map[string]interface{} `json:"chatbots"`
 		Count    int                      `json:"count"`
 	}
-	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/chatbots", nil, &response); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/chatbots", query, &response); err != nil {
 		return err
 	}
 	chatbots := response.Chatbots
 
 	if len(chatbots) == 0 {
-		fmt.Println("No chatbots found.")
+		if cbListNamespace != "" {
+			fmt.Printf("No chatbots found in namespace '%s'.\n", cbListNamespace)
+		} else {
+			fmt.Println("No chatbots found.")
+		}
 		return nil
 	}
 
