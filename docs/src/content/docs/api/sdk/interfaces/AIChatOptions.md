@@ -11,6 +11,7 @@ Chat connection options
 
 | Property | Type | Description |
 | ------ | ------ | ------ |
+| <a id="onagenttransition"></a> `onAgentTransition?` | (`transition`, `conversationId`) => `void` | Callback for agent transition events (supervisor mode only). Fires when the supervisor routes to a specialist agent, when one agent hands off to another, and when the synthesizer/verifier engage. Use this to render the multi-agent flow as observable UI. |
 | <a id="oncontent"></a> `onContent?` | (`delta`, `conversationId`) => `void` | Callback for content chunks (streaming) |
 | <a id="ondone"></a> `onDone?` | (`usage`, `conversationId`, `extras?`) => `void` | Callback when message is complete |
 | <a id="onerror"></a> `onError?` | (`error`, `code`, `conversationId`) => `void` | Callback for errors |

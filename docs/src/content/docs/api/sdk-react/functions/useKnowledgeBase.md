@@ -5,7 +5,7 @@ prev: false
 title: "useKnowledgeBase"
 ---
 
-> **useKnowledgeBase**(`kbId`): `UseQueryResult`\<`KnowledgeBase` \| `null`, `Error`\>
+> **useKnowledgeBase**(`kbId`): `UseQueryResult`\<`NoInfer`\<`KnowledgeBase` \| `null`\>, `Error`\>
 
 Hook to get a single knowledge base by ID
 
@@ -17,4 +17,4 @@ Hook to get a single knowledge base by ID
 
 ## Returns
 
-`UseQueryResult`\<`KnowledgeBase` \| `null`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`KnowledgeBase` \| `null`\>, `Error`\>

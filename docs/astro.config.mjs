@@ -271,7 +271,7 @@ export default defineConfig({
             {
               label: "Database Branching",
               collapsed: true,
-              autogenerate: { directory: "guides/branching" },
+              items: [{ autogenerate: { directory: "guides/branching" } }],
             },
             { label: "Client Keys", link: "/guides/client-keys/" },
             { label: "Service Keys", link: "/guides/service-keys/" },
@@ -291,7 +291,7 @@ export default defineConfig({
             {
               label: "MCP Server",
               collapsed: true,
-              autogenerate: { directory: "guides/mcp" },
+              items: [{ autogenerate: { directory: "guides/mcp" } }],
             },
             { label: "Webhooks", link: "/guides/webhooks/" },
             { label: "User Settings", link: "/guides/user-settings/" },
@@ -317,26 +317,26 @@ export default defineConfig({
             {
               label: "Admin Dashboard",
               collapsed: true,
-              autogenerate: { directory: "guides/admin" },
+              items: [{ autogenerate: { directory: "guides/admin" } }],
             },
 
             // Tutorials
             {
               label: "Tutorials",
               collapsed: true,
-              autogenerate: { directory: "guides/tutorials" },
+              items: [{ autogenerate: { directory: "guides/tutorials" } }],
             },
           ],
         },
         {
           label: "Security",
           collapsed: true,
-          autogenerate: { directory: "security" },
+          items: [{ autogenerate: { directory: "security" } }],
         },
         {
           label: "TypeScript SDK",
           collapsed: true,
-          autogenerate: { directory: "sdk" },
+          items: [{ autogenerate: { directory: "sdk" } }],
         },
         {
           label: "React SDK",
@@ -396,7 +396,7 @@ export default defineConfig({
         {
           label: "Deployment",
           collapsed: true,
-          autogenerate: { directory: "deployment" },
+          items: [{ autogenerate: { directory: "deployment" } }],
         },
         {
           label: "API Reference",
@@ -405,12 +405,12 @@ export default defineConfig({
             {
               label: "TypeScript SDK",
               collapsed: true,
-              autogenerate: { directory: "api/sdk" },
+              items: [{ autogenerate: { directory: "api/sdk" } }],
             },
             {
               label: "React SDK",
               collapsed: true,
-              autogenerate: { directory: "api/sdk-react" },
+              items: [{ autogenerate: { directory: "api/sdk-react" } }],
             },
             { label: "HTTP API", link: "/api/http/" },
             { label: "GraphQL API", link: "/api/http/graphql/" },

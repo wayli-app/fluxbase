@@ -5,7 +5,7 @@ prev: false
 title: "useConversation"
 ---
 
-> **useConversation**(`conversationId`): `UseQueryResult`\<`AIUserConversationDetail` \| `null`, `Error`\>
+> **useConversation**(`conversationId`): `UseQueryResult`\<`NoInfer`\<`AIUserConversationDetail` \| `null`\>, `Error`\>
 
 Hook to get a conversation with full message history
 
@@ -17,4 +17,4 @@ Hook to get a conversation with full message history
 
 ## Returns
 
-`UseQueryResult`\<`AIUserConversationDetail` \| `null`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`AIUserConversationDetail` \| `null`\>, `Error`\>

@@ -5,7 +5,7 @@ prev: false
 title: "useMigrations"
 ---
 
-> **useMigrations**(`namespace?`): `UseQueryResult`\<`Migration`[], `Error`\>
+> **useMigrations**(`namespace?`): `UseQueryResult`\<`NoInfer`\<`Migration`[]\>, `Error`\>
 
 Hook to list migrations in a namespace
 
@@ -17,4 +17,4 @@ Hook to list migrations in a namespace
 
 ## Returns
 
-`UseQueryResult`\<`Migration`[], `Error`\>
+`UseQueryResult`\<`NoInfer`\<`Migration`[]\>, `Error`\>

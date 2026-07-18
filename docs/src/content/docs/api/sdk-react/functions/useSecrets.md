@@ -5,7 +5,7 @@ prev: false
 title: "useSecrets"
 ---
 
-> **useSecrets**(`options?`): `UseQueryResult`\<`SecretSummary`[], `Error`\>
+> **useSecrets**(`options?`): `UseQueryResult`\<`NoInfer`\<`SecretSummary`[]\>, `Error`\>
 
 Hook to list all secrets (metadata only, never includes values)
 
@@ -17,4 +17,4 @@ Hook to list all secrets (metadata only, never includes values)
 
 ## Returns
 
-`UseQueryResult`\<`SecretSummary`[], `Error`\>
+`UseQueryResult`\<`NoInfer`\<`SecretSummary`[]\>, `Error`\>

@@ -132,7 +132,7 @@ Check if connected
 
 ### sendMessage()
 
-> **sendMessage**(`conversationId`, `content`): `void`
+> **sendMessage**(`conversationId`, `content`, `options?`): `void`
 
 Send a message in a conversation
 
@@ -142,6 +142,8 @@ Send a message in a conversation
 | ------ | ------ | ------ |
 | `conversationId` | `string` | Conversation ID |
 | `content` | `string` | Message content |
+| `options?` | \{ `pageContext?`: `string`; \} | Optional per-message options |
+| `options.pageContext?` | `string` | Page context string for page-aware chatbots. The supervisor looks up the matching PageProfile (if any) and uses it to bias routing and override per-page config. Missing or unknown values fall back to the chatbot's global config. |
 
 #### Returns
 

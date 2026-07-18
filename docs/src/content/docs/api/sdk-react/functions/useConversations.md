@@ -5,7 +5,7 @@ prev: false
 title: "useConversations"
 ---
 
-> **useConversations**(`options?`): `UseQueryResult`\<`ListConversationsResult` \| `null`, `Error`\>
+> **useConversations**(`options?`): `UseQueryResult`\<`NoInfer`\<`ListConversationsResult` \| `null`\>, `Error`\>
 
 Hook to list the current user's conversations
 
@@ -17,4 +17,4 @@ Hook to list the current user's conversations
 
 ## Returns
 
-`UseQueryResult`\<`ListConversationsResult` \| `null`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`ListConversationsResult` \| `null`\>, `Error`\>

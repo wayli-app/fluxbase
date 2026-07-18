@@ -5,13 +5,13 @@ prev: false
 title: "useSAMLProviders"
 ---
 
-> **useSAMLProviders**(): `UseQueryResult`\<[`SAMLProvider`](/api/sdk-react/interfaces/samlprovider/)[], `Error`\>
+> **useSAMLProviders**(): `UseQueryResult`\<`NoInfer`\<[`SAMLProvider`](/api/sdk-react/interfaces/samlprovider/)[]\>, `Error`\>
 
 Hook to get available SAML SSO providers
 
 ## Returns
 
-`UseQueryResult`\<[`SAMLProvider`](/api/sdk-react/interfaces/samlprovider/)[], `Error`\>
+`UseQueryResult`\<`NoInfer`\<[`SAMLProvider`](/api/sdk-react/interfaces/samlprovider/)[]\>, `Error`\>
 
 ## Example
 

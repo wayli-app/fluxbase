@@ -5,7 +5,7 @@ prev: false
 title: "useRPCList"
 ---
 
-> **useRPCList**(`namespace?`): `UseQueryResult`\<`RPCProcedureSummary`[] \| `null`, `Error`\>
+> **useRPCList**(`namespace?`): `UseQueryResult`\<`NoInfer`\<`RPCProcedureSummary`[] \| `null`\>, `Error`\>
 
 Hook to list available RPC procedures
 
@@ -17,4 +17,4 @@ Hook to list available RPC procedures
 
 ## Returns
 
-`UseQueryResult`\<`RPCProcedureSummary`[] \| `null`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`RPCProcedureSummary`[] \| `null`\>, `Error`\>

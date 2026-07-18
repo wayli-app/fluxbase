@@ -70,6 +70,8 @@ function LoginForm() {
 }
 ```
 
+**Cap provider**
+
 ```tsx
 function LoginForm() {
   const { data: config } = useCaptchaConfig();

@@ -5,7 +5,7 @@ prev: false
 title: "useGraphQLIntrospection"
 ---
 
-> **useGraphQLIntrospection**(`options?`): `UseQueryResult`\<\{ `__schema`: `IntrospectionSchema`; \} \| `undefined`, `Error`\>
+> **useGraphQLIntrospection**(`options?`): `UseQueryResult`\<`NoInfer`\<\{ `__schema`: `IntrospectionSchema`; \} \| `undefined`\>, `Error`\>
 
 Hook to fetch the GraphQL schema via introspection
 
@@ -20,7 +20,7 @@ Hook to fetch the GraphQL schema via introspection
 
 ## Returns
 
-`UseQueryResult`\<\{ `__schema`: `IntrospectionSchema`; \} \| `undefined`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<\{ `__schema`: `IntrospectionSchema`; \} \| `undefined`\>, `Error`\>
 
 React Query result with schema introspection data
 

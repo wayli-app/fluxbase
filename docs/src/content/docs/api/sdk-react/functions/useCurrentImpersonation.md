@@ -5,10 +5,10 @@ prev: false
 title: "useCurrentImpersonation"
 ---
 
-> **useCurrentImpersonation**(): `UseQueryResult`\<`GetImpersonationResponse`, `Error`\>
+> **useCurrentImpersonation**(): `UseQueryResult`\<`NoInfer`\<`GetImpersonationResponse`\>, `Error`\>
 
 Hook to get the current impersonation session
 
 ## Returns
 
-`UseQueryResult`\<`GetImpersonationResponse`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`GetImpersonationResponse`\>, `Error`\>

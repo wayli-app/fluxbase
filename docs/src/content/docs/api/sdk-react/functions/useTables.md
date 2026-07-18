@@ -5,7 +5,7 @@ prev: false
 title: "useTables"
 ---
 
-> **useTables**(`schema?`): `UseQueryResult`\<`ListTablesResponse`, `Error`\>
+> **useTables**(`schema?`): `UseQueryResult`\<`NoInfer`\<`ListTablesResponse`\>, `Error`\>
 
 Hook to list tables, optionally filtered by schema
 
@@ -17,4 +17,4 @@ Hook to list tables, optionally filtered by schema
 
 ## Returns
 
-`UseQueryResult`\<`ListTablesResponse`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`ListTablesResponse`\>, `Error`\>

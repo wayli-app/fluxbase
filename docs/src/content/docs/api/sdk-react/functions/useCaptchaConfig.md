@@ -5,14 +5,14 @@ prev: false
 title: "useCaptchaConfig"
 ---
 
-> **useCaptchaConfig**(): `UseQueryResult`\<[`CaptchaConfig`](/api/sdk-react/interfaces/captchaconfig/), `Error`\>
+> **useCaptchaConfig**(): `UseQueryResult`\<`NoInfer`\<[`CaptchaConfig`](/api/sdk-react/interfaces/captchaconfig/)\>, `Error`\>
 
 Hook to get the CAPTCHA configuration from the server
 Use this to determine which CAPTCHA provider to load
 
 ## Returns
 
-`UseQueryResult`\<[`CaptchaConfig`](/api/sdk-react/interfaces/captchaconfig/), `Error`\>
+`UseQueryResult`\<`NoInfer`\<[`CaptchaConfig`](/api/sdk-react/interfaces/captchaconfig/)\>, `Error`\>
 
 ## Example
 

@@ -5,7 +5,7 @@ prev: false
 title: "useAuthConfig"
 ---
 
-> **useAuthConfig**(): `UseQueryResult`\<`AuthConfig`, `Error`\>
+> **useAuthConfig**(): `UseQueryResult`\<`NoInfer`\<`AuthConfig`\>, `Error`\>
 
 Hook to get the complete authentication configuration from the server
 
@@ -25,7 +25,7 @@ OAuth provider buttons.
 
 ## Returns
 
-`UseQueryResult`\<`AuthConfig`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`AuthConfig`\>, `Error`\>
 
 Query result with authentication configuration
 
@@ -63,6 +63,8 @@ function AuthPage() {
   );
 }
 ```
+
+**Showing password requirements**
 
 ```tsx
 function PasswordInput() {

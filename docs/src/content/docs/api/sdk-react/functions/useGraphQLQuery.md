@@ -5,7 +5,7 @@ prev: false
 title: "useGraphQLQuery"
 ---
 
-> **useGraphQLQuery**\<`T`\>(`queryKey`, `query`, `options?`): `UseQueryResult`\<`NoInfer_2`\<`T` \| `undefined`\>, [`GraphQLError`](/api/sdk-react/interfaces/graphqlerror/)\>
+> **useGraphQLQuery**\<`T`\>(`queryKey`, `query`, `options?`): `UseQueryResult`\<`NoInfer`\<`T` \| `undefined`\>, [`GraphQLError`](/api/sdk-react/interfaces/graphqlerror/)\>
 
 Hook to execute GraphQL queries with React Query caching
 
@@ -25,7 +25,7 @@ Hook to execute GraphQL queries with React Query caching
 
 ## Returns
 
-`UseQueryResult`\<`NoInfer_2`\<`T` \| `undefined`\>, [`GraphQLError`](/api/sdk-react/interfaces/graphqlerror/)\>
+`UseQueryResult`\<`NoInfer`\<`T` \| `undefined`\>, [`GraphQLError`](/api/sdk-react/interfaces/graphqlerror/)\>
 
 React Query result object
 

@@ -5,10 +5,10 @@ prev: false
 title: "useSession"
 ---
 
-> **useSession**(): `UseQueryResult`\<[`AuthSession`](/api/sdk-react/interfaces/authsession/) \| `null`, `Error`\>
+> **useSession**(): `UseQueryResult`\<`NoInfer`\<[`AuthSession`](/api/sdk-react/interfaces/authsession/) \| `null`\>, `Error`\>
 
 Hook to get the current session
 
 ## Returns
 
-`UseQueryResult`\<[`AuthSession`](/api/sdk-react/interfaces/authsession/) \| `null`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<[`AuthSession`](/api/sdk-react/interfaces/authsession/) \| `null`\>, `Error`\>

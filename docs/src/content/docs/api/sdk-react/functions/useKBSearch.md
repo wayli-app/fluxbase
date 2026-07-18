@@ -5,7 +5,7 @@ prev: false
 title: "useKBSearch"
 ---
 
-> **useKBSearch**(`kbId`, `request`): `UseQueryResult`\<`SearchKnowledgeBaseResponse` \| `null`, `Error`\>
+> **useKBSearch**(`kbId`, `request`): `UseQueryResult`\<`NoInfer`\<`SearchKnowledgeBaseResponse` \| `null`\>, `Error`\>
 
 Hook to search a knowledge base with semantic similarity
 
@@ -18,7 +18,7 @@ Hook to search a knowledge base with semantic similarity
 
 ## Returns
 
-`UseQueryResult`\<`SearchKnowledgeBaseResponse` \| `null`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`SearchKnowledgeBaseResponse` \| `null`\>, `Error`\>
 
 ## Example
 

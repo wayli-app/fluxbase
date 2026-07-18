@@ -5,7 +5,7 @@ prev: false
 title: "useChatbots"
 ---
 
-> **useChatbots**(`namespace?`): `UseQueryResult`\<`AIChatbotSummary`[], `Error`\>
+> **useChatbots**(`namespace?`): `UseQueryResult`\<`NoInfer`\<`AIChatbotSummary`[]\>, `Error`\>
 
 Hook to list all public/enabled chatbots
 
@@ -17,4 +17,4 @@ Hook to list all public/enabled chatbots
 
 ## Returns
 
-`UseQueryResult`\<`AIChatbotSummary`[], `Error`\>
+`UseQueryResult`\<`NoInfer`\<`AIChatbotSummary`[]\>, `Error`\>

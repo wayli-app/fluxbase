@@ -5,10 +5,10 @@ prev: false
 title: "useServiceKeys"
 ---
 
-> **useServiceKeys**(): `UseQueryResult`\<`ServiceKey`[] \| `null`, `Error`\>
+> **useServiceKeys**(): `UseQueryResult`\<`NoInfer`\<`ServiceKey`[] \| `null`\>, `Error`\>
 
 Hook to list all service keys
 
 ## Returns
 
-`UseQueryResult`\<`ServiceKey`[] \| `null`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`ServiceKey`[] \| `null`\>, `Error`\>

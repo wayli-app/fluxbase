@@ -5,10 +5,10 @@ prev: false
 title: "useSchemas"
 ---
 
-> **useSchemas**(): `UseQueryResult`\<`ListSchemasResponse`, `Error`\>
+> **useSchemas**(): `UseQueryResult`\<`NoInfer`\<`ListSchemasResponse`\>, `Error`\>
 
 Hook to list all database schemas
 
 ## Returns
 
-`UseQueryResult`\<`ListSchemasResponse`, `Error`\>
+`UseQueryResult`\<`NoInfer`\<`ListSchemasResponse`\>, `Error`\>
