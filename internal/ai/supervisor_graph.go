@@ -120,13 +120,25 @@ func (n *routerNode) Run(ctx context.Context, state *State) error {
 		}
 	}
 
-	// Single-agent path: run inline (no goroutines)
+	// Single-agent path: run inline (no goroutines). Still wrap with
+	// recover so a panic in the agent surfaces as a graph error rather
+	// than crashing the server. Same defense-in-depth as the multi-agent
+	// goroutine path below.
 	if len(route) == 1 {
 		node, ok := n.agents[route[0]]
 		if !ok {
 			return fmt.Errorf("router: unknown agent %q", route[0])
 		}
-		return node.Run(ctx, state)
+		var agentErr error
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					agentErr = fmt.Errorf("agent %q panicked: %v", node.Name(), r)
+				}
+			}()
+			agentErr = node.Run(ctx, state)
+		}()
+		return agentErr
 	}
 
 	// Multi-agent path: run all routed specialists in parallel.
@@ -161,8 +173,23 @@ func (n *routerNode) Run(ctx context.Context, state *State) error {
 			// ponytail: serial fan-out for v1 — the supervisor graph's
 			// multi-agent case is rare; the parallel speedup didn't earn
 			// its complexity yet.
-			err := node.Run(ctx, state)
-			results[i] = result{err: err}
+			//
+			// Each iteration gets its own deferred recover so a panic in
+			// one specialist (nil deref, unexpected state, provider bug)
+			// surfaces as a graph error instead of crashing the server.
+			// The caller (chat_handler_message.go) already has a graceful
+			// fallback to the legacy ReAct loop on graph errors, so a
+			// recovered panic becomes "supervisor failed, retrying with
+			// react" rather than "server down".
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						results[i] = result{err: fmt.Errorf("agent %q panicked: %v", node.Name(), r)}
+					}
+				}()
+				err := node.Run(ctx, state)
+				results[i] = result{err: err}
+			}()
 		}
 	}()
 

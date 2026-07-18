@@ -112,6 +112,16 @@ func (t *InvokeFunctionTool) Execute(ctx context.Context, args map[string]any, a
 			IsError: true,
 		}, nil
 	}
+	// Defense in depth: GetFunctionByNamespace currently wraps ErrNoRows as
+	// an error, but GetProcedureByName returns (nil, nil) for not-found.
+	// The storage contracts are asymmetric; nil-check both before dereffing
+	// so a future storage refactor can't reintroduce the panic.
+	if fn == nil {
+		return &mcp.ToolResult{
+			Content: []mcp.Content{mcp.ErrorContent(fmt.Sprintf("Function not found: %s", name))},
+			IsError: true,
+		}, nil
+	}
 
 	// Check if enabled
 	if !fn.Enabled {
@@ -277,15 +287,30 @@ func (t *InvokeRPCTool) Execute(ctx context.Context, args map[string]any, authCt
 		namespace = ns
 	}
 
-	// Get procedure
+	// Get procedure. When the LLM specified a namespace, look there.
+	// Otherwise fall back to ANY namespace (ordered so "default" wins) so
+	// procedures synced to non-empty namespaces are still reachable.
+	// Without this fallback, invoke_rpc defaults to namespace="" and
+	// returns "not found" for every procedure synced to "default" or a
+	// chatbot-specific namespace — which the supervisor's action agent
+	// can't recover from because it doesn't know the chatbot's namespace.
 	var proc *rpc.Procedure
 	var err error
 	if namespace != "" {
 		proc, err = t.storage.GetProcedureByName(ctx, namespace, name)
 	} else {
-		proc, err = t.storage.GetProcedureByName(ctx, "", name)
+		proc, err = t.storage.GetProcedureByNameAnyNamespace(ctx, name)
 	}
 	if err != nil {
+		return &mcp.ToolResult{
+			Content: []mcp.Content{mcp.ErrorContent(fmt.Sprintf("Procedure not found: %s", name))},
+			IsError: true,
+		}, nil
+	}
+	// GetProcedureByName returns (nil, nil) for not-found — must nil-check
+	// before dereffing proc.Enabled below. This is the fix for the
+	// production SIGSEGV at invoke.go:296 (original line number).
+	if proc == nil {
 		return &mcp.ToolResult{
 			Content: []mcp.Content{mcp.ErrorContent(fmt.Sprintf("Procedure not found: %s", name))},
 			IsError: true,

@@ -287,6 +287,53 @@ func (s *Storage) GetProcedureByName(ctx context.Context, namespace, name string
 	return proc, nil
 }
 
+// GetProcedureByNameAnyNamespace retrieves a procedure by name across all
+// namespaces, ordered so the "default" namespace wins ties. Mirrors the
+// existing GetFunction behavior (functions.storage.go:185) for callers
+// that don't know which namespace to look in.
+//
+// Used by invoke_rpc when the LLM didn't specify a namespace — without
+// this fallback, invoke_rpc defaults to namespace="" and misses procedures
+// synced to "default" or a chatbot-specific namespace. The supervisor's
+// action agent doesn't carry namespace context in its tool args, so this
+// fallback is what makes invoke_rpc actually find procedures.
+//
+// Returns (nil, nil) when no procedure by that name exists in any
+// namespace — same not-found contract as GetProcedureByName.
+func (s *Storage) GetProcedureByNameAnyNamespace(ctx context.Context, name string) (*Procedure, error) {
+	tenantID := database.TenantFromContext(ctx)
+	query := `
+		SELECT id, name, namespace, description, sql_query, original_code,
+			input_schema, output_schema, allowed_tables, allowed_schemas,
+			max_execution_time_seconds, require_roles, is_public, disable_execution_logs, schedule,
+			enabled, version, source, created_by, created_at, updated_at
+		FROM rpc.procedures
+		WHERE name = $1
+		  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
+		ORDER BY namespace
+		LIMIT 1
+	`
+
+	proc := &Procedure{}
+	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, name, database.TenantOrNil(tenantID)).Scan(
+			&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.SQLQuery, &proc.OriginalCode,
+			&proc.InputSchema, &proc.OutputSchema, &proc.AllowedTables, &proc.AllowedSchemas,
+			&proc.MaxExecutionTimeSeconds, &proc.RequireRoles, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
+			&proc.Enabled, &proc.Version, &proc.Source, &proc.CreatedBy, &proc.CreatedAt, &proc.UpdatedAt,
+		)
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get procedure by name (any namespace): %w", err)
+	}
+
+	return proc, nil
+}
+
 // ListProcedures lists all procedures, optionally filtered by namespace
 func (s *Storage) ListProcedures(ctx context.Context, namespace string) ([]*Procedure, error) {
 	tenantID := database.TenantFromContext(ctx)
