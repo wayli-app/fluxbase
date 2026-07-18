@@ -370,6 +370,31 @@ func (s *SchemaBuilder) BuildSystemPromptWithAuth(ctx context.Context, chatbot *
 
 	sb.WriteString(userPrompt)
 	sb.WriteString("\n\n")
+
+	// Response language: placed immediately after the user prompt, before the
+	// schema dump, so it carries more weight than if buried at the end of a
+	// long prompt. LLMs weight earlier instructions more heavily.
+	sb.WriteString("## Response Language\n\n")
+	if chatbot.ResponseLanguage == "" || chatbot.ResponseLanguage == "auto" {
+		sb.WriteString("IMPORTANT: Always respond in the same language as the user's message. ")
+		sb.WriteString("Detect the language of each user message and reply in that exact language. ")
+		sb.WriteString("If the user writes in German, reply in German. If they switch to French mid-conversation, switch with them.\n")
+	} else {
+		fmt.Fprintf(&sb, "IMPORTANT: Always respond in %s, regardless of the language the user writes in.\n",
+			chatbot.ResponseLanguage)
+	}
+
+	// Default behavior: bias the model toward investigating with SQL when the
+	// user asks a factual data question. Without this, the model often
+	// answers from training data instead of running a query.
+	sb.WriteString("\n## Default Behavior\n\n")
+	sb.WriteString("When the user asks a factual question about data (counts, lists, 'show me', 'how many',\n")
+	sb.WriteString("'total', 'find', etc.), ALWAYS investigate with `execute_sql` before answering. Never answer\n")
+	sb.WriteString("from memory if a query could verify the data. It is better to run one extra query than to\n")
+	sb.WriteString("give an answer that turns out to be wrong.\n\n")
+	sb.WriteString("For greetings, chitchat, or conceptual questions you cannot verify with data, answer directly.\n")
+
+	sb.WriteString("\n")
 	sb.WriteString(schemaDesc)
 	sb.WriteString("\n")
 	sb.WriteString("## Query Guidelines\n\n")
@@ -486,16 +511,10 @@ func (s *SchemaBuilder) BuildSystemPromptWithAuth(ctx context.Context, chatbot *
 	// omitted from the static prompt — they vary per user / per second and
 	// would defeat provider prompt caching. Injected as a separate dynamic
 	// system message by the chat handler so the static prefix stays byte-stable.
-
-	// Add response language instruction
-	sb.WriteString("\n## Response Language\n\n")
-	if chatbot.ResponseLanguage == "" || chatbot.ResponseLanguage == "auto" {
-		sb.WriteString("IMPORTANT: Always respond in the same language as the user's message. ")
-		sb.WriteString("Detect the language of each user message and reply in that exact language.\n")
-	} else {
-		fmt.Fprintf(&sb, "IMPORTANT: Always respond in %s, regardless of the language the user writes in.\n",
-			chatbot.ResponseLanguage)
-	}
+	//
+	// Response Language block is also intentionally NOT emitted here at the
+	// end — it was hoisted to the top of the prompt (right after the user
+	// prompt) so it carries more weight on long prompts. See BuildSystemPromptWithAuth.
 
 	return sb.String(), nil
 }

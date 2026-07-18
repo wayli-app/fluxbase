@@ -157,6 +157,12 @@ type ClientMessage struct {
 	ConversationID    string `json:"conversation_id,omitempty"`
 	Content           string `json:"content,omitempty"`
 	ImpersonateUserID string `json:"impersonate_user_id,omitempty"` // Admin-only: test as this user
+	// PageContext is the optional page-context string sent per-message by
+	// clients that embed a single chatbot across multiple app pages. When
+	// present, the supervisor looks up the matching PageProfile (if any)
+	// and uses it to bias routing and override per-page config. Missing or
+	// unknown values fall back to the chatbot's global config.
+	PageContext string `json:"page_context,omitempty"`
 }
 
 // ServerMessage represents a message to the client
@@ -179,8 +185,18 @@ type ServerMessage struct {
 	// DailyQuota carries the per-user remaining quota snapshot at turn end
 	// (Ask 2). Omitted when no daily limits are configured for the chatbot.
 	DailyQuota *DailyQuotaSnapshot `json:"daily_quota,omitempty"`
-	Error      string              `json:"error,omitempty"`
-	Code       string              `json:"code,omitempty"`
+	// AgentTransition is set on agent_transition event types, emitted by
+	// the supervisor graph when one agent hands off to another. Optional
+	// observability for clients that want to render the routing flow.
+	AgentTransition *AgentTransition `json:"agent_transition,omitempty"`
+	// Agent names the currently-active specialist in agent_transition /
+	// agent_complete events.
+	Agent string `json:"agent,omitempty"`
+	// PageContext echoes the page_context string from the client's message
+	// back in agent_transition events, so multi-page clients can correlate.
+	PageContext string `json:"page_context,omitempty"`
+	Error       string `json:"error,omitempty"`
+	Code        string `json:"code,omitempty"`
 }
 
 // DailyQuotaSnapshot is a point-in-time view of the per-user daily counters

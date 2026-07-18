@@ -916,6 +916,178 @@ The static prefix is cached up to the first differing token. To maximize cache h
 - Avoid `{{user_id}}` and user-scoped `{{user:key}}` templates near the top of the system prompt — these vary per user. (Fluxbase already moves `Current user ID` into the dynamic context; user-injected templates in your prompt are your responsibility.)
 - Don't put timestamps, request IDs, or other per-turn values in the static portion.
 
+## Multi-Agent Supervisor Mode
+
+By default, Fluxbase chatbots run in **supervisor mode** — a multi-agent pipeline where a routing LLM (the supervisor) decides which specialist agent should handle each turn, the specialist investigates, and a verifier checks the final answer for language consistency and grounding.
+
+Supervisor mode addresses two common failure modes of single-agent chatbots:
+
+- **Wrong tool selection**: a single agent given every tool sometimes answers from memory instead of running SQL. In supervisor mode, the SQL Agent *only* has the `execute_sql` tool — it cannot make this mistake.
+- **Language drift**: tool results come back in English; on long conversations the model's reply sometimes drifts to English even when the user wrote in another language. In supervisor mode, the supervisor detects the user's language once and threads it through every agent; a verifier performs a deterministic Unicode-script check on the final answer.
+
+### Reasoning modes
+
+Control the chatbot's reasoning pipeline with `@fluxbase:reasoning-mode`:
+
+| Value | Behavior |
+|---|---|
+| `supervisor` (default) | Multi-agent pipeline. Recommended for production. |
+| `react` | Legacy single-agent ReAct loop. Forces `think` tool before other tools. Lower cost, simpler. |
+| `strict` | ReAct with stricter enforcement. |
+| `none` | No reasoning tool. Direct tool calls only. |
+
+```typescript
+/**
+ * Multi-agent supervisor (default — annotation optional).
+ * @fluxbase:reasoning-mode supervisor
+ */
+export default `You are a helpful assistant.`;
+```
+
+### Per-agent model overrides
+
+Different specialists benefit from different model tiers. Override per agent:
+
+```typescript
+/**
+ * Route chitchat to a cheap model, SQL to a strong one.
+ *
+ * @fluxbase:supervisor-models {
+ *   "supervisor": "gpt-4o-mini",
+ *   "sql": "gpt-4-turbo",
+ *   "chat": "gpt-4o-mini",
+ *   "verifier": "gpt-4o-mini"
+ * }
+ */
+export default `You are a helpful assistant.`;
+```
+
+Missing keys fall back to the chatbot's main `@fluxbase:model`. This is the most effective cost lever for chatbots with high chitchat ratio.
+
+### Cost expectations
+
+| Turn type | LLM calls |
+|---|---|
+| Chitchat ("hi", "thanks") | 2 (supervisor + chat) |
+| Single-agent investigative | 3-5 (supervisor + 1-3 SQL iterations + verifier) |
+| Multi-agent investigative | 5-7 (supervisor + 2 specialists + synthesizer + verifier) |
+
+First-token latency is higher than legacy `react` mode because the supervisor runs before any specialist streams. The trade-off is fewer hallucinated answers and consistent language matching.
+
+### Opting out
+
+If supervisor mode doesn't fit a chatbot, pin the legacy ReAct loop:
+
+```typescript
+/**
+ * @fluxbase:reasoning-mode react
+ */
+export default `You are a helpful assistant.`;
+```
+
+The ReAct loop remains fully supported and is the right choice for simple low-cost chatbots that don't need multi-agent routing.
+
+See [Multi-Agent Supervisor](./ai-agents.md) for the full architecture, agent reference, and verification details.
+
+## Page-aware Chatbots
+
+A common pattern: one assistant chatbot embedded across multiple pages of your application, with different behavior on each page. Instead of creating five separate chatbots (orders, docs, billing, etc.), create one chatbot with **page profiles**.
+
+Page profiles are per-page overrides for the supervisor's routing and per-agent config. The client sends `page_context` with each message; the supervisor looks up the matching profile and uses it to bias routing.
+
+### Defining page profiles
+
+Use the `@fluxbase:page-contexts` annotation with a JSON array:
+
+```typescript
+/**
+ * App-wide assistant with per-page behavior.
+ *
+ * @fluxbase:page-contexts [
+ *   {
+ *     "page": "orders",
+ *     "agents": ["sql", "action"],
+ *     "tables": ["orders", "order_items", "customers"],
+ *     "suffix": "You are helping on the orders page. Focus on order-related queries."
+ *   },
+ *   {
+ *     "page": "docs",
+ *     "agents": ["kb"],
+ *     "kbs": ["product-docs", "faq"],
+ *     "suffix": "You are helping on the documentation page. Use KB search."
+ *   },
+ *   {
+ *     "page": "billing",
+ *     "agents": ["sql"],
+ *     "tables": ["invoices", "payments"],
+ *     "suffix": "Be precise about amounts and dates."
+ *   }
+ * ]
+ */
+export default `You are a helpful app assistant.`;
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `page` | string (required) | Page identifier; matches the client's `page_context` |
+| `agents` | string[] | Whitelist of specialist agents (`sql`, `kb`, `action`, `chat`) |
+| `tables` | string[] | Overrides `@fluxbase:allowed-tables` for SQL/Action agents on this page |
+| `kbs` | string[] | Overrides `@fluxbase:knowledge-base` for the KB agent on this page |
+| `suffix` | string | Appended to the active agent's prompt for this turn |
+
+All fields except `page` are optional. Empty fields inherit from the chatbot's global config.
+
+### Sending page context from the client
+
+The TypeScript SDK accepts `pageContext` on each `sendMessage` call:
+
+```typescript
+chat.sendMessage(convId, "How many orders shipped yesterday?", {
+  pageContext: "orders",
+});
+```
+
+For React/Next.js apps, derive `pageContext` from the router on every message:
+
+```typescript
+"use client";
+import { usePathname } from "next/navigation";
+import { useFluxbaseChat } from "@fluxbase/sdk-react";
+
+export function AppChat() {
+  const pathname = usePathname();
+  const pageContext = pathname.split("/")[1] || "home";
+
+  const { send } = useFluxbaseChat({
+    chatbot: "app-assistant",
+    pageContext,
+  });
+  // ...
+}
+```
+
+`pageContext` is re-derived on every render and included in each outgoing message. Conversation history persists across page switches — one chat, multiple modes.
+
+### Fallback behavior
+
+If the client sends `page_context` that doesn't match any profile, OR omits `page_context` entirely, the chatbot uses its global config. No error visible to end users — graceful degradation.
+
+### When to use one chatbot vs many
+
+Use **one page-aware chatbot** when:
+
+- The same assistant follows the user across your app
+- You want shared conversation history across pages
+- Per-page differences are mostly routing/data-scope tweaks
+
+Use **separate chatbots** when:
+
+- Each page needs a fundamentally different system prompt or personality
+- You want isolated rate limits / token budgets per page
+- Different chatbots need different providers or models
+
 ## Next Steps
 
 - [Knowledge Bases & RAG](/guides/knowledge-bases) - Create knowledge bases for RAG-powered chatbots

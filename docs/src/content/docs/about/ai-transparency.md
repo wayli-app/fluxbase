@@ -48,6 +48,18 @@ RLS enforces data access at the database level. Application bugs cannot bypass i
 
 AES-256-GCM encryption for secrets, rate limiting per endpoint, tenant-scoped connection pools, audit logging, and enforced parameterized queries.
 
+### Multi-Agent Chatbot Pipeline
+
+Chatbots run a multi-agent supervisor pipeline by default. This is disclosed for transparency:
+
+- **Routing decision is logged**: when a user message arrives, a routing LLM (the supervisor) classifies intent and decides which specialist agent (SQL, KB, action, chat) handles it. The routing decision is emitted to the WebSocket client as an `agent_transition` event and is visible in server logs.
+- **Per-agent prompts are public**: each specialist agent's system prompt is plain Go code in `internal/ai/agent_prompts.go`. You can read exactly what instructions each agent receives.
+- **Verification is deterministic + LLM**: the verifier always runs a Unicode-script language-match check (stdlib only, no LLM call). On investigative turns it also runs a small LLM call to check that factual claims in the answer are grounded in tool results. The LLM check is opt-out via `@fluxbase:reasoning-mode react`.
+- **One-retry cap**: verification never blocks an answer permanently. If the verifier reports issues, the answer ships anyway with the issues surfaced in the `done` event.
+- **No silent data exfiltration**: agents only call tools configured for the chatbot (`execute_sql`, `search_vectors`, MCP tools). The supervisor itself has no tools. No agent can make outbound HTTP except through the chatbot's explicitly-allowed domains.
+
+See [Multi-Agent Supervisor](/guides/ai-agents/) for the full architecture.
+
 ## API Surface
 
 ```mermaid

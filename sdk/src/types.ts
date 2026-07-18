@@ -3097,6 +3097,29 @@ export interface AIChatClientMessage {
   conversation_id?: string;
   content?: string;
   impersonate_user_id?: string; // Admin-only: test as this user
+  /**
+   * Optional page context for page-aware chatbots (Level 2 page profiles).
+   * Sent per-message; the supervisor looks up the matching PageProfile
+   * (if any) and uses it to bias routing and override per-page config.
+   * Missing or unknown values fall back to the chatbot's global config.
+   */
+  page_context?: string;
+}
+
+/**
+ * Agent transition payload, emitted on agent_transition events when the
+ * chatbot is running in supervisor mode. Lets clients render the multi-
+ * agent routing flow as observable UI.
+ */
+export interface AIAgentTransition {
+  from?: string;
+  to?: string;
+  /** Specialist agents the supervisor routed this turn to (e.g., ["sql"]). */
+  route?: string[];
+  /** Supervisor's stated reason for the routing decision, when available. */
+  reason?: string;
+  /** Echo of the client's page_context, when set. */
+  page_context?: string;
 }
 
 /**
@@ -3109,6 +3132,7 @@ export interface AIChatServerMessage {
     | "content"
     | "query_result"
     | "tool_result"
+    | "agent_transition"
     | "done"
     | "error"
     | "cancelled";
@@ -3127,6 +3151,12 @@ export interface AIChatServerMessage {
   matched_intent_rules?: AIMatchedIntentRule[];
   /** Per-user daily quota snapshot at turn end (Ask 2). Omitted when no limits configured. */
   daily_quota?: AIDailyQuotaSnapshot;
+  /** Agent transition payload, present on agent_transition events (supervisor mode). */
+  agent_transition?: AIAgentTransition;
+  /** Currently-active specialist agent name, on agent_transition events. */
+  agent?: string;
+  /** Echo of the client's page_context, on agent_transition events. */
+  page_context?: string;
   error?: string;
   code?: string;
 }
