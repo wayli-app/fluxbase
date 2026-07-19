@@ -414,6 +414,14 @@ func (s *Storage) CreateIntegration(ctx context.Context, tenantID string, req *C
 		return nil, err
 	}
 
+	// ponytail: defensive NULL for created_by — the column is uuid nullable,
+	// but empty string trips "invalid input syntax for type uuid" on insert.
+	// Handler should populate from auth context, but storage shouldn't trust it.
+	var createdBy interface{}
+	if integration.CreatedBy != "" {
+		createdBy = integration.CreatedBy
+	}
+
 	// Clear prior default for this type within the same transaction
 	// (the partial unique index enforces one-default-per-type-per-tenant).
 	err = database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
@@ -435,7 +443,7 @@ func (s *Storage) CreateIntegration(ctx context.Context, tenantID string, req *C
 		`,
 			integration.ID, integration.Name, integration.IntegrationType, integration.Provider, encryptedConfig,
 			integration.Enabled, integration.IsDefault,
-			integration.CreatedAt, integration.UpdatedAt, integration.CreatedBy,
+			integration.CreatedAt, integration.UpdatedAt, createdBy,
 			database.TenantOrNil(tenantID),
 		)
 		return err
