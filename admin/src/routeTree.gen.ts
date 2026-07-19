@@ -53,6 +53,7 @@ import { Route as AuthenticatedClientKeysIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedChatbotsIndexRouteImport } from './routes/_authenticated/chatbots/index'
 import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_authenticated/authentication/index'
 import { Route as AuthenticatedAiProvidersIndexRouteImport } from './routes/_authenticated/ai-providers/index'
+import { Route as AuthenticatedAiIntegrationsIndexRouteImport } from './routes/_authenticated/ai-integrations/index'
 import { Route as AuthenticatedTenantsTenantIdRouteImport } from './routes/_authenticated/tenants/$tenantId'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedMonitoringAiAuditRouteImport } from './routes/_authenticated/monitoring/ai-audit'
@@ -310,6 +311,12 @@ const AuthenticatedAiProvidersIndexRoute =
     path: '/ai-providers/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAiIntegrationsIndexRoute =
+  AuthenticatedAiIntegrationsIndexRouteImport.update({
+    id: '/ai-integrations/',
+    path: '/ai-integrations/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTenantsTenantIdRoute =
   AuthenticatedTenantsTenantIdRouteImport.update({
     id: '/tenants/$tenantId',
@@ -388,6 +395,7 @@ export interface FileRoutesByFullPath {
   '/monitoring/ai-audit': typeof AuthenticatedMonitoringAiAuditRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/tenants/$tenantId': typeof AuthenticatedTenantsTenantIdRoute
+  '/ai-integrations/': typeof AuthenticatedAiIntegrationsIndexRoute
   '/ai-providers/': typeof AuthenticatedAiProvidersIndexRoute
   '/authentication/': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots/': typeof AuthenticatedChatbotsIndexRoute
@@ -443,6 +451,7 @@ export interface FileRoutesByTo {
   '/monitoring/ai-audit': typeof AuthenticatedMonitoringAiAuditRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/tenants/$tenantId': typeof AuthenticatedTenantsTenantIdRoute
+  '/ai-integrations': typeof AuthenticatedAiIntegrationsIndexRoute
   '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
@@ -500,6 +509,7 @@ export interface FileRoutesById {
   '/_authenticated/monitoring/ai-audit': typeof AuthenticatedMonitoringAiAuditRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/tenants/$tenantId': typeof AuthenticatedTenantsTenantIdRoute
+  '/_authenticated/ai-integrations/': typeof AuthenticatedAiIntegrationsIndexRoute
   '/_authenticated/ai-providers/': typeof AuthenticatedAiProvidersIndexRoute
   '/_authenticated/authentication/': typeof AuthenticatedAuthenticationIndexRoute
   '/_authenticated/chatbots/': typeof AuthenticatedChatbotsIndexRoute
@@ -557,6 +567,7 @@ export interface FileRouteTypes {
     | '/monitoring/ai-audit'
     | '/settings/appearance'
     | '/tenants/$tenantId'
+    | '/ai-integrations/'
     | '/ai-providers/'
     | '/authentication/'
     | '/chatbots/'
@@ -612,6 +623,7 @@ export interface FileRouteTypes {
     | '/monitoring/ai-audit'
     | '/settings/appearance'
     | '/tenants/$tenantId'
+    | '/ai-integrations'
     | '/ai-providers'
     | '/authentication'
     | '/chatbots'
@@ -668,6 +680,7 @@ export interface FileRouteTypes {
     | '/_authenticated/monitoring/ai-audit'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/tenants/$tenantId'
+    | '/_authenticated/ai-integrations/'
     | '/_authenticated/ai-providers/'
     | '/_authenticated/authentication/'
     | '/_authenticated/chatbots/'
@@ -1031,6 +1044,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAiProvidersIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ai-integrations/': {
+      id: '/_authenticated/ai-integrations/'
+      path: '/ai-integrations'
+      fullPath: '/ai-integrations/'
+      preLoaderRoute: typeof AuthenticatedAiIntegrationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/tenants/$tenantId': {
       id: '/_authenticated/tenants/$tenantId'
       path: '/tenants/$tenantId'
@@ -1111,6 +1131,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMonitoringAiAuditRoute: typeof AuthenticatedMonitoringAiAuditRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedTenantsTenantIdRoute: typeof AuthenticatedTenantsTenantIdRoute
+  AuthenticatedAiIntegrationsIndexRoute: typeof AuthenticatedAiIntegrationsIndexRoute
   AuthenticatedAiProvidersIndexRoute: typeof AuthenticatedAiProvidersIndexRoute
   AuthenticatedAuthenticationIndexRoute: typeof AuthenticatedAuthenticationIndexRoute
   AuthenticatedChatbotsIndexRoute: typeof AuthenticatedChatbotsIndexRoute
@@ -1156,6 +1177,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMonitoringAiAuditRoute: AuthenticatedMonitoringAiAuditRoute,
   AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
   AuthenticatedTenantsTenantIdRoute: AuthenticatedTenantsTenantIdRoute,
+  AuthenticatedAiIntegrationsIndexRoute: AuthenticatedAiIntegrationsIndexRoute,
   AuthenticatedAiProvidersIndexRoute: AuthenticatedAiProvidersIndexRoute,
   AuthenticatedAuthenticationIndexRoute: AuthenticatedAuthenticationIndexRoute,
   AuthenticatedChatbotsIndexRoute: AuthenticatedChatbotsIndexRoute,

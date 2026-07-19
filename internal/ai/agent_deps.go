@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 
+	"github.com/nimbleflux/fluxbase/internal/ai/integrations"
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/mcp"
 )
@@ -48,6 +49,11 @@ type AgentDeps struct {
 
 	// MCPAuthCtx is the auth context for MCP tool execution.
 	MCPAuthCtx *mcp.AuthContext
+
+	// Integrations provides tool integrations (web search, URL fetch)
+	// for the Web Agent specialist. May be nil when no integrations are
+	// configured — the Web Agent is silently skipped in that case.
+	Integrations *integrations.Storage
 
 	// ChatCtx is the live WebSocket chat session context. May be nil when
 	// the supervisor is invoked outside the WS handler (e.g., from tests

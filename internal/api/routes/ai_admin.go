@@ -11,20 +11,31 @@ import (
 //   - instance_admin: Full access to all AI management operations
 //   - tenant_admin: Can manage chatbots and view AI tables for their tenant
 type AIAdminDeps struct {
-	ListChatbots               fiber.Handler
-	GetChatbot                 fiber.Handler
-	ToggleChatbot              fiber.Handler
-	UpdateChatbot              fiber.Handler
-	DeleteChatbot              fiber.Handler
-	SyncChatbots               fiber.Handler
-	GetAIMetrics               fiber.Handler
-	ListAIProviders            fiber.Handler
-	CreateAIProvider           fiber.Handler
-	UpdateAIProvider           fiber.Handler
-	DeleteAIProvider           fiber.Handler
-	SetDefaultAIProvider       fiber.Handler
-	SetEmbeddingAIProvider     fiber.Handler
-	ClearEmbeddingAIProvider   fiber.Handler
+	ListChatbots             fiber.Handler
+	GetChatbot               fiber.Handler
+	ToggleChatbot            fiber.Handler
+	UpdateChatbot            fiber.Handler
+	DeleteChatbot            fiber.Handler
+	SyncChatbots             fiber.Handler
+	GetAIMetrics             fiber.Handler
+	ListAIProviders          fiber.Handler
+	CreateAIProvider         fiber.Handler
+	UpdateAIProvider         fiber.Handler
+	DeleteAIProvider         fiber.Handler
+	SetDefaultAIProvider     fiber.Handler
+	SetEmbeddingAIProvider   fiber.Handler
+	ClearEmbeddingAIProvider fiber.Handler
+
+	// Tool Integrations (Web Agent specialist and future non-LLM services).
+	// Same CRUD shape as providers + a test-connection endpoint.
+	ListToolIntegrations      fiber.Handler
+	GetToolIntegration        fiber.Handler
+	CreateToolIntegration     fiber.Handler
+	UpdateToolIntegration     fiber.Handler
+	DeleteToolIntegration     fiber.Handler
+	SetDefaultToolIntegration fiber.Handler
+	TestToolIntegration       fiber.Handler
+
 	ListAIConversations        fiber.Handler
 	GetAIConversationMessages  fiber.Handler
 	GetAIAuditLog              fiber.Handler
@@ -94,6 +105,15 @@ func BuildAIAdminRoutes(deps *AIAdminDeps) *RouteGroup {
 			{Method: "PUT", Path: "/ai/providers/:id/default", Handler: deps.SetDefaultAIProvider, Summary: "Set default AI provider"},
 			{Method: "PUT", Path: "/ai/providers/:id/embedding", Handler: deps.SetEmbeddingAIProvider, Summary: "Set embedding AI provider"},
 			{Method: "DELETE", Path: "/ai/providers/:id/embedding", Handler: deps.ClearEmbeddingAIProvider, Summary: "Clear embedding AI provider"},
+
+			// Tool Integrations — same default roles as providers (admin, instance_admin, tenant_admin)
+			{Method: "GET", Path: "/ai/integrations", Handler: deps.ListToolIntegrations, Summary: "List tool integrations"},
+			{Method: "GET", Path: "/ai/integrations/:id", Handler: deps.GetToolIntegration, Summary: "Get tool integration"},
+			{Method: "POST", Path: "/ai/integrations", Handler: deps.CreateToolIntegration, Summary: "Create tool integration"},
+			{Method: "PUT", Path: "/ai/integrations/:id", Handler: deps.UpdateToolIntegration, Summary: "Update tool integration"},
+			{Method: "DELETE", Path: "/ai/integrations/:id", Handler: deps.DeleteToolIntegration, Summary: "Delete tool integration"},
+			{Method: "PUT", Path: "/ai/integrations/:id/default", Handler: deps.SetDefaultToolIntegration, Summary: "Set default tool integration"},
+			{Method: "POST", Path: "/ai/integrations/:id/test", Handler: deps.TestToolIntegration, Summary: "Test tool integration"},
 
 			// Conversations & Audit - instance admin only (override roles)
 			{Method: "GET", Path: "/ai/conversations", Handler: deps.ListAIConversations, Summary: "List AI conversations", Roles: []string{"admin", "instance_admin"}},

@@ -96,9 +96,16 @@ type Chatbot struct {
 	PageProfiles      PageProfiles `json:"page_profiles,omitempty"`       // Per-page routing/config overrides (Level 2 page-aware chatbots)
 	// SupervisorAgentModels optionally overrides the model used per specialist
 	// agent in supervisor mode. Keys are agent names: "supervisor", "sql",
-	// "kb", "action", "chat", "synthesizer", "verifier". Missing keys fall
+	// "kb", "action", "chat", "verifier". Missing keys fall
 	// back to the chatbot's main Model.
 	SupervisorAgentModels map[string]string `json:"supervisor_agent_models,omitempty"`
+
+	// WebSearchEnabled turns on the Web Agent specialist. Requires a
+	// configured Tavily integration at the tenant/instance level.
+	WebSearchEnabled bool `json:"web_search_enabled,omitempty"`
+	// WebSearchDomains optionally restricts the Web Agent to results from
+	// these domains only. Empty = no restriction.
+	WebSearchDomains []string `json:"web_search_domains,omitempty"`
 
 	Version   int       `json:"version"`
 	Source    string    `json:"source"` // "filesystem" or "api"
@@ -168,6 +175,12 @@ type ChatbotConfig struct {
 	ShowReasoning         bool              // If true, expose agent reasoning to users
 	PageProfiles          PageProfiles      // Per-page routing/config overrides
 	SupervisorAgentModels map[string]string // Optional per-agent model overrides in supervisor mode
+
+	// Web Search (Web Agent specialist). Off by default. When enabled
+	// and a Tavily integration exists at the tenant/instance level, the
+	// supervisor routes current-info questions to the Web Agent.
+	WebSearchEnabled bool     // parsed from @fluxbase:web-search
+	WebSearchDomains []string // parsed from @fluxbase:web-search-domains (optional allowlist)
 
 	// Metadata
 	Version int
@@ -322,6 +335,17 @@ var (
 
 	// @fluxbase:show-reasoning true
 	showReasoningPattern = regexp.MustCompile(`@fluxbase:show-reasoning\s+(true|false)`)
+
+	// @fluxbase:web-search enabled=true
+	// Enables the Web Agent specialist for this chatbot. The supervisor
+	// will route current-info questions to it when a Tavily integration
+	// is configured at the tenant/instance level.
+	webSearchPattern = regexp.MustCompile(`@fluxbase:web-search\s+(enabled|disabled|true|false)`)
+
+	// @fluxbase:web-search-domains wikipedia.org,mdn.dev
+	// Optional allowlist for web search results. Domains not in this list
+	// are filtered out by the Web Agent before passing results to the LLM.
+	webSearchDomainsPattern = regexp.MustCompile(`@fluxbase:web-search-domains\s+(.+)`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -594,6 +618,33 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		config.ShowReasoning = matches[1] == "true"
 	}
 
+	// Parse web-search enable/disable.
+	// Accepted forms: enabled, disabled, true, false. Default is disabled
+	// (annotation absent). This is opt-in per chatbot to avoid surprise
+	// Tavily API charges.
+	if matches := webSearchPattern.FindStringSubmatch(code); len(matches) > 1 {
+		v := strings.ToLower(matches[1])
+		config.WebSearchEnabled = v == "enabled" || v == "true"
+	}
+
+	// Parse optional web-search domain allowlist. Comma-separated. Empty
+	// when annotation absent (no restriction). Scheme prefixes are stripped
+	// (https://, http://) so users can paste URLs verbatim.
+	if matches := webSearchDomainsPattern.FindStringSubmatch(code); len(matches) > 1 {
+		raw := strings.TrimSpace(matches[1])
+		if raw != "" {
+			for _, d := range strings.Split(raw, ",") {
+				d = strings.TrimSpace(d)
+				d = strings.TrimPrefix(d, "https://")
+				d = strings.TrimPrefix(d, "http://")
+				d = strings.TrimSpace(d)
+				if d != "" {
+					config.WebSearchDomains = append(config.WebSearchDomains, d)
+				}
+			}
+		}
+	}
+
 	return config
 }
 
@@ -746,6 +797,8 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.ShowReasoning = config.ShowReasoning
 	c.PageProfiles = config.PageProfiles
 	c.SupervisorAgentModels = config.SupervisorAgentModels
+	c.WebSearchEnabled = config.WebSearchEnabled
+	c.WebSearchDomains = config.WebSearchDomains
 
 	// Only override version if explicitly set in annotation
 	if config.Version > 0 {
@@ -854,6 +907,26 @@ func (c *Chatbot) PopulateDerivedFields() {
 				}
 				if len(merged) > 0 {
 					c.SupervisorAgentModels = merged
+				}
+			}
+
+			// Web-search enable + optional domain allowlist (no DB column)
+			if matches := webSearchPattern.FindStringSubmatch(c.Code); len(matches) > 1 {
+				v := strings.ToLower(matches[1])
+				c.WebSearchEnabled = v == "enabled" || v == "true"
+			}
+			if matches := webSearchDomainsPattern.FindStringSubmatch(c.Code); len(matches) > 1 {
+				raw := strings.TrimSpace(matches[1])
+				if raw != "" {
+					for _, d := range strings.Split(raw, ",") {
+						d = strings.TrimSpace(d)
+						d = strings.TrimPrefix(d, "https://")
+						d = strings.TrimPrefix(d, "http://")
+						d = strings.TrimSpace(d)
+						if d != "" {
+							c.WebSearchDomains = append(c.WebSearchDomains, d)
+						}
+					}
 				}
 			}
 		}

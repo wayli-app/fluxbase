@@ -305,6 +305,11 @@ func setDefaults() {
 	viper.SetDefault("ai.ollama_endpoint", "")        // No default endpoint
 	viper.SetDefault("ai.ollama_model", "")           // No default model
 
+	// AI Tavily websearch defaults (Web Agent specialist)
+	viper.SetDefault("ai.tavily_api_key", "")       // No default; off when empty
+	viper.SetDefault("ai.tavily_default_depth", "") // Empty = client default ("basic")
+	viper.SetDefault("ai.tavily_base_url", "")      // Empty = https://api.tavily.com
+
 	// AI Embedding Configuration defaults (for vector search)
 	viper.SetDefault("ai.embedding_enabled", false)            // Disabled by default
 	viper.SetDefault("ai.embedding_provider", "")              // Defaults to ai.provider_type if empty

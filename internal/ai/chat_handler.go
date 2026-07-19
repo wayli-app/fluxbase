@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/nimbleflux/fluxbase/internal/ai/integrations"
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
@@ -36,6 +37,10 @@ type ChatHandler struct {
 	limiter        *ChatbotLimiter
 	// MCP integration
 	mcpExecutor *MCPToolExecutor
+	// Tool integrations (Web Agent). nil when AI is disabled or no
+	// integrations are configured — the supervisor silently excludes
+	// "web" from the route in that case.
+	integrationsStorage *integrations.Storage
 }
 
 // NewChatHandler creates a new chat handler
@@ -76,6 +81,14 @@ func NewChatHandler(
 // SetSettingsResolver sets the settings resolver for template variable resolution in system prompts
 func (h *ChatHandler) SetSettingsResolver(resolver *SettingsResolver) {
 	h.schemaBuilder.SetSettingsResolver(resolver)
+}
+
+// SetIntegrationsStorage wires the tool integrations storage (Tavily,
+// future Brave/Jina) into the chat handler. The supervisor's Web Agent
+// reads from this to resolve credentials at turn start. nil-safe — when
+// never called, the Web Agent is silently excluded from routes.
+func (h *ChatHandler) SetIntegrationsStorage(s *integrations.Storage) {
+	h.integrationsStorage = s
 }
 
 // SetMCPToolRegistry sets the MCP tool registry for MCP-enabled chatbots

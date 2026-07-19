@@ -194,3 +194,48 @@ func TestPopulateDerivedFields_ParsesPageProfilesFromCode(t *testing.T) {
 	require.NotNil(t, c.PageProfiles)
 	require.NotNil(t, c.PageProfiles["orders"])
 }
+
+// Web-search annotation parsing (Web Agent specialist).
+
+func TestParseChatbotConfig_WebSearchEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{"enabled", "enabled", true},
+		{"true", "true", true},
+		{"disabled", "disabled", false},
+		{"false", "false", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code := "/**\n * @fluxbase:web-search " + tc.value + "\n */\nexport default `test`\n"
+			config := ParseChatbotConfig(code)
+			assert.Equal(t, tc.want, config.WebSearchEnabled)
+		})
+	}
+}
+
+func TestParseChatbotConfig_WebSearchAbsent_DefaultsOff(t *testing.T) {
+	config := DefaultChatbotConfig()
+	assert.False(t, config.WebSearchEnabled, "web search must be off by default")
+}
+
+func TestParseChatbotConfig_WebSearchDomains(t *testing.T) {
+	code := "/**\n * @fluxbase:web-search enabled\n * @fluxbase:web-search-domains wikipedia.org, https://mdn.dev, news.example.com\n */\nexport default `test`\n"
+	config := ParseChatbotConfig(code)
+	assert.True(t, config.WebSearchEnabled)
+	require.Len(t, config.WebSearchDomains, 3)
+	assert.Equal(t, "wikipedia.org", config.WebSearchDomains[0])
+	assert.Equal(t, "mdn.dev", config.WebSearchDomains[1], "scheme prefixes must be stripped")
+	assert.Equal(t, "news.example.com", config.WebSearchDomains[2])
+}
+
+func TestPopulateDerivedFields_ParsesWebSearchFromCode(t *testing.T) {
+	code := "/**\n * @fluxbase:web-search enabled\n * @fluxbase:web-search-domains docs.python.org\n */\nexport default `test`\n"
+	c := &Chatbot{Code: code}
+	c.PopulateDerivedFields()
+	assert.True(t, c.WebSearchEnabled)
+	require.Len(t, c.WebSearchDomains, 1)
+	assert.Equal(t, "docs.python.org", c.WebSearchDomains[0])
+}

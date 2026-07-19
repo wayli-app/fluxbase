@@ -466,6 +466,14 @@ ai:
   # ollama_endpoint: ""                 # FLUXBASE_AI_OLLAMA_ENDPOINT - Ollama endpoint (e.g., http://localhost:11434)
   # ollama_model: ""                    # FLUXBASE_AI_OLLAMA_MODEL - Ollama model name (e.g., llama2)
 
+  # Tavily Web Search Settings (for Web Agent specialist)
+  # When set, a read-only synthetic integration is exposed and chatbots
+  # with @fluxbase:web-search enabled=true in their source can route
+  # current-info questions to the Web Agent.
+  # tavily_api_key: ""                  # FLUXBASE_AI_TAVILY_API_KEY - Tavily API key
+  # tavily_default_depth: ""            # FLUXBASE_AI_TAVILY_DEFAULT_DEPTH - "basic" (default) or "advanced"
+  # tavily_base_url: ""                 # FLUXBASE_AI_TAVILY_BASE_URL - override endpoint (rare)
+
   # Embedding Configuration (for vector search and knowledge bases)
   embedding_enabled: false              # FLUXBASE_AI_EMBEDDING_ENABLED - Enable embeddings
   # embedding_provider: ""              # FLUXBASE_AI_EMBEDDING_PROVIDER - Embedding provider (defaults to provider_type)

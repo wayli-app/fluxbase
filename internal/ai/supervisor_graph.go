@@ -51,9 +51,20 @@ func NewSupervisorGraph(deps *AgentDeps) *SupervisorGraph {
 	// Router fan-out node — exists only to own the conditional edge from
 	// supervisor → specialists. Each invocation reads the plan from state
 	// and runs the routed specialists in parallel.
-	router := &routerNode{deps: deps, agents: map[string]Node{
+	//
+	// Web Agent is included only when both:
+	//   (a) the chatbot has @fluxbase:web-search enabled=true, AND
+	//   (b) an integrations storage is configured on deps
+	// Otherwise "web" is absent from the map and the router returns an
+	// error if the supervisor tries to route to it — the supervisor's
+	// prompt then knows to fall back to "chat" with a clarification.
+	routerAgents := map[string]Node{
 		"sql": sql, "kb": kb, "action": action, "chat": chat,
-	}}
+	}
+	if deps.Chatbot != nil && deps.Chatbot.WebSearchEnabled && deps.Integrations != nil {
+		routerAgents["web"] = NewWebAgent(deps)
+	}
+	router := &routerNode{deps: deps, agents: routerAgents}
 
 	// Synthesizer gate node — reads agent outputs and decides whether
 	// synthesis is needed based on count + SupervisorPlan.RequiresSynthesis.

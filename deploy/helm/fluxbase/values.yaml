@@ -562,6 +562,10 @@ config:
     azure_embedding_deployment_name: ""
     ollama_endpoint: ""
     ollama_model: ""
+    # Tavily web search (Web Agent specialist)
+    tavily_api_key: ""
+    tavily_default_depth: ""
+    tavily_base_url: ""
     # Embeddings
     embedding_enabled: null
     embedding_provider: ""

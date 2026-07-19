@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/ai"
+	"github.com/nimbleflux/fluxbase/internal/ai/integrations"
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/logging"
 	"github.com/nimbleflux/fluxbase/internal/observability"
@@ -33,6 +34,17 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 	aiStorage.SetConfig(&cfg.AI)
 
 	vectorManager := NewVectorManager(&cfg.AI, aiStorage, db.Inspector(), db)
+
+	// Tool integrations (Web Agent specialist). Construct the EnvConfig
+	// from YAML/env vars so instance-level Tavily config produces a
+	// synthetic read-only FROM_CONFIG row — same pattern as AI providers.
+	integrationsEnvConfig := &integrations.EnvConfig{
+		TavilyAPIKey:       cfg.AI.TavilyAPIKey,
+		TavilyDefaultDepth: cfg.AI.TavilyDefaultDepth,
+		TavilyBaseURL:      cfg.AI.TavilyBaseURL,
+	}
+	integrationsStorage := integrations.NewStorage(db, cfg.EncryptionKeyBytes, integrationsEnvConfig)
+	integrationsHandler := integrations.NewHandler(integrationsStorage)
 
 	var vectorHandler *VectorHandler
 	vectorHandler, err := NewVectorHandler(vectorManager, db.Inspector(), db, cfg)
@@ -83,6 +95,10 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		}
 
 		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI, embeddingService, loggingSvc)
+
+		// Wire integrations storage into the chat handler so the supervisor's
+		// Web Agent can resolve Tavily credentials at turn start.
+		aiChatHandler.SetIntegrationsStorage(integrationsStorage)
 
 		// Wire chat handler back into the admin handler so provider mutations
 		// invalidate the chat path's provider cache.
@@ -187,6 +203,7 @@ func (m *AIModule) Init(ctx context.Context, registry *ServiceRegistry) error {
 		VectorManager:   vectorManager,
 		VectorHandler:   vectorHandler,
 		Internal:        internalAIHandler,
+		Integrations:    integrationsHandler,
 	}
 	m.Quota = &QuotaHandlers{Handler: quotaHandler}
 
