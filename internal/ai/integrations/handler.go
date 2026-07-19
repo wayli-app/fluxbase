@@ -104,6 +104,16 @@ func (h *Handler) CreateIntegration(c fiber.Ctx) error {
 		})
 	}
 
+	// Populate audit field from auth context. The SDK's CreateToolIntegrationRequest
+	// doesn't expose created_by, so it arrives as "" — which fails the uuid cast
+	// on insert. Take the authenticated user's id when available; leave empty
+	// for unauthenticated admin paths (service-key calls) so storage NULLs it.
+	if req.CreatedBy == "" {
+		if uid, ok := c.Locals("user_id").(string); ok && uid != "" {
+			req.CreatedBy = uid
+		}
+	}
+
 	created, err := h.storage.CreateIntegration(ctx, tenantID, &req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
