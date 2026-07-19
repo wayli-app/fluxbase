@@ -74,14 +74,18 @@ func BuildSupervisorPrompt(chatbot *Chatbot) string {
 // supervisorWebEnabledSuffix is appended to the static supervisor prompt
 // when the chatbot has @fluxbase:web-search enabled. Tells the LLM web
 // routing IS available so it actually uses it for current-info questions.
+//
+// Domain-agnostic: lists abstract trigger categories (current, recent,
+// time-sensitive) without examples tied to any specific application.
 const supervisorWebEnabledSuffix = `
 
 IMPORTANT — web search IS ENABLED for this chatbot. The "web" agent is
-available RIGHT NOW. When the user asks about anything current/time-sensitive
-(events, "this weekend", opening hours, "what's happening", news, prices,
-2026), you MUST include "web" in the route. Do not fall back to sql or chat
-for current-info questions — those agents do not have live data and will
-either fail or hallucinate stale answers.`
+available RIGHT NOW. When the user asks about anything current, recent, or
+time-sensitive (current prices or availability, today's hours, latest news,
+recent events, real-time status, "right now", "currently", "this week"),
+you MUST include "web" in the route. Do not route these questions to "sql"
+or "chat" alone — those agents cannot access live web data and will either
+fail or return stale information.`
 
 
 // sqlAgentSystemPrompt is the SQL Agent's static system prompt. Schema and
