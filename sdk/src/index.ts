@@ -459,6 +459,13 @@ export type {
   AIChatbot,
   AIChatbotLookupResponse,
   ChatbotSpec,
+  // Tool integrations
+  IntegrationType,
+  IntegrationProvider,
+  ToolIntegration,
+  CreateToolIntegrationRequest,
+  UpdateToolIntegrationRequest,
+  TestToolIntegrationResult,
   SyncChatbotsOptions,
   SyncChatbotsResult,
   AIChatMessageRole,

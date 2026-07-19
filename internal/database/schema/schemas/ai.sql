@@ -2762,3 +2762,74 @@ GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE user_chatbot_usage TO tenant_servi
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE user_provider_preferences TO tenant_service;
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE user_quotas TO tenant_service;
 
+-- ============================================================================
+-- Tool Integrations
+-- ============================================================================
+-- Non-LLM external services that chatbot specialists can call. Currently
+-- supports web_search (Tavily, Brave, etc.) and fetch_url (single-page
+-- extract). Schema is provider-agnostic so new integrations (code runner,
+-- GitHub, etc.) can be added without restructuring.
+--
+-- Secrets in `config` (e.g., api_key) MUST be encrypted at the application
+-- layer via internal/ai/integrations/crypto.go using the master
+-- EncryptionKey. Read paths auto-detect legacy plaintext values and treat
+-- them as plaintext for forward compatibility with the lazy encryption
+-- migration on ai.providers.
+
+CREATE TABLE IF NOT EXISTS tool_integrations (
+    id uuid DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    integration_type text NOT NULL,
+    provider text NOT NULL,
+    config jsonb DEFAULT '{}' NOT NULL,
+    enabled boolean DEFAULT true,
+    is_default boolean DEFAULT false,
+    last_tested_at timestamptz,
+    last_test_status text,
+    last_test_error text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    created_by uuid,
+    tenant_id uuid,
+    CONSTRAINT tool_integrations_pkey PRIMARY KEY (id),
+    CONSTRAINT tool_integrations_name_key UNIQUE (name),
+    CONSTRAINT tool_integrations_type_check
+        CHECK (integration_type IN ('web_search','fetch_url')),
+    CONSTRAINT tool_integrations_provider_check
+        CHECK (provider IN ('tavily','brave','jina','singlefetch'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_tool_integrations_tenant_id ON tool_integrations (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ai_tool_integrations_enabled ON tool_integrations (enabled);
+CREATE INDEX IF NOT EXISTS idx_ai_tool_integrations_type ON tool_integrations (integration_type);
+
+-- One default per (integration_type, tenant_id). Postgres partial unique index
+-- ensures exactly one row per type per tenant can have is_default=true.
+-- Tenant_id NULL collides with other NULLs by default which is what we want
+-- (only one instance-wide default when no tenant context).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_tool_integrations_single_default
+    ON tool_integrations (integration_type, tenant_id)
+    WHERE (is_default = true);
+
+ALTER TABLE tool_integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_integrations FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tool_integrations_tenant ON tool_integrations TO PUBLIC
+    USING (auth.has_tenant_access(tenant_id))
+    WITH CHECK (auth.has_tenant_access(tenant_id));
+
+CREATE OR REPLACE TRIGGER ai_tool_integrations_set_tenant_id
+    BEFORE INSERT ON tool_integrations
+    FOR EACH ROW
+    EXECUTE FUNCTION auth.set_tenant_id_from_context();
+
+COMMENT ON TABLE tool_integrations IS
+    'External tool integrations (web search, URL fetch) consumed by chatbot specialist agents';
+COMMENT ON COLUMN tool_integrations.config IS
+    'Provider-specific config JSON. Secret fields (api_key) MUST be encrypted at application layer.';
+COMMENT ON COLUMN tool_integrations.last_test_status IS
+    'Result of the most recent test-connection call: ok, failed, or NULL if never tested';
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tool_integrations TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tool_integrations TO tenant_service;
+

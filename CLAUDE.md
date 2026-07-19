@@ -212,9 +212,11 @@ Server initialization uses a module-based dependency injection system:
 - `internal/ai/agent_deps.go` - `AgentDeps` bundle (chatbot, provider, services, sender) + `AgentEventSender` interface for WS events.
 - `internal/ai/agent_supervisor.go` - Routing LLM call. Parses JSON `SupervisorPlan` (route, language, investigative flag, min_tool_calls). Applies page-profile whitelist.
 - `internal/ai/agent_specialists.go` - SQL, KB, Action, Chat agents. Each has a focused prompt + tool whitelist + bounded internal loop.
+- `internal/ai/agent_web.go` - Web Agent specialist. Calls Tavily via the integrations storage; opt-in per chatbot via `@fluxbase:web-search`.
 - `internal/ai/agent_synthesizer_verifier.go` - Synthesizer (merges multi-agent output) + Verifier (Unicode-script language check + optional LLM grounding check on investigative turns).
 - `internal/ai/agent_prompts.go` - Per-agent static system prompts (focused ~100 lines each).
 - `internal/ai/page_context.go` - `PageProfile` + `PageProfiles` map + `@fluxbase:page-contexts` JSON parser. Level-2 page-aware chatbot overrides.
+- `internal/ai/integrations/` - Non-LLM tool integrations (web search via Tavily, URL fetch). Storage with auto-encryption of api_key (AES-256-GCM), env/YAML config parity via synthetic `FROM_CONFIG` row, REST API + admin UI + test-connection endpoint.
 - Reasoning modes: `"supervisor"` (default for new + existing chatbots via `PopulateDerivedFields`), `"react"`, `"strict"`, `"none"`. Pin via `@fluxbase:reasoning-mode` annotation.
 
 **Multi-Tenancy:**

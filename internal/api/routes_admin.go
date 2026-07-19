@@ -1,6 +1,9 @@
 package api
 
 import (
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/nimbleflux/fluxbase/internal/ai/integrations"
 	"github.com/nimbleflux/fluxbase/internal/api/routes"
 )
 
@@ -147,20 +150,28 @@ func (s *Server) buildAdminRouteDeps() *routes.AdminDeps {
 			SyncJobs:          s.Jobs.Handler.SyncJobs,
 		},
 		AI: &routes.AIAdminDeps{
-			ListChatbots:               s.AI.Handler.ListChatbots,
-			GetChatbot:                 s.AI.Handler.GetChatbot,
-			ToggleChatbot:              s.AI.Handler.ToggleChatbot,
-			UpdateChatbot:              s.AI.Handler.UpdateChatbot,
-			DeleteChatbot:              s.AI.Handler.DeleteChatbot,
-			SyncChatbots:               s.AI.Handler.SyncChatbots,
-			GetAIMetrics:               s.AI.Handler.GetAIMetrics,
-			ListAIProviders:            s.AI.Handler.ListProviders,
-			CreateAIProvider:           s.AI.Handler.CreateProvider,
-			UpdateAIProvider:           s.AI.Handler.UpdateProvider,
-			DeleteAIProvider:           s.AI.Handler.DeleteProvider,
-			SetDefaultAIProvider:       s.AI.Handler.SetDefaultProvider,
-			SetEmbeddingAIProvider:     s.AI.Handler.SetEmbeddingProvider,
-			ClearEmbeddingAIProvider:   s.AI.Handler.ClearEmbeddingProvider,
+			ListChatbots:             s.AI.Handler.ListChatbots,
+			GetChatbot:               s.AI.Handler.GetChatbot,
+			ToggleChatbot:            s.AI.Handler.ToggleChatbot,
+			UpdateChatbot:            s.AI.Handler.UpdateChatbot,
+			DeleteChatbot:            s.AI.Handler.DeleteChatbot,
+			SyncChatbots:             s.AI.Handler.SyncChatbots,
+			GetAIMetrics:             s.AI.Handler.GetAIMetrics,
+			ListAIProviders:          s.AI.Handler.ListProviders,
+			CreateAIProvider:         s.AI.Handler.CreateProvider,
+			UpdateAIProvider:         s.AI.Handler.UpdateProvider,
+			DeleteAIProvider:         s.AI.Handler.DeleteProvider,
+			SetDefaultAIProvider:     s.AI.Handler.SetDefaultProvider,
+			SetEmbeddingAIProvider:   s.AI.Handler.SetEmbeddingProvider,
+			ClearEmbeddingAIProvider: s.AI.Handler.ClearEmbeddingProvider,
+			// Tool Integrations — wrapped for nil-safety when AI is disabled
+			ListToolIntegrations:       wrapIntegrationHandler(s.AI.Integrations, func(h *integrations.Handler) fiber.Handler { return h.ListIntegrations }),
+			GetToolIntegration:         wrapIntegrationHandler(s.AI.Integrations, func(h *integrations.Handler) fiber.Handler { return h.GetIntegration }),
+			CreateToolIntegration:      wrapIntegrationHandler(s.AI.Integrations, func(h *integrations.Handler) fiber.Handler { return h.CreateIntegration }),
+			UpdateToolIntegration:      wrapIntegrationHandler(s.AI.Integrations, func(h *integrations.Handler) fiber.Handler { return h.UpdateIntegration }),
+			DeleteToolIntegration:      wrapIntegrationHandler(s.AI.Integrations, func(h *integrations.Handler) fiber.Handler { return h.DeleteIntegration }),
+			SetDefaultToolIntegration:  wrapIntegrationHandler(s.AI.Integrations, func(h *integrations.Handler) fiber.Handler { return h.SetDefaultIntegration }),
+			TestToolIntegration:        wrapIntegrationHandler(s.AI.Integrations, func(h *integrations.Handler) fiber.Handler { return h.TestIntegration }),
 			ListAIConversations:        s.AI.Handler.GetConversations,
 			GetAIConversationMessages:  s.AI.Handler.GetConversationMessages,
 			GetAIAuditLog:              s.AI.Handler.GetAuditLog,

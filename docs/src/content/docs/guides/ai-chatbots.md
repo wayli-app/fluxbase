@@ -987,6 +987,28 @@ export default `You are a helpful assistant.`;
 
 The ReAct loop remains fully supported and is the right choice for simple low-cost chatbots that don't need multi-agent routing.
 
+### Web Search (Web Agent specialist)
+
+When the supervisor pipeline is enabled, you can also enable the Web Agent — a specialist that answers current-info questions by searching the live web via Tavily.
+
+Two-part setup:
+
+1. **Tenant/instance level**: configure Tavily credentials in **AI → Tool Integrations** (UI) or via `FLUXBASE_AI_TAVILY_API_KEY` env var. See [Tool Integrations](./ai-integrations.md) for full setup.
+
+2. **Chatbot level**: opt in via annotation:
+
+   ```typescript
+   /**
+    * @fluxbase:web-search enabled
+    *
+    * Optional: restrict results to specific domains
+    * @fluxbase:web-search-domains wikipedia.org, docs.python.org
+    */
+   export default `You are a helpful assistant.`;
+   ```
+
+When both are set, the supervisor routes current-info questions ("what's the latest X", "what time does Y close today", "find docs for Z") to the Web Agent automatically. No code changes elsewhere.
+
 See [Multi-Agent Supervisor](./ai-agents.md) for the full architecture, agent reference, and verification details.
 
 ## Page-aware Chatbots

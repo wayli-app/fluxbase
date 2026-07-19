@@ -891,6 +891,19 @@ spec:
             - name: FLUXBASE_AI_OLLAMA_MODEL
               value: {{ .Values.config.ai.ollama_model | quote }}
             {{- end }}
+            # Tavily Web Search (for Web Agent specialist)
+            {{- if .Values.config.ai.tavily_api_key }}
+            - name: FLUXBASE_AI_TAVILY_API_KEY
+              value: {{ .Values.config.ai.tavily_api_key | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.tavily_default_depth }}
+            - name: FLUXBASE_AI_TAVILY_DEFAULT_DEPTH
+              value: {{ .Values.config.ai.tavily_default_depth | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.tavily_base_url }}
+            - name: FLUXBASE_AI_TAVILY_BASE_URL
+              value: {{ .Values.config.ai.tavily_base_url | quote }}
+            {{- end }}
             # Embedding Configuration
             {{- if kindIs "bool" .Values.config.ai.embedding_enabled }}
             - name: FLUXBASE_AI_EMBEDDING_ENABLED

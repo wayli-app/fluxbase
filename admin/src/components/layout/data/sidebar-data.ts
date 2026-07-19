@@ -37,6 +37,7 @@ import {
   Command,
   Building2,
   Server,
+  Globe,
 } from "lucide-react";
 import { type SidebarData } from "../types";
 
@@ -295,6 +296,12 @@ export const sidebarData: SidebarDataWithVisibility = {
           title: "AI Providers",
           url: "/ai-providers",
           icon: Bot,
+          visibility: "all",
+        },
+        {
+          title: "Tool Integrations",
+          url: "/ai-integrations",
+          icon: Globe,
           visibility: "all",
         },
       ],

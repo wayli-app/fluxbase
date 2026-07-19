@@ -361,6 +361,12 @@ func getConfigAIValue(cfg *config.Config, parts []string) any {
 		return cfg.AI.AzureAPIKey
 	case "azure_endpoint":
 		return cfg.AI.AzureEndpoint
+	case "tavily_api_key":
+		return cfg.AI.TavilyAPIKey
+	case "tavily_default_depth":
+		return cfg.AI.TavilyDefaultDepth
+	case "tavily_base_url":
+		return cfg.AI.TavilyBaseURL
 	}
 	return nil
 }

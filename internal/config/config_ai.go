@@ -49,6 +49,15 @@ type AIConfig struct {
 	OllamaEndpoint string `mapstructure:"ollama_endpoint"`
 	OllamaModel    string `mapstructure:"ollama_model"`
 
+	// Tavily websearch Settings (for Web Agent specialist)
+	// When TavilyAPIKey is set, a read-only synthetic FROM_CONFIG tool
+	// integration row is exposed so instance-level deployments work the
+	// same as multi-tenant dashboard deployments. Mirror the OpenAI/
+	// Ollama env-config pattern.
+	TavilyAPIKey       string `mapstructure:"tavily_api_key"`
+	TavilyDefaultDepth string `mapstructure:"tavily_default_depth"` // "basic" (default) or "advanced"
+	TavilyBaseURL      string `mapstructure:"tavily_base_url"`      // optional override
+
 	// OCR Configuration (for image-based PDF extraction in knowledge bases)
 	OCREnabled   bool     `mapstructure:"ocr_enabled"`   // Enable OCR for image-based PDFs
 	OCRProvider  string   `mapstructure:"ocr_provider"`  // OCR provider: tesseract

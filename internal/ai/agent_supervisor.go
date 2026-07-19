@@ -196,7 +196,7 @@ func parseSupervisorPlan(content string) (*SupervisorPlan, error) {
 	// Validate route entries
 	for _, r := range plan.Route {
 		switch r {
-		case "sql", "kb", "action", "chat":
+		case "sql", "kb", "action", "chat", "web":
 			// valid
 		default:
 			return nil, fmt.Errorf("unknown agent in route: %q", r)

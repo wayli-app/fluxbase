@@ -14,6 +14,11 @@ import type {
   LinkKnowledgeBaseRequest,
   UpdateChatbotKnowledgeBaseRequest,
   TableDetails,
+  ToolIntegration,
+  CreateToolIntegrationRequest,
+  UpdateToolIntegrationRequest,
+  TestToolIntegrationResult,
+  IntegrationType,
 } from "./types";
 
 /**
@@ -544,6 +549,153 @@ export class FluxbaseAdminAI {
     try {
       const data = await this.fetch.get<TableDetails>(
         `/api/v1/admin/ai/tables/${schema}/${table}`,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  // ==========================================================================
+  // Tool Integrations (Web Search via Tavily, future Brave/Jina, URL fetch)
+  // ==========================================================================
+  // Mirrors the provider CRUD shape plus a /test endpoint that runs a real
+  // "hello world" call against the integration's provider and stores the
+  // result. Used by the admin UI's Test button.
+
+  /**
+   * List tool integrations, optionally filtered by integration_type.
+   *
+   * @example
+   * const { data, error } = await client.admin.ai.listIntegrations({ integration_type: "web_search" })
+   */
+  async listIntegrations(
+    params?: { integration_type?: IntegrationType },
+  ): Promise<{
+    data: ToolIntegration[] | null;
+    error: Error | null;
+  }> {
+    try {
+      const query = params?.integration_type
+        ? `?type=${params.integration_type}`
+        : "";
+      const result = await this.fetch.get<{
+        integrations: ToolIntegration[];
+        count: number;
+      }>(`/api/v1/admin/ai/integrations${query}`);
+      return { data: result.integrations || [], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Get a single tool integration by ID.
+   */
+  async getIntegration(
+    id: string,
+  ): Promise<{ data: ToolIntegration | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.get<ToolIntegration>(
+        `/api/v1/admin/ai/integrations/${id}`,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Create a new tool integration. api_key in config is encrypted at the
+   * storage layer; never appears in plaintext in API responses.
+   */
+  async createIntegration(
+    request: CreateToolIntegrationRequest,
+  ): Promise<{ data: ToolIntegration | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.post<ToolIntegration>(
+        "/api/v1/admin/ai/integrations",
+        request,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Update an existing tool integration. Passing config.api_key =
+   * "***masked***" preserves the existing encrypted value (useful when
+   * the admin changes only the name and not the API key).
+   */
+  async updateIntegration(
+    id: string,
+    request: UpdateToolIntegrationRequest,
+  ): Promise<{ data: ToolIntegration | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.put<ToolIntegration>(
+        `/api/v1/admin/ai/integrations/${id}`,
+        request,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Delete a tool integration. Refuses to delete read-only integrations
+   * configured via env/YAML.
+   */
+  async deleteIntegration(
+    id: string,
+  ): Promise<{ error: Error | null }> {
+    try {
+      await this.fetch.delete(`/api/v1/admin/ai/integrations/${id}`);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
+  /**
+   * Mark an integration as the default for its integration_type within
+   * the current tenant. The server clears any prior default in the same
+   * transaction.
+   */
+  async setDefaultIntegration(
+    id: string,
+  ): Promise<{ error: Error | null }> {
+    try {
+      await this.fetch.put(
+        `/api/v1/admin/ai/integrations/${id}/default`,
+        {},
+      );
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
+  /**
+   * Test an integration by running a real "hello world" call against
+   * its provider. Stores last_tested_at + last_test_status + error
+   * on the integration row so the admin UI can display health.
+   *
+   * @example
+   * const { data, error } = await client.admin.ai.testIntegration(integrationId)
+   * if (data?.status === "ok") { console.log("Tavily credentials verified") }
+   */
+  async testIntegration(
+    id: string,
+  ): Promise<{
+    data: TestToolIntegrationResult | null;
+    error: Error | null;
+  }> {
+    try {
+      const data = await this.fetch.post<TestToolIntegrationResult>(
+        `/api/v1/admin/ai/integrations/${id}/test`,
+        {},
       );
       return { data, error: null };
     } catch (error) {

@@ -2919,7 +2919,79 @@ export interface SyncMigrationsResult {
 /**
  * AI provider type
  */
-export type AIProviderType = "openai" | "azure" | "ollama";
+export type AIProviderType = "openai" | "azure" | "ollama" | "anthropic";
+
+/**
+ * Tool integration type — categorizes what kind of external tool the
+ * integration provides. Stored in `tool_integrations.integration_type`.
+ */
+export type IntegrationType = "web_search" | "fetch_url";
+
+/**
+ * Tool integration provider — identifies the specific service within
+ * an integration type. E.g., for web_search: tavily, brave, jina.
+ */
+export type IntegrationProvider = "tavily" | "brave" | "jina" | "singlefetch";
+
+/**
+ * Tool integration configuration. Mirrors the server-side
+ * `tool_integrations` table shape. Secrets in `config` (e.g., api_key)
+ * are masked to "***masked***" on read; updates that pass the mask value
+ * back preserve the existing encrypted value.
+ */
+export interface ToolIntegration {
+  id: string;
+  name: string;
+  integration_type: IntegrationType;
+  provider: IntegrationProvider;
+  /** Provider-specific config. api_key is masked on read. */
+  config: Record<string, string>;
+  enabled: boolean;
+  is_default: boolean;
+  /** True when configured via env/YAML (read-only in the UI). */
+  from_config?: boolean;
+  read_only?: boolean;
+  /** Result of the most recent test-connection call, if any. */
+  last_tested_at?: string;
+  last_test_status?: "ok" | "failed";
+  last_test_error?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+/**
+ * Request shape for creating a tool integration.
+ */
+export interface CreateToolIntegrationRequest {
+  name: string;
+  integration_type: IntegrationType;
+  provider: IntegrationProvider;
+  config?: Record<string, string>;
+  enabled?: boolean;
+  is_default?: boolean;
+}
+
+/**
+ * Request shape for updating a tool integration. All fields optional.
+ * Updates that pass config.api_key = "***masked***" preserve the
+ * existing encrypted value rather than overwriting it.
+ */
+export interface UpdateToolIntegrationRequest {
+  name?: string;
+  config?: Record<string, string>;
+  enabled?: boolean;
+  is_default?: boolean;
+}
+
+/**
+ * Response from POST /api/v1/admin/ai/integrations/:id/test
+ */
+export interface TestToolIntegrationResult {
+  status: "ok" | "failed";
+  last_tested_at: string;
+  error?: string;
+}
 
 /**
  * AI provider configuration
