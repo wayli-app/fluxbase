@@ -60,7 +60,7 @@ export function ToolIntegrationsTab() {
   const [testingId, setTestingId] = useState<string | null>(null);
 
   const { data: integrations, isLoading } = useQuery({
-    queryKey: ["ai", "integrations"],
+    queryKey: ["ai-integrations", client.admin.ai],
     queryFn: () => client.admin.ai.listIntegrations(),
     select: (res) => res.data ?? [],
   });
@@ -75,7 +75,7 @@ export function ToolIntegrationsTab() {
         toast.error(`Test failed: ${res.data?.error ?? "unknown error"}`);
       }
       await queryClient.invalidateQueries({
-        queryKey: ["ai", "integrations"],
+        queryKey: ["ai-integrations"],
       });
     },
     onError: (error) => toast.error(`Test failed: ${(error as Error).message}`),
@@ -87,7 +87,7 @@ export function ToolIntegrationsTab() {
     onSuccess: async () => {
       toast.success("Default integration updated");
       await queryClient.invalidateQueries({
-        queryKey: ["ai", "integrations"],
+        queryKey: ["ai-integrations"],
       });
     },
     onError: (error) => toast.error(`Failed: ${(error as Error).message}`),
@@ -266,7 +266,7 @@ export function ToolIntegrationsTab() {
           }
           toast.success("Integration deleted");
           await queryClient.invalidateQueries({
-            queryKey: ["ai", "integrations"],
+            queryKey: ["ai-integrations"],
           });
           setDeletingIntegration(null);
         }}
