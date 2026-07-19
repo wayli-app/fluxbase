@@ -75,17 +75,39 @@ func BuildSupervisorPrompt(chatbot *Chatbot) string {
 // when the chatbot has @fluxbase:web-search enabled. Tells the LLM web
 // routing IS available so it actually uses it for current-info questions.
 //
-// Domain-agnostic: lists abstract trigger categories (current, recent,
-// time-sensitive) without examples tied to any specific application.
+// Domain-agnostic and principle-based: focuses on the abstract category
+// (anything needing fresh/live data) rather than enumerating trigger
+// phrases, which the LLM might take too literally.
 const supervisorWebEnabledSuffix = `
 
 IMPORTANT — web search IS ENABLED for this chatbot. The "web" agent is
-available RIGHT NOW. When the user asks about anything current, recent, or
-time-sensitive (current prices or availability, today's hours, latest news,
-recent events, real-time status, "right now", "currently", "this week"),
-you MUST include "web" in the route. Do not route these questions to "sql"
-or "chat" alone — those agents cannot access live web data and will either
-fail or return stale information.`
+available RIGHT NOW.
+
+ROUTE TO "web" whenever the user's question needs fresh, live, or
+time-bound information that is NOT already in the database or knowledge
+base. This includes:
+
+- Any question about a specific timeframe (today, this week, this weekend,
+  this month, this year, next week, next weekend, next month, in <year>,
+  on <date>, "right now", "currently", "lately", "recently", "still")
+- Any question about current state (current prices, today's hours, current
+  availability, latest version, who currently holds <role>, recent changes)
+- Any question about events, news, releases, or happenings — past or future
+- Any "what's new" / "what's changed" / "is X still <adjective>" framing
+
+When in doubt, include "web" in the route — over-routing is cheap,
+under-routing produces stale or hallucinated answers.
+
+Do NOT route these questions to "sql" or "chat" alone. Those agents
+cannot access live web data and will either fail or return stale
+information. If the question has a database/static component too (e.g.,
+"compare my past visits to what's currently open"), route to BOTH "sql"
+and "web". If the question is ambiguous about dates, route to "web"
+anyway — the web agent can search broadly and refine.
+
+Never ask the user to clarify a current-info question before routing —
+route first, then the web agent's answer will surface relevant specifics.`
+
 
 
 // sqlAgentSystemPrompt is the SQL Agent's static system prompt. Schema and
