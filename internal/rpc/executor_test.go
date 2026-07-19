@@ -535,6 +535,128 @@ func TestExecutor_buildParameterizedSQL(t *testing.T) {
 		assert.Contains(t, err.Error(), "param2")
 	})
 
+	t.Run("dedupes missing parameter referenced multiple times in SQL", func(t *testing.T) {
+		// Regression: previously the same missing param was appended once per
+		// SQL reference, producing error text like "[trip_title trip_title]".
+		execCtx := &ExecuteContext{
+			Params: map[string]interface{}{},
+		}
+
+		_, _, err := executor.buildParameterizedSQL(
+			"SELECT * FROM t WHERE a = $dup OR b = $dup",
+			execCtx.Params,
+			execCtx,
+		)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing required parameters: [dup]")
+	})
+
+	t.Run("optional param (? marker) injected as NULL when omitted", func(t *testing.T) {
+		// Schema declares trip_title as optional. Caller omits it. SQL references it.
+		// Expected: NULL is injected, call succeeds.
+		execCtx := &ExecuteContext{
+			Procedure: &Procedure{
+				InputSchema: json.RawMessage(`{"trip_id?":"uuid","trip_title?":"text"}`),
+			},
+			Params: map[string]interface{}{
+				"trip_id": "abc-123",
+			},
+		}
+
+		sql, args, err := executor.buildParameterizedSQL(
+			"SELECT * FROM trips WHERE ($trip_id IS NULL OR id = $trip_id) OR ($trip_title IS NOT NULL AND title = $trip_title)",
+			execCtx.Params,
+			execCtx,
+		)
+
+		require.NoError(t, err)
+		// Both params should appear as positional args: trip_id first (first $ ref), trip_title second.
+		assert.Len(t, args, 2)
+		assert.Equal(t, "abc-123", args[0])
+		assert.Nil(t, args[1])
+		assert.Contains(t, sql, "$1")
+		assert.Contains(t, sql, "$2")
+	})
+
+	t.Run("optional param still accepted when provided", func(t *testing.T) {
+		execCtx := &ExecuteContext{
+			Procedure: &Procedure{
+				InputSchema: json.RawMessage(`{"trip_id?":"uuid","trip_title?":"text"}`),
+			},
+			Params: map[string]interface{}{
+				"trip_id":    "abc-123",
+				"trip_title": "Berlin",
+			},
+		}
+
+		_, args, err := executor.buildParameterizedSQL(
+			"SELECT * FROM trips WHERE id = $trip_id OR title = $trip_title",
+			execCtx.Params,
+			execCtx,
+		)
+
+		require.NoError(t, err)
+		assert.Len(t, args, 2)
+		assert.Equal(t, "abc-123", args[0])
+		assert.Equal(t, "Berlin", args[1])
+	})
+
+	t.Run("mixed optional and required: required missing -> error mentions only required", func(t *testing.T) {
+		// trip_title is optional, name is required. Caller omits both.
+		// Error should mention only `name`, not `trip_title`.
+		execCtx := &ExecuteContext{
+			Procedure: &Procedure{
+				InputSchema: json.RawMessage(`{"name":"text","trip_title?":"text"}`),
+			},
+			Params: map[string]interface{}{},
+		}
+
+		_, _, err := executor.buildParameterizedSQL(
+			"SELECT * FROM trips WHERE name = $name AND ($trip_title IS NULL OR title = $trip_title)",
+			execCtx.Params,
+			execCtx,
+		)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "name")
+		assert.NotContains(t, err.Error(), "trip_title")
+	})
+
+	t.Run("nil/missing InputSchema falls back to strict (all referenced params required)", func(t *testing.T) {
+		// No InputSchema at all — backward-compat: every SQL-referenced param is required.
+		execCtx := &ExecuteContext{
+			Params: map[string]interface{}{},
+		}
+
+		_, _, err := executor.buildParameterizedSQL(
+			"SELECT * FROM t WHERE id = $any_param",
+			execCtx.Params,
+			execCtx,
+		)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "any_param")
+	})
+
+	t.Run("malformed InputSchema falls back to strict (no panic)", func(t *testing.T) {
+		execCtx := &ExecuteContext{
+			Procedure: &Procedure{
+				InputSchema: json.RawMessage(`not valid json`),
+			},
+			Params: map[string]interface{}{},
+		}
+
+		_, _, err := executor.buildParameterizedSQL(
+			"SELECT * FROM t WHERE id = $any_param",
+			execCtx.Params,
+			execCtx,
+		)
+
+		require.Error(t, err) // strict fallback rejects
+		assert.Contains(t, err.Error(), "any_param")
+	})
+
 	t.Run("empty parameter map works correctly", func(t *testing.T) {
 		execCtx := &ExecuteContext{
 			Params: map[string]interface{}{},

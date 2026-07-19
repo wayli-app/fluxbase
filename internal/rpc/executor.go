@@ -337,9 +337,31 @@ func (e *Executor) buildParameterizedSQL(sqlTemplate string, params map[string]i
 	paramPattern := regexp.MustCompile(`\$([a-zA-Z_][a-zA-Z0-9_]*)`)
 	matches := paramPattern.FindAllStringSubmatch(sqlTemplate, -1)
 
+	// Build the set of optional parameters from the procedure's input_schema.
+	// Schema is stored as json.RawMessage; the convention is a flat object whose
+	// keys are param names (with "?" suffix marking optional) and values are
+	// type strings, e.g. {"trip_id?": "uuid", "trip_title?": "text", "name": "text"}.
+	// When the SQL references an optional param the caller omitted, we inject
+	// NULL rather than rejecting the call — matches what RPC authors expect
+	// from the documented `?` convention.
+	optionalParams := make(map[string]bool)
+	if execCtx.Procedure != nil && len(execCtx.Procedure.InputSchema) > 0 {
+		var schema map[string]string
+		if err := json.Unmarshal(execCtx.Procedure.InputSchema, &schema); err == nil {
+			for k := range schema {
+				if strings.HasSuffix(k, "?") {
+					optionalParams[strings.TrimSuffix(k, "?")] = true
+				}
+			}
+		}
+		// If unmarshal fails we silently fall back to "no optional params" —
+		// the executor still rejects missing required params, so this is safe.
+	}
+
 	// Track unique params in order of first appearance for deterministic output
 	seenParams := make(map[string]bool)
 	var orderedParamNames []string
+	missingParamsSet := make(map[string]bool) // dedupe across multiple SQL references
 	var missingParams []string
 
 	for _, match := range matches {
@@ -348,10 +370,19 @@ func (e *Executor) buildParameterizedSQL(sqlTemplate string, params map[string]i
 		}
 		paramName := match[1]
 
-		// Check if parameter exists
+		// Check if parameter exists in the merged caller+user params
 		if _, exists := allParams[paramName]; !exists {
-			missingParams = append(missingParams, paramName)
-			continue
+			// Optional in the schema? Inject NULL so the SQL still resolves.
+			if optionalParams[paramName] {
+				allParams[paramName] = nil
+			} else {
+				// Required + missing — record once, even if referenced N times in SQL.
+				if !missingParamsSet[paramName] {
+					missingParamsSet[paramName] = true
+					missingParams = append(missingParams, paramName)
+				}
+				continue
+			}
 		}
 
 		// Track first occurrence order
