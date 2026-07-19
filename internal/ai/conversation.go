@@ -345,23 +345,23 @@ func (cm *ConversationManager) CloseConversation(ctx context.Context, conversati
 // Database operations
 
 func (cm *ConversationManager) saveConversation(ctx context.Context, conv *Conversation) error {
-	// Validate user_id exists in auth.users before inserting
-	// Admin users (from platform.users) won't have entries in auth.users
-	validUserID := conv.UserID
-	if validUserID != nil {
-		var exists bool
-		err := cm.WithTenant(ctx, func(tx pgx.Tx) error {
-			return tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM auth.users WHERE id = $1)", *validUserID).Scan(&exists)
-		})
-		if err != nil {
-			log.Warn().Err(err).Str("user_id", *validUserID).Msg("Failed to check if user exists, setting user_id to NULL")
-			validUserID = nil
-		} else if !exists {
-			log.Debug().Str("user_id", *validUserID).Msg("User not found in auth.users (likely admin user), setting user_id to NULL")
-			validUserID = nil
-		}
-	}
-
+	// NOTE: do NOT pre-check whether UserID exists in auth.users.
+	//
+	// A previous implementation ran `SELECT EXISTS(SELECT 1 FROM auth.users
+	// WHERE id = $1)` inside WithTenant before the INSERT. WithTenant sets
+	// ROLE tenant_service + app.current_tenant_id but does NOT set
+	// request.jwt.claims, so the auth_users_select RLS policy — which
+	// references current_setting('request.jwt.claims')::jsonb — errored
+	// with "invalid input syntax for type json" for every authenticated
+	// user. The error branch then nuked validUserID to nil, so the
+	// conversation was saved with user_id = NULL. That broke
+	// ListUserConversations (which filters WHERE user_id = $1) for every
+	// user — `fluxbase.ai.listConversations()` returned empty forever.
+	//
+	// The FK constraint conversations_user_id_fkey already enforces that
+	// user_id references a real auth.users row. A bad user_id surfaces as
+	// a clear FK violation from the INSERT, not a silent NULL. Drop the
+	// pre-check entirely.
 	query := `
 		INSERT INTO ai.conversations (
 			id, chatbot_id, user_id, session_id, title, status,
@@ -373,14 +373,27 @@ func (cm *ConversationManager) saveConversation(ctx context.Context, conv *Conve
 	`
 
 	return cm.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(
-			ctx, query,
-			conv.ID, conv.ChatbotID, validUserID, conv.SessionID, conv.Title, conv.Status,
-			conv.TurnCount, conv.TotalPromptTokens, conv.TotalCompletionTokens,
-			conv.CreatedAt, conv.UpdatedAt, conv.LastMessageAt, conv.ExpiresAt,
-		)
+		_, err := tx.Exec(ctx, query, conversationInsertArgs(conv)...)
 		return err
 	})
+}
+
+// conversationInsertArgs builds the positional parameter slice for the
+// saveConversation INSERT, in column order. Pure function on the conv
+// struct — does NOT mutate UserID and does NOT touch the DB.
+//
+// Extracted from saveConversation so the "user_id is passed through
+// verbatim, never nulled out" contract is unit-testable without spinning
+// up a real DB. The previous implementation had an inline `validUserID
+// = nil` mutation that silently broke ListUserConversations for every
+// authenticated user. conversationInsertArgs_PrevesUserID is the
+// regression guard against that bug class.
+func conversationInsertArgs(conv *Conversation) []any {
+	return []any{
+		conv.ID, conv.ChatbotID, conv.UserID, conv.SessionID, conv.Title, conv.Status,
+		conv.TurnCount, conv.TotalPromptTokens, conv.TotalCompletionTokens,
+		conv.CreatedAt, conv.UpdatedAt, conv.LastMessageAt, conv.ExpiresAt,
+	}
 }
 
 func (cm *ConversationManager) loadConversation(ctx context.Context, id string) (*Conversation, error) {
