@@ -61,10 +61,32 @@ Output format (JSON only, no other text):
 // system message by the caller — see supervisor_graph.go — to preserve
 // caching of this static prefix.
 func BuildSupervisorPrompt(chatbot *Chatbot) string {
-	// ponytail: future per-chatbot supervisor tuning would slot in here.
-	// For v1 the static template above is enough — no per-chatbot substitution.
+	// Reflect the chatbot's actual capabilities. The static prompt lists
+	// "web" as conditionally available — without this rewrite the supervisor
+	// LLM has to guess whether this chatbot has web search, and it usually
+	// guesses "no", routing current-info questions to sql/chat instead.
+	if chatbot != nil && chatbot.WebSearchEnabled {
+		return supervisorSystemPrompt + supervisorWebEnabledSuffix
+	}
 	return supervisorSystemPrompt
 }
+
+// supervisorWebEnabledSuffix is appended to the static supervisor prompt
+// when the chatbot has @fluxbase:web-search enabled. Tells the LLM web
+// routing IS available so it actually uses it for current-info questions.
+//
+// Domain-agnostic: lists abstract trigger categories (current, recent,
+// time-sensitive) without examples tied to any specific application.
+const supervisorWebEnabledSuffix = `
+
+IMPORTANT — web search IS ENABLED for this chatbot. The "web" agent is
+available RIGHT NOW. When the user asks about anything current, recent, or
+time-sensitive (current prices or availability, today's hours, latest news,
+recent events, real-time status, "right now", "currently", "this week"),
+you MUST include "web" in the route. Do not route these questions to "sql"
+or "chat" alone — those agents cannot access live web data and will either
+fail or return stale information.`
+
 
 // sqlAgentSystemPrompt is the SQL Agent's static system prompt. Schema and
 // per-page table whitelists are injected as a separate dynamic system message.
