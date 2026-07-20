@@ -116,6 +116,126 @@ ORDER BY u.name;`
 	})
 }
 
+func TestParseAnnotations_MultilineInputSchema(t *testing.T) {
+	t.Run("multi-line @fluxbase:input block parses correctly", func(t *testing.T) {
+		code := `-- @fluxbase:name search_journal_entries
+-- @fluxbase:description Search journal entries.
+-- @fluxbase:require-role authenticated
+-- @fluxbase:input {
+--   "trip_title?": "text",
+--   "search_text?": "text",
+--   "date_range?": "text",
+--   "limit?": "integer"
+-- }
+-- @fluxbase:allowed-tables my_trip_entries
+-- @fluxbase:max-execution-time 30s
+
+SELECT id, title FROM my_trip_entries;
+`
+		annotations, _, err := ParseAnnotations(code)
+		require.NoError(t, err)
+		require.NotNil(t, annotations.InputSchema, "InputSchema must be populated for multi-line input")
+
+		assert.Equal(t, "text", annotations.InputSchema["trip_title?"])
+		assert.Equal(t, "text", annotations.InputSchema["search_text?"])
+		assert.Equal(t, "text", annotations.InputSchema["date_range?"])
+		assert.Equal(t, "integer", annotations.InputSchema["limit?"])
+	})
+
+	t.Run("single-line @fluxbase:input still works (no regression)", func(t *testing.T) {
+		code := `-- @fluxbase:name get_trip_plan
+-- @fluxbase:input { "trip_id?": "uuid", "trip_title?": "text" }
+
+SELECT * FROM trips;
+`
+		annotations, _, err := ParseAnnotations(code)
+		require.NoError(t, err)
+		require.NotNil(t, annotations.InputSchema)
+
+		assert.Equal(t, "uuid", annotations.InputSchema["trip_id?"])
+		assert.Equal(t, "text", annotations.InputSchema["trip_title?"])
+	})
+
+	t.Run("multi-line @fluxbase:output block parses correctly", func(t *testing.T) {
+		code := `-- @fluxbase:name my_proc
+-- @fluxbase:output {
+--   "count": "integer",
+--   "items": "jsonb"
+-- }
+
+SELECT 1;
+`
+		annotations, _, err := ParseAnnotations(code)
+		require.NoError(t, err)
+		require.NotNil(t, annotations.OutputSchema, "OutputSchema must be populated for multi-line output")
+
+		assert.Equal(t, "integer", annotations.OutputSchema["count"])
+		assert.Equal(t, "jsonb", annotations.OutputSchema["items"])
+	})
+
+	t.Run("multi-line annotation stops at the next @fluxbase: annotation", func(t *testing.T) {
+		// If the multi-line collector doesn't stop at the next annotation, it
+		// would consume `-- @fluxbase:allowed-tables ...` as JSON content
+		// and the JSON parse would fail.
+		code := `-- @fluxbase:name my_proc
+-- @fluxbase:input {
+--   "trip_id?": "uuid"
+-- }
+-- @fluxbase:allowed-tables my_trips
+-- @fluxbase:require-role authenticated
+
+SELECT 1;
+`
+		annotations, _, err := ParseAnnotations(code)
+		require.NoError(t, err)
+		require.NotNil(t, annotations.InputSchema)
+		assert.Equal(t, "uuid", annotations.InputSchema["trip_id?"])
+		assert.Equal(t, []string{"my_trips"}, annotations.AllowedTables)
+		assert.Equal(t, []string{"authenticated"}, annotations.RequireRoles)
+	})
+
+	t.Run("input 'any' short-circuit still works", func(t *testing.T) {
+		code := `-- @fluxbase:name my_proc
+-- @fluxbase:input any
+
+SELECT 1;
+`
+		annotations, _, err := ParseAnnotations(code)
+		require.NoError(t, err)
+		// Default schema (empty map or nil depending on DefaultAnnotations impl)
+		// The key assertion: no panic, no error.
+		_ = annotations
+	})
+
+	t.Run("malformed multi-line JSON falls back gracefully", func(t *testing.T) {
+		// No closing brace — extractMultilineAnnotationValue can't balance,
+		// returns the original capture. parseSchemaString then fails, schema
+		// stays empty. No panic.
+		code := `-- @fluxbase:name my_proc
+-- @fluxbase:input {
+--   "trip_id?": "uuid"
+-- whoops no closing brace
+
+SELECT 1;
+`
+		annotations, _, err := ParseAnnotations(code)
+		require.NoError(t, err)
+		// InputSchema is nil/empty because the JSON didn't parse
+		assert.True(t, annotations.InputSchema == nil || len(annotations.InputSchema) == 0)
+	})
+
+	t.Run("balancedBraces helper", func(t *testing.T) {
+		assert.True(t, balancedBraces(`{}`))
+		assert.True(t, balancedBraces(`{"a":"b"}`))
+		assert.True(t, balancedBraces(`{"a":"{not real}"}`)) // braces inside string ignored
+		assert.True(t, balancedBraces(`{}`))
+		assert.False(t, balancedBraces(`{`))
+		assert.False(t, balancedBraces(`}`))
+		assert.False(t, balancedBraces(`{"a": "b"`))
+		assert.False(t, balancedBraces(`{"unterminated": "string`))
+	})
+}
+
 func TestParseSchemaString(t *testing.T) {
 	t.Run("parses JSON format", func(t *testing.T) {
 		input := `{"id": "uuid", "name": "string", "age": "number"}`
