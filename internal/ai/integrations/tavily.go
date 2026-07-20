@@ -75,9 +75,9 @@ type SearchItem struct {
 // tavilySearchResponse is the raw JSON shape from Tavily's /search endpoint.
 // We don't surface every field — only what the agent needs.
 type tavilySearchResponse struct {
-	QueryResponse string `json:"response_time"`
-	Answer        string `json:"answer,omitempty"`
-	Results       []struct {
+	ResponseTime float64 `json:"response_time"` // seconds (Tavily returns a number, not string)
+	Answer       string  `json:"answer,omitempty"`
+	Results      []struct {
 		Title   string  `json:"title"`
 		URL     string  `json:"url"`
 		Content string  `json:"content"`
