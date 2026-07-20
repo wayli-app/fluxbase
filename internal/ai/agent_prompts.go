@@ -108,8 +108,6 @@ anyway — the web agent can search broadly and refine.
 Never ask the user to clarify a current-info question before routing —
 route first, then the web agent's answer will surface relevant specifics.`
 
-
-
 // sqlAgentSystemPrompt is the SQL Agent's static system prompt. Schema and
 // per-page table whitelists are injected as a separate dynamic system message.
 const sqlAgentSystemPrompt = `You are the SQL Agent in a multi-agent chatbot system. Your job is to investigate factual data questions by running SQL queries against the database.
