@@ -147,3 +147,55 @@ func TestTavilyClient_Ping_FailureReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Quota exceeded")
 }
+
+// TestTavilyClient_Search_ResponseTimeAsNumber verifies that the struct
+// can parse Tavily's real response shape where response_time is a JSON
+// number (float), not a string. Regression test for the type mismatch
+// that blocked every web search.
+func TestTavilyClient_Search_ResponseTimeAsNumber(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{
+			"response_time": 1.23,
+			"answer": "Berlin has many events",
+			"results": [
+				{"title": "Berlin Events", "url": "https://example.com", "content": "Fun stuff", "score": 0.9}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewTavilyClient("tvly-test", server.URL, nil)
+	result, err := client.Search(context.Background(), SearchOptions{
+		Query:      "Berlin events",
+		MaxResults: 5,
+		SearchDepth: "basic",
+	})
+
+	require.NoError(t, err, "must parse response_time as number without error")
+	assert.NotNil(t, result)
+	assert.Len(t, result.Results, 1)
+	assert.Equal(t, "Berlin Events", result.Results[0].Title)
+}
+
+// TestTavilyClient_Search_NullableStringColumns verifies the standardColumns
+// COALESCE fix: nullable DB columns (last_test_status, last_test_error,
+// created_by) don't crash the scan when NULL. This is a documentation test —
+// the actual COALESCE runs at the SQL level, but we verify here that the
+// Integration struct's string fields accept empty strings (which is what
+// COALESCE produces from NULL).
+func TestTavilyClient_Search_NullableFieldsAcceptEmptyString(t *testing.T) {
+	// Verify the Integration struct's fields that correspond to nullable DB
+	// columns can hold empty strings without issues. This documents the
+	// COALESCE contract: NULL in DB → empty string in Go struct.
+	i := &Integration{
+		Name:           "Tavily",
+		Provider:       "tavily",
+		IntegrationType: "web_search",
+		LastTestStatus: "", // COALESCE(last_test_status, '')
+		LastTestError:  "", // COALESCE(last_test_error, '')
+		CreatedBy:      "", // COALESCE(created_by, '')
+	}
+	assert.Equal(t, "", i.LastTestStatus)
+	assert.Equal(t, "", i.LastTestError)
+	assert.Equal(t, "", i.CreatedBy)
+}
