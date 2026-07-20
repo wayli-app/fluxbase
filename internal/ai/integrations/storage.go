@@ -180,10 +180,14 @@ func scanIntegration(row pgx.Row) (*Integration, error) {
 
 // standardColumns is the SELECT column list used by all read queries.
 // Keep in sync with scanIntegration.
+// COALESCE on nullable string columns to avoid "cannot scan NULL into *string"
+// crashes when last_test_status / last_test_error / created_by haven't been
+// populated yet (e.g., a freshly-created integration that was never tested).
 const standardColumns = `
 	id, name, integration_type, provider, config,
-	enabled, is_default, last_tested_at, last_test_status, last_test_error,
-	created_at, updated_at, created_by, tenant_id
+	enabled, is_default, last_tested_at,
+	COALESCE(last_test_status, ''), COALESCE(last_test_error, ''),
+	created_at, updated_at, COALESCE(created_by, ''), tenant_id
 `
 
 // GetIntegration returns a single integration by ID. Decrypts secrets in
