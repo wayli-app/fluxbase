@@ -65,10 +65,40 @@ func BuildSupervisorPrompt(chatbot *Chatbot) string {
 	// "web" as conditionally available — without this rewrite the supervisor
 	// LLM has to guess whether this chatbot has web search, and it usually
 	// guesses "no", routing current-info questions to sql/chat instead.
-	if chatbot != nil && chatbot.WebSearchEnabled {
-		return supervisorSystemPrompt + supervisorWebEnabledSuffix
+	if chatbot == nil || !chatbot.WebSearchEnabled {
+		return supervisorSystemPrompt
 	}
-	return supervisorSystemPrompt
+
+	prompt := supervisorSystemPrompt + supervisorWebEnabledSuffix
+
+	// ponytail: chatbot-author-curated trigger phrases. The static suffix
+	// above is generic (applies to any chatbot). These triggers cover the
+	// domain-specific language the chatbot's users actually use, which the
+	// supervisor LLM can't infer from the static prompt alone.
+	if len(chatbot.SupervisorWebTriggers) > 0 {
+		prompt += "\n\n" + formatWebTriggersSection(chatbot.SupervisorWebTriggers)
+	}
+
+	return prompt
+}
+
+// formatWebTriggersSection produces the chatbot-specific override block.
+// Byte-stable per chatbot (same input → same output) so the prompt prefix
+// stays cacheable.
+func formatWebTriggersSection(triggers []string) string {
+	var b strings.Builder
+	b.WriteString("CHATBOT-SPECIFIC WEB ROUTING TRIGGERS:\n")
+	b.WriteString("The chatbot author has declared that the following user-message phrases STRONGLY indicate web routing. ")
+	b.WriteString("If ANY of these phrases appears in the user's message (case-insensitive, partial match allowed), ")
+	b.WriteString("you MUST include \"web\" in the route — do not route to \"sql\" or \"chat\" alone for these.\n\n")
+	b.WriteString("Triggers:\n")
+	for i, t := range triggers {
+		// Numbered list — explicit, harder for the LLM to skip than a bullet list.
+		b.WriteString(fmt.Sprintf("%d. \"%s\"\n", i+1, t))
+	}
+	b.WriteString("\nThese triggers supplement (do not replace) the general principle-based rule above. ")
+	b.WriteString("When in doubt, include \"web\" in the route.")
+	return b.String()
 }
 
 // supervisorWebEnabledSuffix is appended to the static supervisor prompt

@@ -107,6 +107,12 @@ type Chatbot struct {
 	// these domains only. Empty = no restriction.
 	WebSearchDomains []string `json:"web_search_domains,omitempty"`
 
+	// SupervisorWebTriggers are user-message phrases that the chatbot author
+	// has declared as strong signals for routing to the web agent. Surfaced
+	// to the supervisor LLM via BuildSupervisorPrompt so it routes correctly
+	// on implicit cues. Empty = rely on the supervisor's general heuristics.
+	SupervisorWebTriggers []string `json:"supervisor_web_triggers,omitempty"`
+
 	Version   int       `json:"version"`
 	Source    string    `json:"source"` // "filesystem" or "api"
 	CreatedBy *string   `json:"created_by,omitempty"`
@@ -181,6 +187,11 @@ type ChatbotConfig struct {
 	// supervisor routes current-info questions to the Web Agent.
 	WebSearchEnabled bool     // parsed from @fluxbase:web-search
 	WebSearchDomains []string // parsed from @fluxbase:web-search-domains (optional allowlist)
+
+	// Supervisor routing hints. Surfaced to the supervisor LLM via
+	// BuildSupervisorPrompt so it routes correctly on domain-specific cues
+	// that the static supervisor prompt can't anticipate.
+	SupervisorWebTriggers []string // parsed from @fluxbase:supervisor-web-triggers (optional, comma-separated)
 
 	// Metadata
 	Version int
@@ -346,6 +357,14 @@ var (
 	// Optional allowlist for web search results. Domains not in this list
 	// are filtered out by the Web Agent before passing results to the LLM.
 	webSearchDomainsPattern = regexp.MustCompile(`@fluxbase:web-search-domains\s+(.+)`)
+
+	// @fluxbase:supervisor-web-triggers "this weekend","next weekend","currently","events in"
+	// Optional comma-separated list of user-message phrases that the chatbot
+	// author declares as strong signals for routing to the web agent. The
+	// supervisor LLM sees these and includes "web" in the route when any
+	// phrase matches (case-insensitive, partial). Empty = the supervisor
+	// relies on its general heuristics only.
+	supervisorWebTriggersPattern = regexp.MustCompile(`@fluxbase:supervisor-web-triggers\s+(.+)`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -645,6 +664,24 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		}
 	}
 
+	// Parse optional supervisor web triggers. Comma-separated, optional
+	// double-quoted. Empty when annotation absent (the supervisor relies
+	// on its general heuristics only).
+	if matches := supervisorWebTriggersPattern.FindStringSubmatch(code); len(matches) > 1 {
+		raw := strings.TrimSpace(matches[1])
+		// Strip an optional trailing comment marker if the author put a
+		// closing */ on the same line as the annotation.
+		if idx := strings.Index(raw, "*/"); idx >= 0 {
+			raw = raw[:idx]
+		}
+		for _, phrase := range strings.Split(raw, ",") {
+			phrase = strings.Trim(strings.TrimSpace(phrase), `"`)
+			if phrase != "" {
+				config.SupervisorWebTriggers = append(config.SupervisorWebTriggers, phrase)
+			}
+		}
+	}
+
 	return config
 }
 
@@ -799,6 +836,7 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.SupervisorAgentModels = config.SupervisorAgentModels
 	c.WebSearchEnabled = config.WebSearchEnabled
 	c.WebSearchDomains = config.WebSearchDomains
+	c.SupervisorWebTriggers = config.SupervisorWebTriggers
 
 	// Only override version if explicitly set in annotation
 	if config.Version > 0 {
