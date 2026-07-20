@@ -43,6 +43,14 @@ func ParseAnnotations(code string) (*Annotations, string, error) {
 	// Parse input schema
 	if matches := inputPattern.FindStringSubmatch(code); len(matches) > 1 {
 		input := strings.TrimSpace(matches[1])
+		// ponytail: multi-line @fluxbase:input blocks. The single-line regex
+		// only captures the first line — for multi-line JSON the first line
+		// is just "{" or "{ "field?":"text",". extractJSONObject scans forward
+		// in the source collecting subsequent "-- ..." lines until braces
+		// balance, then we parse the assembled string as JSON.
+		if input == "{" || (strings.HasPrefix(input, "{") && !strings.HasSuffix(strings.TrimSpace(input), "}")) {
+			input = extractMultilineAnnotationValue(code, inputPattern, input)
+		}
 		if input != "any" && input != "" {
 			schema, err := parseSchemaString(input)
 			if err == nil {
@@ -54,6 +62,9 @@ func ParseAnnotations(code string) (*Annotations, string, error) {
 	// Parse output schema
 	if matches := outputPattern.FindStringSubmatch(code); len(matches) > 1 {
 		output := strings.TrimSpace(matches[1])
+		if output == "{" || (strings.HasPrefix(output, "{") && !strings.HasSuffix(strings.TrimSpace(output), "}")) {
+			output = extractMultilineAnnotationValue(code, outputPattern, output)
+		}
 		if output != "any" && output != "" {
 			schema, err := parseSchemaString(output)
 			if err == nil {
@@ -134,6 +145,118 @@ func ParseAnnotations(code string) (*Annotations, string, error) {
 	sqlQuery := extractSQLQuery(code)
 
 	return annotations, sqlQuery, nil
+}
+
+// extractMultilineAnnotationValue assembles a multi-line JSON annotation value
+// when the single-line regex only captured the opening brace(s).
+//
+// Background: inputPattern/outputPattern use `^(?m)--\s*@fluxbase:input (.+)$`
+// which matches only the first line. For a multi-line spec like:
+//
+//	-- @fluxbase:input {
+//	--   "trip_id?": "uuid",
+//	--   "trip_title?": "text"
+//	-- }
+//
+// the regex captures only "{", which fails JSON parsing. This helper finds
+// the annotation's start position in `code`, then scans forward collecting
+// subsequent `-- ...` lines (stripping the comment prefix) until the JSON
+// braces balance, and returns the assembled single-string JSON.
+//
+// `initial` is the value already captured by the regex; returned as-is when
+// braces already balance (the common single-line case).
+func extractMultilineAnnotationValue(code string, startRe *regexp.Regexp, initial string) string {
+	if balancedBraces(initial) {
+		return initial
+	}
+	loc := startRe.FindStringSubmatchIndex(code)
+	if loc == nil || len(loc) < 4 {
+		return initial
+	}
+	// Submatch index layout: [fullStart, fullEnd, groupStart, groupEnd].
+	// Group 1 is the captured value.
+	groupStart, groupEnd := loc[2], loc[3]
+	if groupStart < 0 || groupEnd < 0 || groupEnd > len(code) {
+		return initial
+	}
+
+	// Scan forward from the end of the captured first line.
+	var sb strings.Builder
+	sb.WriteString(code[groupStart:groupEnd])
+
+	// Walk subsequent lines. Each must start with `--` (after optional
+	// leading whitespace) to count as a continuation of the annotation.
+	// Stop at the first non-comment line or when braces balance.
+	pos := groupEnd
+	for pos < len(code) {
+		// Find the next newline.
+		nl := strings.IndexByte(code[pos:], '\n')
+		var line string
+		if nl < 0 {
+			line = code[pos:]
+			pos = len(code)
+		} else {
+			line = code[pos : pos+nl]
+			pos += nl + 1
+		}
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		// Must be a SQL comment line (`-- ...`).
+		if !strings.HasPrefix(trimmed, "--") {
+			break
+		}
+		content := strings.TrimSpace(strings.TrimPrefix(trimmed, "--"))
+		// Stop if this is a new annotation (`@fluxbase:`).
+		if strings.HasPrefix(content, "@fluxbase:") {
+			break
+		}
+		sb.WriteString(content)
+		if balancedBraces(sb.String()) {
+			break
+		}
+	}
+	assembled := strings.TrimSpace(sb.String())
+	if balancedBraces(assembled) {
+		return assembled
+	}
+	return initial
+}
+
+// balancedBraces returns true if `s` has balanced `{` and `}` characters,
+// ignoring braces inside double-quoted strings. Good enough for the JSON
+// annotation use case — we don't need a full JSON parser here.
+func balancedBraces(s string) bool {
+	depth := 0
+	inString := false
+	escaped := false
+	for _, r := range s {
+		if escaped {
+			escaped = false
+			continue
+		}
+		switch r {
+		case '\\':
+			if inString {
+				escaped = true
+			}
+		case '"':
+			inString = !inString
+		case '{':
+			if !inString {
+				depth++
+			}
+		case '}':
+			if !inString {
+				depth--
+				if depth < 0 {
+					return false
+				}
+			}
+		}
+	}
+	return depth == 0 && !inString
 }
 
 // parseSchemaString parses a JSON-like schema string into a map
