@@ -166,8 +166,8 @@ func TestTavilyClient_Search_ResponseTimeAsNumber(t *testing.T) {
 
 	client := NewTavilyClient("tvly-test", server.URL, nil)
 	result, err := client.Search(context.Background(), SearchOptions{
-		Query:      "Berlin events",
-		MaxResults: 5,
+		Query:       "Berlin events",
+		MaxResults:  5,
 		SearchDepth: "basic",
 	})
 
@@ -188,12 +188,12 @@ func TestTavilyClient_Search_NullableFieldsAcceptEmptyString(t *testing.T) {
 	// columns can hold empty strings without issues. This documents the
 	// COALESCE contract: NULL in DB → empty string in Go struct.
 	i := &Integration{
-		Name:           "Tavily",
-		Provider:       "tavily",
+		Name:            "Tavily",
+		Provider:        "tavily",
 		IntegrationType: "web_search",
-		LastTestStatus: "", // COALESCE(last_test_status, '')
-		LastTestError:  "", // COALESCE(last_test_error, '')
-		CreatedBy:      "", // COALESCE(created_by, '')
+		LastTestStatus:  "", // COALESCE(last_test_status, '')
+		LastTestError:   "", // COALESCE(last_test_error, '')
+		CreatedBy:       "", // COALESCE(created_by, '')
 	}
 	assert.Equal(t, "", i.LastTestStatus)
 	assert.Equal(t, "", i.LastTestError)
