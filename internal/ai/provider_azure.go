@@ -22,8 +22,11 @@ const (
 type azureProvider struct {
 	name       string
 	config     AzureConfig
+	rawConfig  map[string]string
 	httpClient *http.Client
 }
+
+func (p *azureProvider) RawConfig() map[string]string { return p.rawConfig }
 
 // newAzureProviderInternal creates a new Azure OpenAI provider instance
 func newAzureProviderInternal(name string, config AzureConfig) (*azureProvider, error) {

@@ -37,8 +37,11 @@ const (
 type anthropicProvider struct {
 	name       string
 	config     AnthropicConfig
+	rawConfig  map[string]string
 	httpClient *http.Client
 }
+
+func (p *anthropicProvider) RawConfig() map[string]string { return p.rawConfig }
 
 func newAnthropicProviderInternal(name string, config AnthropicConfig) (*anthropicProvider, error) {
 	config.BaseURL = strings.TrimSuffix(config.BaseURL, "/")

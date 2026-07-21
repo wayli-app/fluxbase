@@ -23,8 +23,11 @@ const (
 type openAIProvider struct {
 	name       string
 	config     OpenAIConfig
+	rawConfig  map[string]string
 	httpClient *http.Client
 }
+
+func (p *openAIProvider) RawConfig() map[string]string { return p.rawConfig }
 
 // newOpenAIProviderInternal creates a new OpenAI provider instance
 func newOpenAIProviderInternal(name string, config OpenAIConfig) (*openAIProvider, error) {

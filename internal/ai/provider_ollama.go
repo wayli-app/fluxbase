@@ -22,8 +22,11 @@ const (
 type ollamaProvider struct {
 	name       string
 	config     OllamaConfig
+	rawConfig  map[string]string
 	httpClient *http.Client
 }
+
+func (p *ollamaProvider) RawConfig() map[string]string { return p.rawConfig }
 
 // newOllamaProviderInternal creates a new Ollama provider instance
 func newOllamaProviderInternal(name string, config OllamaConfig) (*ollamaProvider, error) {
