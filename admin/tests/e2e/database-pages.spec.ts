@@ -2,16 +2,31 @@ import { test, expect } from "./fixtures";
 
 test.describe("Tables page", () => {
   test("loads and shows table list or empty state", async ({ adminPage }) => {
-    await adminPage.goto("tables", { waitUntil: "networkidle" });
-
+    // Register the response listener BEFORE navigating so we catch any
+    // 500 errors during the initial page load, not just after.
     const apiErrors: string[] = [];
     adminPage.on("response", (r) => {
       if (r.status() >= 500) apiErrors.push(`${r.status()} ${r.url()}`);
     });
+
+    await adminPage.goto("tables", { waitUntil: "networkidle" });
+
+    // Wait for either the table element or an empty-state message to appear.
+    // The page may take a moment to fetch tables from the API on CI runners.
+    const tableLocator = adminPage.locator("table");
+    const emptyLocator = adminPage.getByText(/no tables|empty|get started/i);
+
+    await Promise.race([
+      tableLocator.waitFor({ state: "visible", timeout: 10_000 }),
+      emptyLocator.waitFor({ state: "visible", timeout: 10_000 }),
+    ]).catch(() => {
+      // Neither appeared — let the assertions below produce a clear failure
+    });
+
     expect(apiErrors).toEqual([]);
 
-    const hasTable = await adminPage.locator("table").isVisible().catch(() => false);
-    const hasEmpty = await adminPage.getByText(/no tables|empty|get started/i).isVisible().catch(() => false);
+    const hasTable = await tableLocator.isVisible().catch(() => false);
+    const hasEmpty = await emptyLocator.isVisible().catch(() => false);
     expect(hasTable || hasEmpty).toBeTruthy();
   });
 });

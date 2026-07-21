@@ -72,8 +72,12 @@ test.describe("Auth Guard", () => {
   test("navigation between routes preserves auth state", async ({
     adminPage,
   }) => {
-    // Start on dashboard
-    await expect(adminPage).toHaveURL(/\/admin\/?$/);
+    // Navigate explicitly to the admin dashboard and wait for it to settle.
+    // The admin app may redirect to a sub-route (e.g., /admin/ai-providers)
+    // so we only assert that we're somewhere under /admin/, not a specific path.
+    await adminPage.goto("./", { waitUntil: "networkidle" });
+    await expect(adminPage).toHaveURL(/\/admin/);
+    await expect(adminPage).not.toHaveURL(/\/login/);
 
     // Navigate to various routes (relative to base)
     const routes = ["sql-editor", "storage", "functions", "jobs", "users"];
