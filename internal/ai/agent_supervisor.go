@@ -143,9 +143,12 @@ func (a *SupervisorAgent) Run(ctx context.Context, state *State) error {
 			}
 		}
 		// If filtering removed everything (LLM routed to disallowed agents),
-		// fall back to "chat" so the user still gets a coherent response.
+		// fall back to the first allowed agent for this page instead of
+		// hardcoded "chat". This ensures the fallback agent has the tools
+		// and instructions appropriate for the page (e.g., "action" for
+		// plan-mode pages where chat agent would ignore JSON output rules).
 		if len(filtered) == 0 {
-			filtered = []string{"chat"}
+			filtered = []string{profile.Agents[0]}
 		}
 		plan.Route = filtered
 	}
@@ -231,7 +234,21 @@ func buildSupervisorDynamicContext(chatbot *Chatbot, profile *PageProfile) strin
 		fmt.Fprintf(&sb, "User is currently on page: %s\n", profile.Page)
 		if len(profile.Agents) > 0 {
 			fmt.Fprintf(&sb, "Agents available on this page: %s\n", strings.Join(profile.Agents, ", "))
-			sb.WriteString("Route ONLY to agents in the list above. If the user's intent doesn't match any available agent, route to \"chat\" with a clarification.\n")
+
+			// Tell the supervisor which agents are excluded so it doesn't
+			// waste a routing slot on an agent that will be filtered out.
+			allAgents := []string{"sql", "kb", "action", "chat", "web"}
+			var excluded []string
+			for _, a := range allAgents {
+				if !profile.HasAgent(a) {
+					excluded = append(excluded, a)
+				}
+			}
+			if len(excluded) > 0 {
+				fmt.Fprintf(&sb, "Agents NOT available on this page: %s — do NOT include these in the route.\n", strings.Join(excluded, ", "))
+			}
+
+			sb.WriteString("Route ONLY to agents in the available list above.\n")
 		}
 		if profile.Suffix != "" {
 			fmt.Fprintf(&sb, "Focus instruction: %s\n", profile.Suffix)
