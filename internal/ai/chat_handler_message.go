@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -295,12 +296,37 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 			Bool("has_used_think", hasUsedThink).
 			Msg("Tools available for chatbot")
 
+		// Resolve max_tokens and temperature: chatbot annotation takes precedence,
+		// then provider config (admin UI), then hardcoded defaults from
+		// DefaultChatbotConfig (already in chatbot.MaxTokens / chatbot.Temperature).
+		maxTokens := chatbot.MaxTokens
+		temperature := chatbot.Temperature
+		if !chatbot.HasMaxTokens || !chatbot.HasTemperature {
+			if rc, ok := provider.(interface{ RawConfig() map[string]string }); ok {
+				rawCfg := rc.RawConfig()
+				if !chatbot.HasMaxTokens {
+					if v := rawCfg["max_tokens"]; v != "" {
+						if n, err := strconv.Atoi(v); err == nil && n > 0 {
+							maxTokens = n
+						}
+					}
+				}
+				if !chatbot.HasTemperature {
+					if v := rawCfg["temperature"]; v != "" {
+						if t, err := strconv.ParseFloat(v, 64); err == nil {
+							temperature = t
+						}
+					}
+				}
+			}
+		}
+
 		// Create chat request
 		chatReq := &ChatRequest{
 			Messages:    messages,
 			Model:       chatbot.Model,
-			MaxTokens:   chatbot.MaxTokens,
-			Temperature: chatbot.Temperature,
+			MaxTokens:   maxTokens,
+			Temperature: temperature,
 			Tools:       tools,
 			Stream:      true,
 		}

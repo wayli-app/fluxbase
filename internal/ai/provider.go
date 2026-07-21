@@ -241,7 +241,12 @@ func NewOpenAIProvider(config ProviderConfig) (Provider, error) {
 		openaiConfig.Model = "gpt-4-turbo"
 	}
 
-	return newOpenAIProviderInternal(config.Name, openaiConfig)
+	p, err := newOpenAIProviderInternal(config.Name, openaiConfig)
+	if err != nil {
+		return nil, err
+	}
+	p.rawConfig = config.Config
+	return p, nil
 }
 
 // NewAzureProvider creates a new Azure OpenAI provider (implemented in provider_azure.go)
@@ -270,7 +275,12 @@ func NewAzureProvider(config ProviderConfig) (Provider, error) {
 		azureConfig.APIVersion = "2024-02-15-preview"
 	}
 
-	return newAzureProviderInternal(config.Name, azureConfig)
+	p, err := newAzureProviderInternal(config.Name, azureConfig)
+	if err != nil {
+		return nil, err
+	}
+	p.rawConfig = config.Config
+	return p, nil
 }
 
 // NewOllamaProvider creates a new Ollama provider (implemented in provider_ollama.go)
@@ -289,7 +299,12 @@ func NewOllamaProvider(config ProviderConfig) (Provider, error) {
 		return nil, fmt.Errorf("ollama: model is required")
 	}
 
-	return newOllamaProviderInternal(config.Name, ollamaConfig)
+	p, err := newOllamaProviderInternal(config.Name, ollamaConfig)
+	if err != nil {
+		return nil, err
+	}
+	p.rawConfig = config.Config
+	return p, nil
 }
 
 // NewAnthropicProvider creates a new Anthropic Claude provider (implemented in provider_anthropic.go)
@@ -317,7 +332,12 @@ func NewAnthropicProvider(config ProviderConfig) (Provider, error) {
 		anthropicConfig.APIVersion = "2023-06-01"
 	}
 
-	return newAnthropicProviderInternal(config.Name, anthropicConfig)
+	p, err := newAnthropicProviderInternal(config.Name, anthropicConfig)
+	if err != nil {
+		return nil, err
+	}
+	p.rawConfig = config.Config
+	return p, nil
 }
 
 // ExecuteSQLTool is the standard tool definition for SQL execution.

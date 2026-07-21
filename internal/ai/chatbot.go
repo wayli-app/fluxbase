@@ -46,11 +46,13 @@ type Chatbot struct {
 	DefaultTable    string             `json:"default_table,omitempty"`
 
 	// Runtime config
-	Enabled     bool    `json:"enabled"`
-	MaxTokens   int     `json:"max_tokens"`
-	Temperature float64 `json:"temperature"`
-	Model       string  `json:"model,omitempty"` // Model name from @fluxbase:model annotation
-	ProviderID  *string `json:"provider_id,omitempty"`
+	Enabled        bool    `json:"enabled"`
+	MaxTokens      int     `json:"max_tokens"`
+	Temperature    float64 `json:"temperature"`
+	HasMaxTokens   bool    `json:"has_max_tokens,omitempty"`  // true when @fluxbase:max-tokens was explicitly set
+	HasTemperature bool    `json:"has_temperature,omitempty"` // true when @fluxbase:temperature was explicitly set
+	Model          string  `json:"model,omitempty"`           // Model name from @fluxbase:model annotation
+	ProviderID     *string `json:"provider_id,omitempty"`
 
 	// Conversation config
 	PersistConversations bool `json:"persist_conversations"`
@@ -134,9 +136,11 @@ type ChatbotConfig struct {
 	DefaultTable    string
 
 	// Model settings
-	MaxTokens   int
-	Temperature float64
-	Model       string
+	MaxTokens      int
+	Temperature    float64
+	HasMaxTokens   bool // true when @fluxbase:max-tokens was explicitly set
+	HasTemperature bool // true when @fluxbase:temperature was explicitly set
+	Model          string
 
 	// Conversation settings
 	PersistConversations bool
@@ -395,6 +399,7 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 	if matches := maxTokensPattern.FindStringSubmatch(code); len(matches) > 1 {
 		if v, err := strconv.Atoi(matches[1]); err == nil {
 			config.MaxTokens = v
+			config.HasMaxTokens = true
 		}
 	}
 
@@ -402,6 +407,7 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 	if matches := temperaturePattern.FindStringSubmatch(code); len(matches) > 1 {
 		if v, err := strconv.ParseFloat(matches[1], 64); err == nil {
 			config.Temperature = v
+			config.HasTemperature = true
 		}
 	}
 
@@ -804,6 +810,8 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.DefaultTable = config.DefaultTable
 	c.MaxTokens = config.MaxTokens
 	c.Temperature = config.Temperature
+	c.HasMaxTokens = config.HasMaxTokens
+	c.HasTemperature = config.HasTemperature
 	c.Model = config.Model
 	c.PersistConversations = config.PersistConversations
 	c.ConversationTTLHours = int(config.ConversationTTL.Hours())
