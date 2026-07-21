@@ -107,7 +107,7 @@
     },
     "sdk": {
       "name": "@nimbleflux/fluxbase-sdk",
-      "version": "2026.7.3-rc.14",
+      "version": "2026.7.3-rc.15",
       "dependencies": {
         "cross-fetch": "^4.1.0",
       },
@@ -135,7 +135,7 @@
     },
     "sdk-react": {
       "name": "@nimbleflux/fluxbase-sdk-react",
-      "version": "2026.7.3-rc.14",
+      "version": "2026.7.3-rc.15",
       "devDependencies": {
         "@nimbleflux/fluxbase-sdk": "workspace:*",
         "@tanstack/react-query": "^5.101.2",
@@ -153,7 +153,7 @@
         "vitest": "^4.1.9",
       },
       "peerDependencies": {
-        "@nimbleflux/fluxbase-sdk": "^2026.7.3-rc.14",
+        "@nimbleflux/fluxbase-sdk": "^2026.7.3-rc.15",
         "@tanstack/react-query": "^5.101.2",
         "react": "^18.0.0 || ^19.0.0",
       },
