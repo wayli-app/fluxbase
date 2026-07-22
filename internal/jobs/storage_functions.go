@@ -27,9 +27,9 @@ func (s *Storage) CreateJobFunctionWithTenant(ctx context.Context, tenantID stri
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write,
-			require_roles, disable_execution_logs, version, created_by, source
+			require_roles, disable_execution_logs, version, created_by, source, tenant_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
 		)
 		RETURNING created_at, updated_at
 	`
@@ -42,6 +42,7 @@ func (s *Storage) CreateJobFunctionWithTenant(ctx context.Context, tenantID stri
 			fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
 			fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite,
 			fn.RequireRoles, fn.DisableExecutionLogs, fn.Version, fn.CreatedBy, fn.Source,
+			database.TenantOrNil(tenantID),
 		).Scan(&fn.CreatedAt, &fn.UpdatedAt)
 	})
 }
@@ -110,9 +111,9 @@ func (s *Storage) UpsertJobFunctionWithTenant(ctx context.Context, tenantID stri
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write,
-			require_roles, disable_execution_logs, version, created_by, source
+			require_roles, disable_execution_logs, version, created_by, source, tenant_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 1, $21, $22
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 1, $21, $22, $23
 		)
 		ON CONFLICT (name, namespace) DO UPDATE SET
 			description = EXCLUDED.description,
@@ -145,6 +146,7 @@ func (s *Storage) UpsertJobFunctionWithTenant(ctx context.Context, tenantID stri
 			fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
 			fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite,
 			fn.RequireRoles, fn.DisableExecutionLogs, fn.CreatedBy, fn.Source,
+			database.TenantOrNil(tenantID),
 		).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
 	})
 }

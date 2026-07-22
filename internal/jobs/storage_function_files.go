@@ -5,15 +5,19 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/nimbleflux/fluxbase/internal/database"
 )
 
 // ========== Job Function Files ==========
 
 // CreateJobFunctionFile creates a supporting file for a job function
 func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFile) error {
+	tenantID := database.TenantFromContext(ctx)
+
 	query := `
-		INSERT INTO jobs.function_files (id, function_id, file_path, content)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO jobs.function_files (id, function_id, file_path, content, tenant_id)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (function_id, file_path) DO UPDATE SET content = EXCLUDED.content
 		RETURNING created_at
 	`
@@ -21,7 +25,7 @@ func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFi
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(
 			ctx, query,
-			file.ID, file.JobFunctionID, file.FilePath, file.Content,
+			file.ID, file.JobFunctionID, file.FilePath, file.Content, database.TenantOrNil(tenantID),
 		).Scan(&file.CreatedAt)
 	})
 }
