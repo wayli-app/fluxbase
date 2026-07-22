@@ -199,10 +199,45 @@ func (h *CustomSettingsHandler) UpdateSetting(c fiber.Ctx) error {
 		return err
 	}
 
+	// Upsert: try UPDATE first, fall back to CREATE if the setting
+	// doesn't exist. PUT should be idempotent — callers (including the
+	// Fluxbase SDK's setSetting) expect create-or-update semantics,
+	// not "fail if exists" or "fail if not found."
 	setting, err := h.settingsService.UpdateSetting(ctx, key, req, userID, userRole.(string))
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
-			return SendNotFound(c, "Setting not found")
+			// Setting doesn't exist yet — create it. Parse the update
+			// request into a create request.
+			desc := ""
+			if req.Description != nil {
+				desc = *req.Description
+			}
+			createReq := settings.CreateCustomSettingRequest{
+				Key:         key,
+				Value:       req.Value,
+				Description: desc,
+				EditableBy:  req.EditableBy,
+				Metadata:    req.Metadata,
+			}
+			// Infer value_type from the value
+			createReq.ValueType = "json"
+			setting, err = h.settingsService.CreateSetting(ctx, createReq, userID)
+			if err != nil {
+				if errors.Is(err, settings.ErrCustomSettingDuplicate) {
+					// Race: setting was created between our GetSetting
+					// and CreateSetting calls. Retry the update.
+					setting, err = h.settingsService.UpdateSetting(ctx, key, req, userID, userRole.(string))
+					if err != nil {
+						log.Error().Err(err).Str("key", key).Msg("Failed to update custom setting after race")
+						return SendInternalError(c, "Failed to update setting")
+					}
+				} else {
+					log.Error().Err(err).Str("key", key).Msg("Failed to create custom setting during upsert")
+					return SendInternalError(c, "Failed to create setting")
+				}
+			}
+			log.Info().Str("key", key).Str("user_id", userID.String()).Msg("Custom setting created via PUT upsert")
+			return c.Status(fiber.StatusCreated).JSON(setting)
 		}
 		if errors.Is(err, settings.ErrCustomSettingPermissionDenied) {
 			return SendForbidden(c, "You do not have permission to edit this setting", ErrCodeAccessDenied)
