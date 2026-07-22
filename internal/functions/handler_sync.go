@@ -533,10 +533,15 @@ func (h *Handler) CreateSharedModule(c fiber.Ctx) error {
 		return apperrors.SendBadRequest(c, "Module path must start with '_shared/'", apperrors.ErrCodeInvalidInput)
 	}
 
-	// Get user ID from context (if authenticated)
+	// Get user ID from context (if authenticated). JWT locals store strings,
+	// not uuid.UUID — so parse manually like the SyncFunctions handler does.
 	var userID *uuid.UUID
 	if uid := c.Locals("user_id"); uid != nil {
-		if parsedUID, ok := uid.(uuid.UUID); ok {
+		if uidStr, ok := uid.(string); ok {
+			if parsed, err := uuid.Parse(uidStr); err == nil {
+				userID = &parsed
+			}
+		} else if parsedUID, ok := uid.(uuid.UUID); ok {
 			userID = &parsedUID
 		}
 	}

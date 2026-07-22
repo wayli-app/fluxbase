@@ -12,10 +12,12 @@ import (
 
 // CreateSharedModule creates a new shared module or updates it if it already exists (upsert)
 func (s *Storage) CreateSharedModule(ctx context.Context, module *SharedModule) error {
+	tenantID := database.TenantFromContext(ctx)
+
 	query := `
 		INSERT INTO functions.shared_modules (
-			module_path, content, description, created_by
-		) VALUES ($1, $2, $3, $4)
+			module_path, content, description, created_by, tenant_id
+		) VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (module_path) DO UPDATE SET
 			content = EXCLUDED.content,
 			description = EXCLUDED.description,
@@ -28,6 +30,7 @@ func (s *Storage) CreateSharedModule(ctx context.Context, module *SharedModule) 
 		return tx.QueryRow(
 			ctx, query,
 			module.ModulePath, module.Content, module.Description, module.CreatedBy,
+			database.TenantOrNil(tenantID),
 		).Scan(&module.ID, &module.Version, &module.CreatedAt, &module.UpdatedAt)
 	})
 	if err != nil {
