@@ -60,6 +60,24 @@ func (s *Storage) CreateProcedureWithTenant(ctx context.Context, tenantID string
 			$11, $12, $13, $14, $15,
 			$16, $17, $18, $19, $20, $21, $22
 		)
+		ON CONFLICT (name, namespace) DO UPDATE SET
+			description = EXCLUDED.description,
+			sql_query = EXCLUDED.sql_query,
+			original_code = EXCLUDED.original_code,
+			input_schema = EXCLUDED.input_schema,
+			output_schema = EXCLUDED.output_schema,
+			allowed_tables = EXCLUDED.allowed_tables,
+			allowed_schemas = EXCLUDED.allowed_schemas,
+			max_execution_time_seconds = EXCLUDED.max_execution_time_seconds,
+			require_roles = EXCLUDED.require_roles,
+			is_public = EXCLUDED.is_public,
+			disable_execution_logs = EXCLUDED.disable_execution_logs,
+			schedule = EXCLUDED.schedule,
+			enabled = EXCLUDED.enabled,
+			source = EXCLUDED.source,
+			created_by = EXCLUDED.created_by,
+			tenant_id = EXCLUDED.tenant_id,
+			updated_at = NOW()
 	`
 
 	if proc.ID == "" {
