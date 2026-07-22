@@ -94,7 +94,7 @@
       "dependencies": {
         "@astrojs/sitemap": "^3.7.3",
         "@astrojs/starlight": "^0.41.2",
-        "astro": "^7.0.6",
+        "astro": "^7.0.7",
         "sharp": "^0.35.3",
         "starlight-typedoc": "0.23.0",
         "zod": "^4.4.3",
