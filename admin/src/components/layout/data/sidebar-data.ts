@@ -259,7 +259,6 @@ export const sidebarData: SidebarDataWithVisibility = {
           visibility: "all",
           requiresTenant: false, // Override: works at both levels
         },
-        },
         {
           title: "Realtime",
           url: "/realtime",
