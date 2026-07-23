@@ -144,23 +144,28 @@ func (r *Registry) applyRoute(router fiber.Router, route *Route, middlewares []M
 
 	var handlers []fiber.Handler
 
-	// First, add inherited/group middlewares
-	for _, m := range middlewares {
-		if m.Handler != nil {
-			handlers = append(handlers, m.Handler)
-		}
-	}
-
-	// Determine effective auth: route.Auth > defaultAuth > AuthNone
+	// Auth middleware must run BEFORE group middlewares (e.g. TenantContext).
+	// If TenantContext runs first, c.Locals("user_id") is empty and the
+	// tenant middleware falls into its anonymous branch — returning 404
+	// when X-FB-Tenant references a valid-but-different tenant, because
+	// the authenticated membership check (ValidateTenantMembership) is
+	// never reached. UnifiedAuth sets user_id/role so TenantContext can
+	// properly validate membership and gracefully fall back.
 	effectiveAuth := route.Auth
 	if effectiveAuth == "" {
 		effectiveAuth = defaultAuth
 	}
 
-	// Auto-inject auth middleware based on effective Auth field
 	if authMiddlewares != nil && effectiveAuth != AuthNone && effectiveAuth != "" {
 		if authHandler := authMiddlewares.MiddlewareFor(effectiveAuth); authHandler != nil {
 			handlers = append(handlers, authHandler)
+		}
+	}
+
+	// Then add inherited/group middlewares (TenantContext, TenantDBContext, etc.)
+	for _, m := range middlewares {
+		if m.Handler != nil {
+			handlers = append(handlers, m.Handler)
 		}
 	}
 

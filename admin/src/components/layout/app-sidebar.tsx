@@ -1,7 +1,7 @@
-import { getStoredUser, type AdminUser, type DashboardUser } from "@/lib/auth";
-import { useLayout } from "@/context/layout-provider";
-import { useTenantStore } from "@/stores/tenant-store";
-import { Badge } from "@/components/ui/badge";
+import { useTenantStore } from '@/stores/tenant-store'
+import { getStoredUser, type AdminUser, type DashboardUser } from '@/lib/auth'
+import { useLayout } from '@/context/layout-provider'
+import { Badge } from '@/components/ui/badge'
 import {
   Sidebar,
   SidebarContent,
@@ -11,57 +11,57 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-} from "@/components/ui/sidebar";
-import { sidebarData, filterSidebarForContext } from "./data/sidebar-data";
-import { NavGroup } from "./nav-group";
-import { NavUser } from "./nav-user";
+} from '@/components/ui/sidebar'
+import { sidebarData, filterSidebarForContext } from './data/sidebar-data'
+import { NavGroup } from './nav-group'
+import { NavUser } from './nav-user'
 
 // Type guard to check if user is a DashboardUser
 function isDashboardUser(
-  user: AdminUser | DashboardUser,
+  user: AdminUser | DashboardUser
 ): user is DashboardUser {
-  return "full_name" in user;
+  return 'full_name' in user
 }
 
 // Check if user is an instance admin
 function isInstanceAdmin(user: AdminUser | DashboardUser | null): boolean {
-  if (!user) return false;
+  if (!user) return false
   // Check for role property (may not exist on all DashboardUser objects)
-  if ("role" in user && user.role) {
-    return user.role === "instance_admin";
+  if ('role' in user && user.role) {
+    return user.role === 'instance_admin'
   }
-  return false;
+  return false
 }
 
 export function AppSidebar() {
-  const { collapsible, variant } = useLayout();
+  const { collapsible, variant } = useLayout()
 
   // Get the logged-in user from localStorage
-  const storedUser = getStoredUser();
+  const storedUser = getStoredUser()
 
   // Get tenant context from store
-  const { actingAsTenantAdmin } = useTenantStore();
+  const { actingAsTenantAdmin } = useTenantStore()
 
   // Construct user data for NavUser component
   // Handle both AdminUser (metadata.name) and DashboardUser (full_name) types
   const user = storedUser
     ? {
         name: isDashboardUser(storedUser)
-          ? storedUser.full_name || storedUser.email.split("@")[0]
+          ? storedUser.full_name || storedUser.email.split('@')[0]
           : (storedUser.metadata?.name as string) ||
-            storedUser.email.split("@")[0],
+            storedUser.email.split('@')[0],
         email: storedUser.email,
         avatar: isDashboardUser(storedUser)
-          ? storedUser.avatar_url || ""
-          : (storedUser.metadata?.avatar as string) || "",
+          ? storedUser.avatar_url || ''
+          : (storedUser.metadata?.avatar as string) || '',
       }
-    : sidebarData.user; // Fallback to default user if not logged in
+    : sidebarData.user // Fallback to default user if not logged in
 
   // Filter sidebar based on user context
   const filteredNavGroups = filterSidebarForContext(sidebarData.navGroups, {
     isInstanceAdmin: isInstanceAdmin(storedUser),
     actingAsTenantAdmin,
-  });
+  })
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
@@ -69,22 +69,22 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              size='lg'
+              className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
               <img
-                src="/admin/images/logo-icon.svg"
-                alt="Fluxbase"
-                className="size-8 rounded-2xl bg-white/80 p-2 backdrop-blur-sm dark:bg-white/80 dark:backdrop-blur-md"
+                src='/admin/images/logo-icon.svg'
+                alt='Fluxbase'
+                className='size-8 rounded-xl bg-white/80 backdrop-blur-sm dark:bg-white/80 dark:backdrop-blur-md'
               />
-              <div className="grid flex-1 text-start text-sm leading-tight">
-                <span className="flex items-center gap-2 truncate font-semibold">
+              <div className='grid flex-1 text-start text-sm leading-tight'>
+                <span className='flex items-center gap-2 truncate font-semibold'>
                   Fluxbase
-                  <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                  <Badge variant='outline' className='px-1.5 py-0 text-[10px]'>
                     Beta
                   </Badge>
                 </span>
-                <span className="truncate text-xs">Backend-as-a-Service</span>
+                <span className='truncate text-xs'>Backend-as-a-Service</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -100,5 +100,5 @@ export function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  );
+  )
 }
