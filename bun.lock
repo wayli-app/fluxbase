@@ -165,7 +165,7 @@
     "h3": "^1.15.11",
     "js-yaml": "^4.3.0",
     "picomatch": "^4.0.5",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.16",
     "smol-toml": "^1.7.0",
   },
   "packages": {
