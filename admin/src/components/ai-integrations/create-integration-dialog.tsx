@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useFluxbaseClient } from "@nimbleflux/fluxbase-sdk-react";
-import { toast } from "sonner";
+import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useFluxbaseClient } from '@nimbleflux/fluxbase-sdk-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -9,22 +10,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 
 interface CreateIntegrationDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 /**
@@ -41,23 +41,23 @@ export function CreateIntegrationDialog({
   open,
   onOpenChange,
 }: CreateIntegrationDialogProps) {
-  const client = useFluxbaseClient();
-  const queryClient = useQueryClient();
+  const client = useFluxbaseClient()
+  const queryClient = useQueryClient()
 
-  const [name, setName] = useState("");
-  const [provider, setProvider] = useState<"tavily">("tavily");
-  const [apiKey, setApiKey] = useState("");
-  const [defaultDepth, setDefaultDepth] = useState<"basic" | "advanced">(
-    "basic",
-  );
-  const [isDefault, setIsDefault] = useState(true);
-  const [enabled, setEnabled] = useState(true);
+  const [name, setName] = useState('')
+  const [provider, setProvider] = useState<'tavily'>('tavily')
+  const [apiKey, setApiKey] = useState('')
+  const [defaultDepth, setDefaultDepth] = useState<'basic' | 'advanced'>(
+    'basic'
+  )
+  const [isDefault, setIsDefault] = useState(true)
+  const [enabled, setEnabled] = useState(true)
 
   const createMutation = useMutation({
     mutationFn: () =>
       client.admin.ai.createIntegration({
         name,
-        integration_type: "web_search",
+        integration_type: 'web_search',
         provider,
         config: {
           ...(apiKey ? { api_key: apiKey } : {}),
@@ -67,25 +67,25 @@ export function CreateIntegrationDialog({
         is_default: isDefault,
       }),
     onSuccess: async () => {
-      toast.success("Integration created");
+      toast.success('Integration created')
       await queryClient.invalidateQueries({
-        queryKey: ["ai", "integrations"],
-      });
-      reset();
-      onOpenChange(false);
+        queryKey: ['ai-integrations'],
+      })
+      reset()
+      onOpenChange(false)
     },
     onError: (error) =>
       toast.error(`Create failed: ${(error as Error).message}`),
-  });
+  })
 
   const reset = () => {
-    setName("");
-    setProvider("tavily");
-    setApiKey("");
-    setDefaultDepth("basic");
-    setIsDefault(true);
-    setEnabled(true);
-  };
+    setName('')
+    setProvider('tavily')
+    setApiKey('')
+    setDefaultDepth('basic')
+    setIsDefault(true)
+    setEnabled(true)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,86 +93,82 @@ export function CreateIntegrationDialog({
         <DialogHeader>
           <DialogTitle>New Tool Integration</DialogTitle>
           <DialogDescription>
-            Configure an external service that chatbot specialists can
-            call. Currently supports web search via Tavily.
+            Configure an external service that chatbot specialists can call.
+            Currently supports web search via Tavily.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+        <div className='space-y-4'>
+          <div className='space-y-2'>
+            <Label htmlFor='name'>Name</Label>
             <Input
-              id="name"
+              id='name'
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Tavily (prod)"
+              placeholder='Tavily (prod)'
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="provider">Provider</Label>
+          <div className='space-y-2'>
+            <Label htmlFor='provider'>Provider</Label>
             <Select
               value={provider}
-              onValueChange={(v) => setProvider(v as "tavily")}
+              onValueChange={(v) => setProvider(v as 'tavily')}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tavily">Tavily</SelectItem>
+                <SelectItem value='tavily'>Tavily</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="apiKey">API Key</Label>
+          <div className='space-y-2'>
+            <Label htmlFor='apiKey'>API Key</Label>
             <Input
-              id="apiKey"
-              type="password"
+              id='apiKey'
+              type='password'
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="tvly-..."
+              placeholder='tvly-...'
             />
-            <p className="text-xs text-muted-foreground">
+            <p className='text-muted-foreground text-xs'>
               Encrypted at rest. Never shown again after save.
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="depth">Default Search Depth</Label>
+          <div className='space-y-2'>
+            <Label htmlFor='depth'>Default Search Depth</Label>
             <Select
               value={defaultDepth}
-              onValueChange={(v) =>
-                setDefaultDepth(v as "basic" | "advanced")
-              }
+              onValueChange={(v) => setDefaultDepth(v as 'basic' | 'advanced')}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="basic">
-                  Basic (faster, cheaper)
-                </SelectItem>
-                <SelectItem value="advanced">
+                <SelectItem value='basic'>Basic (faster, cheaper)</SelectItem>
+                <SelectItem value='advanced'>
                   Advanced (slower, more thorough)
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label htmlFor="default">Set as default for web_search</Label>
+          <div className='flex items-center justify-between'>
+            <Label htmlFor='default'>Set as default for web_search</Label>
             <Switch
-              id="default"
+              id='default'
               checked={isDefault}
               onCheckedChange={setIsDefault}
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label htmlFor="enabled">Enabled</Label>
+          <div className='flex items-center justify-between'>
+            <Label htmlFor='enabled'>Enabled</Label>
             <Switch
-              id="enabled"
+              id='enabled'
               checked={enabled}
               onCheckedChange={setEnabled}
             />
@@ -180,25 +176,17 @@ export function CreateIntegrationDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button variant='outline' onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            disabled={
-              createMutation.isPending ||
-              !name ||
-              !apiKey ||
-              !provider
-            }
+            disabled={createMutation.isPending || !name || !apiKey || !provider}
             onClick={() => createMutation.mutate()}
           >
-            {createMutation.isPending ? "Creating..." : "Create"}
+            {createMutation.isPending ? 'Creating...' : 'Create'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

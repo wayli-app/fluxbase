@@ -1,28 +1,28 @@
-import { useState } from "react";
-import z from "zod";
-import { formatDistanceToNow } from "date-fns";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
-import { Webhook, Plus, Send, Check, X, Search, Clock } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from 'react'
+import z from 'zod'
+import { formatDistanceToNow } from 'date-fns'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { Webhook, Plus, Send, Check, X, Search, Clock } from 'lucide-react'
+import { toast } from 'sonner'
+import { useTenantStore } from '@/stores/tenant-store'
 import {
   webhooksApi,
   databaseApi,
   type WebhookDelivery,
   type WebhookType,
   type EventConfig,
-} from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/layout/page-header";
+} from '@/lib/api'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+} from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -30,18 +30,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -49,131 +49,132 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTenantStore } from "@/stores/tenant-store";
+} from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const webhooksSearchSchema = z.object({
-  tab: z.string().optional().catch("webhooks"),
-});
+  tab: z.string().optional().catch('webhooks'),
+})
 
-export const Route = createFileRoute("/_authenticated/webhooks/")({
+export const Route = createFileRoute('/_authenticated/webhooks/')({
   validateSearch: webhooksSearchSchema,
   component: WebhooksPage,
-});
+})
 
-const route = getRouteApi("/_authenticated/webhooks/");
+const route = getRouteApi('/_authenticated/webhooks/')
 
-const OPERATIONS = ["INSERT", "UPDATE", "DELETE"];
+const OPERATIONS = ['INSERT', 'UPDATE', 'DELETE']
 
 function WebhooksPage() {
-  const search = route.useSearch();
-  const navigate = route.useNavigate();
-  const queryClient = useQueryClient();
-  const currentTenantId = useTenantStore((state) => state.currentTenant?.id);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [selectedWebhook] = useState<WebhookType | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
+  const queryClient = useQueryClient()
+  const currentTenantId = useTenantStore((state) => state.currentTenant?.id)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [selectedWebhook] = useState<WebhookType | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Form state
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [url, setUrl] = useState("");
-  const [secret, setSecret] = useState("");
-  const [enabled, setEnabled] = useState(true);
-  const [tableName, setTableName] = useState("");
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [url, setUrl] = useState('')
+  const [secret, setSecret] = useState('')
+  const [enabled, setEnabled] = useState(true)
+  const [tableName, setTableName] = useState('')
   const [selectedOps, setSelectedOps] = useState<string[]>([
-    "INSERT",
-    "UPDATE",
-    "DELETE",
-  ]);
-  const [events, setEvents] = useState<EventConfig[]>([]);
-  const [maxRetries, setMaxRetries] = useState(3);
-  const [timeoutSeconds, setTimeoutSeconds] = useState(30);
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+  ])
+  const [events, setEvents] = useState<EventConfig[]>([])
+  const [maxRetries, setMaxRetries] = useState(3)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(30)
 
   // Fetch webhooks
   const { data: webhooks, isLoading } = useQuery<WebhookType[]>({
-    queryKey: ["webhooks", currentTenantId],
+    queryKey: ['webhooks', currentTenantId],
     queryFn: webhooksApi.list,
-  });
+  })
 
   // Fetch deliveries for selected webhook
   const { data: deliveries } = useQuery<WebhookDelivery[]>({
-    queryKey: ["webhook-deliveries", selectedWebhook?.id, selectedWebhook, currentTenantId],
+    queryKey: [
+      'webhook-deliveries',
+      selectedWebhook?.id,
+      selectedWebhook,
+      currentTenantId,
+    ],
     queryFn: async () => {
-      if (!selectedWebhook) return [];
-      return webhooksApi.getDeliveries(selectedWebhook.id, 50);
+      if (!selectedWebhook) return []
+      return webhooksApi.getDeliveries(selectedWebhook.id, 50)
     },
     enabled: !!selectedWebhook,
-  });
+  })
 
   // Fetch available tables
   const { data: tables } = useQuery<Array<{ schema: string; name: string }>>({
-    queryKey: ["tables"],
+    queryKey: ['tables'],
     queryFn: () => databaseApi.getTables(),
-  });
+  })
 
   // Create webhook
   const createMutation = useMutation({
     mutationFn: webhooksApi.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["webhooks"] });
-      setShowCreateDialog(false);
-      resetForm();
-      toast.success("Webhook created successfully");
+      queryClient.invalidateQueries({ queryKey: ['webhooks'] })
+      setShowCreateDialog(false)
+      resetForm()
+      toast.success('Webhook created successfully')
     },
     onError: () => {
-      toast.error("Failed to create webhook");
+      toast.error('Failed to create webhook')
     },
-  });
+  })
 
   const resetForm = () => {
-    setName("");
-    setDescription("");
-    setUrl("");
-    setSecret("");
-    setEnabled(true);
-    setTableName("");
-    setSelectedOps(["INSERT", "UPDATE", "DELETE"]);
-    setEvents([]);
-    setMaxRetries(3);
-    setTimeoutSeconds(30);
-  };
+    setName('')
+    setDescription('')
+    setUrl('')
+    setSecret('')
+    setEnabled(true)
+    setTableName('')
+    setSelectedOps(['INSERT', 'UPDATE', 'DELETE'])
+    setEvents([])
+    setMaxRetries(3)
+    setTimeoutSeconds(30)
+  }
 
   const addEvent = () => {
     if (!tableName.trim()) {
-      toast.error("Please enter a table name");
-      return;
+      toast.error('Please enter a table name')
+      return
     }
     if (selectedOps.length === 0) {
-      toast.error("Please select at least one operation");
-      return;
+      toast.error('Please select at least one operation')
+      return
     }
 
-    setEvents([
-      ...events,
-      { table: tableName.trim(), operations: selectedOps },
-    ]);
-    setTableName("");
-    setSelectedOps(["INSERT", "UPDATE", "DELETE"]);
-  };
+    setEvents([...events, { table: tableName.trim(), operations: selectedOps }])
+    setTableName('')
+    setSelectedOps(['INSERT', 'UPDATE', 'DELETE'])
+  }
 
   const removeEvent = (index: number) => {
-    setEvents(events.filter((_, i) => i !== index));
-  };
+    setEvents(events.filter((_, i) => i !== index))
+  }
 
   const handleCreate = () => {
     if (!name.trim()) {
-      toast.error("Please enter a webhook name");
-      return;
+      toast.error('Please enter a webhook name')
+      return
     }
     if (!url.trim()) {
-      toast.error("Please enter a webhook URL");
-      return;
+      toast.error('Please enter a webhook URL')
+      return
     }
     if (events.length === 0) {
-      toast.error("Please add at least one event");
-      return;
+      toast.error('Please add at least one event')
+      return
     }
 
     createMutation.mutate({
@@ -187,57 +188,51 @@ function WebhooksPage() {
       retry_backoff_seconds: 5,
       timeout_seconds: timeoutSeconds,
       headers: {},
-    });
-  };
+    })
+  }
 
   const getStatusVariant = (
-    status: string,
-  ): "default" | "secondary" | "destructive" => {
-    if (status === "success") return "default";
-    if (status === "failed") return "destructive";
-    return "secondary";
-  };
+    status: string
+  ): 'default' | 'secondary' | 'destructive' => {
+    if (status === 'success') return 'default'
+    if (status === 'failed') return 'destructive'
+    return 'secondary'
+  }
 
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader
-        icon={<Webhook />}
-        title="Webhooks"
-        description="Configure webhooks to receive real-time event notifications"
-      />
-
-      <div className="flex-1 overflow-auto p-6">
+    <div className='flex h-full flex-col'>
+      <div className='flex-1 overflow-auto p-6'>
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className='grid gap-4 md:grid-cols-3'>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
+            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+              <CardTitle className='text-sm font-medium'>
                 Total Webhooks
               </CardTitle>
-              <Webhook className="text-muted-foreground h-4 w-4" />
+              <Webhook className='text-muted-foreground h-4 w-4' />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{webhooks?.length || 0}</div>
+              <div className='text-2xl font-bold'>{webhooks?.length || 0}</div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active</CardTitle>
-              <Check className="text-muted-foreground h-4 w-4" />
+            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+              <CardTitle className='text-sm font-medium'>Active</CardTitle>
+              <Check className='text-muted-foreground h-4 w-4' />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className='text-2xl font-bold'>
                 {webhooks?.filter((w) => w.enabled).length || 0}
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Disabled</CardTitle>
-              <X className="text-muted-foreground h-4 w-4" />
+            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+              <CardTitle className='text-sm font-medium'>Disabled</CardTitle>
+              <X className='text-muted-foreground h-4 w-4' />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className='text-2xl font-bold'>
                 {webhooks?.filter((w) => !w.enabled).length || 0}
               </div>
             </CardContent>
@@ -245,29 +240,29 @@ function WebhooksPage() {
         </div>
 
         <Tabs
-          value={search.tab || "webhooks"}
+          value={search.tab || 'webhooks'}
           onValueChange={(tab) => navigate({ search: { tab } })}
-          className="space-y-4"
+          className='space-y-4'
         >
           <TabsList>
-            <TabsTrigger value="webhooks" className="flex items-center gap-2">
-              <Webhook className="h-4 w-4" />
+            <TabsTrigger value='webhooks' className='flex items-center gap-2'>
+              <Webhook className='h-4 w-4' />
               Webhooks
             </TabsTrigger>
             <TabsTrigger
-              value="deliveries"
+              value='deliveries'
               disabled={!selectedWebhook}
-              className="flex items-center gap-2"
+              className='flex items-center gap-2'
             >
-              <Send className="h-4 w-4" />
+              <Send className='h-4 w-4' />
               Deliveries {selectedWebhook && `(${selectedWebhook.name})`}
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="webhooks" className="space-y-4">
+          <TabsContent value='webhooks' className='space-y-4'>
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className='flex items-center justify-between'>
                   <div>
                     <CardTitle>Webhooks</CardTitle>
                     <CardDescription>
@@ -275,26 +270,26 @@ function WebhooksPage() {
                     </CardDescription>
                   </div>
                   <Button onClick={() => setShowCreateDialog(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className='mr-2 h-4 w-4' />
                     Create Webhook
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="mb-4">
-                  <div className="relative">
-                    <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+                <div className='mb-4'>
+                  <div className='relative'>
+                    <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
                     <Input
-                      placeholder="Search webhooks..."
+                      placeholder='Search webhooks...'
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-8"
+                      className='pl-8'
                     />
                   </div>
                 </div>
 
                 {isLoading ? (
-                  <div className="overflow-x-auto">
+                  <div className='overflow-x-auto'>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -302,7 +297,7 @@ function WebhooksPage() {
                           <TableHead>URL</TableHead>
                           <TableHead>Events</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                          <TableHead className='text-right'>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -311,25 +306,25 @@ function WebhooksPage() {
                           .map((_, i) => (
                             <TableRow key={i}>
                               <TableCell>
-                                <div className="space-y-1">
-                                  <Skeleton className="h-4 w-32" />
-                                  <Skeleton className="h-3 w-24" />
+                                <div className='space-y-1'>
+                                  <Skeleton className='h-4 w-32' />
+                                  <Skeleton className='h-3 w-24' />
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <Skeleton className="h-4 w-48" />
+                                <Skeleton className='h-4 w-48' />
                               </TableCell>
                               <TableCell>
-                                <Skeleton className="h-5 w-20" />
+                                <Skeleton className='h-5 w-20' />
                               </TableCell>
                               <TableCell>
-                                <Skeleton className="h-5 w-16" />
+                                <Skeleton className='h-5 w-16' />
                               </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                  <Skeleton className="h-8 w-8" />
-                                  <Skeleton className="h-8 w-8" />
-                                  <Skeleton className="h-8 w-8" />
+                              <TableCell className='text-right'>
+                                <div className='flex justify-end gap-1'>
+                                  <Skeleton className='h-8 w-8' />
+                                  <Skeleton className='h-8 w-8' />
+                                  <Skeleton className='h-8 w-8' />
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -338,7 +333,7 @@ function WebhooksPage() {
                     </Table>
                   </div>
                 ) : webhooks && webhooks.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className='overflow-x-auto'>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -346,42 +341,42 @@ function WebhooksPage() {
                           <TableHead>URL</TableHead>
                           <TableHead>Events</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                          <TableHead className='text-right'>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {webhooks
                           .filter((w) => {
-                            if (!searchQuery) return true;
-                            const q = searchQuery.toLowerCase();
+                            if (!searchQuery) return true
+                            const q = searchQuery.toLowerCase()
                             return (
                               w.name.toLowerCase().includes(q) ||
                               w.url.toLowerCase().includes(q)
-                            );
+                            )
                           })
                           .map((webhook) => (
                             <TableRow key={webhook.id}>
                               <TableCell>
                                 <div>
-                                  <div className="font-medium">
+                                  <div className='font-medium'>
                                     {webhook.name}
                                   </div>
                                   {webhook.description && (
-                                    <div className="text-muted-foreground text-sm">
+                                    <div className='text-muted-foreground text-sm'>
                                       {webhook.description}
                                     </div>
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="max-w-[200px] truncate">
+                              <TableCell className='max-w-[200px] truncate'>
                                 {webhook.url}
                               </TableCell>
                               <TableCell>
-                                <div className="flex flex-wrap gap-1">
+                                <div className='flex flex-wrap gap-1'>
                                   {webhook.events?.map((event, i) => (
-                                    <Badge key={i} variant="outline">
-                                      {event.table}:{" "}
-                                      {event.operations?.join(", ")}
+                                    <Badge key={i} variant='outline'>
+                                      {event.table}:{' '}
+                                      {event.operations?.join(', ')}
                                     </Badge>
                                   ))}
                                 </div>
@@ -389,47 +384,47 @@ function WebhooksPage() {
                               <TableCell>
                                 <Badge
                                   variant={
-                                    webhook.enabled ? "default" : "secondary"
+                                    webhook.enabled ? 'default' : 'secondary'
                                   }
                                 >
-                                  {webhook.enabled ? "Active" : "Disabled"}
+                                  {webhook.enabled ? 'Active' : 'Disabled'}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="sm" asChild>
+                              <TableCell className='text-right'>
+                                <div className='flex justify-end gap-1'>
+                                  <Button variant='ghost' size='sm' asChild>
                                     <button
                                       onClick={async () => {
                                         try {
-                                          await webhooksApi.test(webhook.id);
+                                          await webhooksApi.test(webhook.id)
                                           toast.success(
-                                            `Test sent to ${webhook.name}`,
-                                          );
+                                            `Test sent to ${webhook.name}`
+                                          )
                                         } catch {
-                                          toast.error("Test delivery failed");
+                                          toast.error('Test delivery failed')
                                         }
                                       }}
                                     >
-                                      <Send className="h-4 w-4" />
+                                      <Send className='h-4 w-4' />
                                     </button>
                                   </Button>
-                                  <Button variant="ghost" size="sm">
+                                  <Button variant='ghost' size='sm'>
                                     <button
                                       onClick={async () => {
                                         try {
-                                          await webhooksApi.delete(webhook.id);
+                                          await webhooksApi.delete(webhook.id)
                                           queryClient.invalidateQueries({
-                                            queryKey: ["webhooks"],
-                                          });
-                                          toast.success("Webhook deleted");
+                                            queryKey: ['webhooks'],
+                                          })
+                                          toast.success('Webhook deleted')
                                         } catch {
                                           toast.error(
-                                            "Failed to delete webhook",
-                                          );
+                                            'Failed to delete webhook'
+                                          )
                                         }
                                       }}
                                     >
-                                      <X className="h-4 w-4" />
+                                      <X className='h-4 w-4' />
                                     </button>
                                   </Button>
                                 </div>
@@ -440,18 +435,18 @@ function WebhooksPage() {
                     </Table>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Webhook className="text-muted-foreground mb-4 h-12 w-12" />
-                    <p className="text-muted-foreground">
+                  <div className='flex flex-col items-center justify-center py-12 text-center'>
+                    <Webhook className='text-muted-foreground mb-4 h-12 w-12' />
+                    <p className='text-muted-foreground'>
                       {searchQuery
-                        ? "No webhooks match your search"
-                        : "No webhooks yet"}
+                        ? 'No webhooks match your search'
+                        : 'No webhooks yet'}
                     </p>
                     {!searchQuery && (
                       <Button
                         onClick={() => setShowCreateDialog(true)}
-                        variant="outline"
-                        className="mt-4"
+                        variant='outline'
+                        className='mt-4'
                       >
                         Create Your First Webhook
                       </Button>
@@ -462,7 +457,7 @@ function WebhooksPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="deliveries" className="space-y-4">
+          <TabsContent value='deliveries' className='space-y-4'>
             <Card>
               <CardHeader>
                 <CardTitle>Delivery History</CardTitle>
@@ -486,7 +481,7 @@ function WebhooksPage() {
                       {deliveries.map((delivery) => (
                         <TableRow key={delivery.id}>
                           <TableCell>
-                            <Badge variant="outline">
+                            <Badge variant='outline'>
                               {delivery.event_type}
                             </Badge>
                           </TableCell>
@@ -497,14 +492,14 @@ function WebhooksPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {delivery.http_status_code || "N/A"}
+                            {delivery.http_status_code || 'N/A'}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
+                          <TableCell className='text-muted-foreground text-sm'>
                             {formatDistanceToNow(
                               new Date(delivery.created_at),
                               {
                                 addSuffix: true,
-                              },
+                              }
                             )}
                           </TableCell>
                         </TableRow>
@@ -512,9 +507,9 @@ function WebhooksPage() {
                     </TableBody>
                   </Table>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Clock className="text-muted-foreground mb-4 h-12 w-12" />
-                    <p className="text-muted-foreground">
+                  <div className='flex flex-col items-center justify-center py-12 text-center'>
+                    <Clock className='text-muted-foreground mb-4 h-12 w-12' />
+                    <p className='text-muted-foreground'>
                       No delivery history yet
                     </p>
                   </div>
@@ -526,7 +521,7 @@ function WebhooksPage() {
 
         {/* Create Webhook Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
             <DialogHeader>
               <DialogTitle>Create Webhook</DialogTitle>
               <DialogDescription>
@@ -534,57 +529,57 @@ function WebhooksPage() {
                 events
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">
-                  Name <span className="text-destructive">*</span>
+            <div className='grid gap-4 py-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='name'>
+                  Name <span className='text-destructive'>*</span>
                 </Label>
                 <Input
-                  id="name"
-                  placeholder="My Webhook"
+                  id='name'
+                  placeholder='My Webhook'
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="description">Description</Label>
+              <div className='grid gap-2'>
+                <Label htmlFor='description'>Description</Label>
                 <Input
-                  id="description"
-                  placeholder="Webhook for order notifications"
+                  id='description'
+                  placeholder='Webhook for order notifications'
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="url">
-                  URL <span className="text-destructive">*</span>
+              <div className='grid gap-2'>
+                <Label htmlFor='url'>
+                  URL <span className='text-destructive'>*</span>
                 </Label>
                 <Input
-                  id="url"
-                  placeholder="https://example.com/webhook"
+                  id='url'
+                  placeholder='https://example.com/webhook'
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="secret">Secret (for HMAC verification)</Label>
+              <div className='grid gap-2'>
+                <Label htmlFor='secret'>Secret (for HMAC verification)</Label>
                 <Input
-                  id="secret"
-                  placeholder="Optional webhook secret"
+                  id='secret'
+                  placeholder='Optional webhook secret'
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
                 />
               </div>
 
-              <div className="grid gap-2">
+              <div className='grid gap-2'>
                 <Label>Events Configuration</Label>
-                <div className="space-y-2 rounded-md border p-4">
-                  <div className="grid grid-cols-2 gap-2">
+                <div className='space-y-2 rounded-md border p-4'>
+                  <div className='grid grid-cols-2 gap-2'>
                     <div>
-                      <Label htmlFor="tableName">Table Name</Label>
+                      <Label htmlFor='tableName'>Table Name</Label>
                       <Select value={tableName} onValueChange={setTableName}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a table" />
+                          <SelectValue placeholder='Select a table' />
                         </SelectTrigger>
                         <SelectContent>
                           {tables?.map((table) => (
@@ -600,23 +595,23 @@ function WebhooksPage() {
                     </div>
                     <div>
                       <Label>Operations</Label>
-                      <div className="flex flex-col gap-2 pt-2">
+                      <div className='flex flex-col gap-2 pt-2'>
                         {OPERATIONS.map((op) => (
-                          <div key={op} className="flex items-center space-x-2">
+                          <div key={op} className='flex items-center space-x-2'>
                             <Checkbox
                               id={op}
                               checked={selectedOps.includes(op)}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  setSelectedOps([...selectedOps, op]);
+                                  setSelectedOps([...selectedOps, op])
                                 } else {
                                   setSelectedOps(
-                                    selectedOps.filter((o) => o !== op),
-                                  );
+                                    selectedOps.filter((o) => o !== op)
+                                  )
                                 }
                               }}
                             />
-                            <label htmlFor={op} className="text-sm">
+                            <label htmlFor={op} className='text-sm'>
                               {op}
                             </label>
                           </div>
@@ -625,33 +620,33 @@ function WebhooksPage() {
                     </div>
                   </div>
                   <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
+                    type='button'
+                    variant='outline'
+                    size='sm'
                     onClick={addEvent}
                   >
                     Add Event
                   </Button>
 
                   {events.length > 0 && (
-                    <div className="mt-2 space-y-2">
+                    <div className='mt-2 space-y-2'>
                       <Label>Configured Events:</Label>
                       {events.map((event, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between rounded border p-2"
+                          className='flex items-center justify-between rounded border p-2'
                         >
-                          <span className="text-sm">
-                            <strong>{event.table}</strong>:{" "}
-                            {event.operations.join(", ")}
+                          <span className='text-sm'>
+                            <strong>{event.table}</strong>:{' '}
+                            {event.operations.join(', ')}
                           </span>
                           <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
+                            type='button'
+                            variant='ghost'
+                            size='sm'
                             onClick={() => removeEvent(index)}
                           >
-                            <X className="h-4 w-4" />
+                            <X className='h-4 w-4' />
                           </Button>
                         </div>
                       ))}
@@ -660,27 +655,27 @@ function WebhooksPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="maxRetries">Max Retries</Label>
+              <div className='grid grid-cols-2 gap-4'>
+                <div className='grid gap-2'>
+                  <Label htmlFor='maxRetries'>Max Retries</Label>
                   <Input
-                    id="maxRetries"
-                    type="number"
-                    min="0"
-                    max="10"
+                    id='maxRetries'
+                    type='number'
+                    min='0'
+                    max='10'
                     value={maxRetries}
                     onChange={(e) =>
                       setMaxRetries(parseInt(e.target.value) || 3)
                     }
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="timeout">Timeout (seconds)</Label>
+                <div className='grid gap-2'>
+                  <Label htmlFor='timeout'>Timeout (seconds)</Label>
                   <Input
-                    id="timeout"
-                    type="number"
-                    min="5"
-                    max="300"
+                    id='timeout'
+                    type='number'
+                    min='5'
+                    max='300'
                     value={timeoutSeconds}
                     onChange={(e) =>
                       setTimeoutSeconds(parseInt(e.target.value) || 30)
@@ -689,18 +684,18 @@ function WebhooksPage() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className='flex items-center space-x-2'>
                 <Switch
-                  id="enabled"
+                  id='enabled'
                   checked={enabled}
                   onCheckedChange={setEnabled}
                 />
-                <Label htmlFor="enabled">Enable webhook immediately</Label>
+                <Label htmlFor='enabled'>Enable webhook immediately</Label>
               </div>
             </div>
             <DialogFooter>
               <Button
-                variant="outline"
+                variant='outline'
                 onClick={() => setShowCreateDialog(false)}
               >
                 Cancel
@@ -709,12 +704,12 @@ function WebhooksPage() {
                 onClick={handleCreate}
                 disabled={createMutation.isPending}
               >
-                {createMutation.isPending ? "Creating..." : "Create Webhook"}
+                {createMutation.isPending ? 'Creating...' : 'Create Webhook'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
     </div>
-  );
+  )
 }

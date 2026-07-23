@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { adminAuthAPI } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
+import { adminAuthAPI } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -87,10 +87,7 @@ function SetupPage() {
         role: [response.user.role],
         exp: Date.now() + response.expires_in * 1000,
       })
-      localStorage.setItem(
-        'fluxbase_admin_user',
-        JSON.stringify(response.user),
-      )
+      localStorage.setItem('fluxbase_admin_user', JSON.stringify(response.user))
 
       toast.success('Welcome to Fluxbase!', {
         description: 'Your admin account has been created successfully.',
@@ -120,7 +117,7 @@ function SetupPage() {
           <img
             src='/admin/images/logo-icon.svg'
             alt='Fluxbase'
-            className='mx-auto h-16 w-16 rounded-2xl bg-white/80 p-6 backdrop-blur-sm dark:bg-white/80 dark:backdrop-blur-md'
+            className='mx-auto h-16 w-16 rounded-2xl bg-white/80 backdrop-blur-sm dark:bg-white/10 dark:backdrop-blur-md'
           />
           <h1 className='mt-6 text-3xl font-bold tracking-tight'>
             Welcome to Fluxbase

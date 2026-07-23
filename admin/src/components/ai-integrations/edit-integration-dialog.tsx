@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useFluxbaseClient } from "@nimbleflux/fluxbase-sdk-react";
-import type { ToolIntegration } from "@nimbleflux/fluxbase-sdk";
-import { toast } from "sonner";
+import { useEffect, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import type { ToolIntegration } from '@nimbleflux/fluxbase-sdk'
+import { useFluxbaseClient } from '@nimbleflux/fluxbase-sdk-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -10,15 +11,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 interface EditIntegrationDialogProps {
-  integration: ToolIntegration | null;
-  onOpenChange: (open: boolean) => void;
+  integration: ToolIntegration | null
+  onOpenChange: (open: boolean) => void
 }
 
 /**
@@ -33,21 +33,21 @@ export function EditIntegrationDialog({
   integration,
   onOpenChange,
 }: EditIntegrationDialogProps) {
-  const client = useFluxbaseClient();
-  const queryClient = useQueryClient();
+  const client = useFluxbaseClient()
+  const queryClient = useQueryClient()
 
-  const [name, setName] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [enabled, setEnabled] = useState(true);
+  const [name, setName] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [enabled, setEnabled] = useState(true)
 
   // Sync local state when integration prop changes
   useEffect(() => {
     if (integration) {
-      setName(integration.name);
-      setApiKey(integration.config?.api_key ? "***masked***" : "");
-      setEnabled(integration.enabled);
+      setName(integration.name)
+      setApiKey(integration.config?.api_key ? '***masked***' : '')
+      setEnabled(integration.enabled)
     }
-  }, [integration]);
+  }, [integration])
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -58,17 +58,17 @@ export function EditIntegrationDialog({
         enabled,
       }),
     onSuccess: async () => {
-      toast.success("Integration updated");
+      toast.success('Integration updated')
       await queryClient.invalidateQueries({
-        queryKey: ["ai", "integrations"],
-      });
-      onOpenChange(false);
+        queryKey: ['ai-integrations'],
+      })
+      onOpenChange(false)
     },
     onError: (error) =>
       toast.error(`Update failed: ${(error as Error).message}`),
-  });
+  })
 
-  if (!integration) return null;
+  if (!integration) return null
 
   return (
     <Dialog open={!!integration} onOpenChange={onOpenChange}>
@@ -77,43 +77,43 @@ export function EditIntegrationDialog({
           <DialogTitle>Edit Integration</DialogTitle>
           <DialogDescription>
             {integration.read_only
-              ? "This integration is read-only (configured via env/YAML). Changes here will be rejected by the server."
+              ? 'This integration is read-only (configured via env/YAML). Changes here will be rejected by the server.'
               : `Provider: ${integration.provider} · Type: ${integration.integration_type}`}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="edit-name">Name</Label>
+        <div className='space-y-4'>
+          <div className='space-y-2'>
+            <Label htmlFor='edit-name'>Name</Label>
             <Input
-              id="edit-name"
+              id='edit-name'
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={integration.read_only}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-apiKey">API Key</Label>
+          <div className='space-y-2'>
+            <Label htmlFor='edit-apiKey'>API Key</Label>
             <Input
-              id="edit-apiKey"
-              type="password"
+              id='edit-apiKey'
+              type='password'
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter new key to replace"
+              placeholder='Enter new key to replace'
               disabled={integration.read_only}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className='text-muted-foreground text-xs'>
               {integration.config?.api_key
-                ? "Leave unchanged to preserve existing key."
-                : "No key set."}
+                ? 'Leave unchanged to preserve existing key.'
+                : 'No key set.'}
             </p>
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label htmlFor="edit-enabled">Enabled</Label>
+          <div className='flex items-center justify-between'>
+            <Label htmlFor='edit-enabled'>Enabled</Label>
             <Switch
-              id="edit-enabled"
+              id='edit-enabled'
               checked={enabled}
               onCheckedChange={setEnabled}
               disabled={integration.read_only}
@@ -122,19 +122,17 @@ export function EditIntegrationDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant='outline' onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            disabled={
-              updateMutation.isPending || integration.read_only
-            }
+            disabled={updateMutation.isPending || integration.read_only}
             onClick={() => updateMutation.mutate()}
           >
-            {updateMutation.isPending ? "Saving..." : "Save"}
+            {updateMutation.isPending ? 'Saving...' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
