@@ -216,6 +216,18 @@ export const sidebarData: SidebarDataWithVisibility = {
       requiresTenant: true,
       items: [
         {
+          title: "AI Providers",
+          url: "/ai-providers",
+          icon: Bot,
+          visibility: "all",
+        },
+        {
+          title: "Tool Integrations",
+          url: "/ai-integrations",
+          icon: Globe,
+          visibility: "all",
+        },
+        {
           title: "Knowledge Bases",
           url: "/knowledge-bases",
           icon: BookOpen,
@@ -246,14 +258,6 @@ export const sidebarData: SidebarDataWithVisibility = {
           icon: Code2,
           visibility: "all",
           requiresTenant: false, // Override: works at both levels
-        },
-        {
-          title: "API Reference",
-          url: "/api-docs",
-          icon: ScrollText,
-          visibility: "all",
-          requiresTenant: false,
-          external: true,
         },
         {
           title: "Realtime",
@@ -291,18 +295,6 @@ export const sidebarData: SidebarDataWithVisibility = {
           icon: Mail,
           visibility: "all",
           requiresTenant: false, // Both instance and tenant admins can access
-        },
-        {
-          title: "AI Providers",
-          url: "/ai-providers",
-          icon: Bot,
-          visibility: "all",
-        },
-        {
-          title: "Tool Integrations",
-          url: "/ai-integrations",
-          icon: Globe,
-          visibility: "all",
         },
       ],
     },
