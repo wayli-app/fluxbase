@@ -12,7 +12,6 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
-	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 )
 
 var (
@@ -60,7 +59,12 @@ func TenantMiddleware(cfg TenantConfig) fiber.Handler {
 					tenantSource = "header"
 				}
 			} else {
-				// For anonymous/unauthenticated requests, validate the tenant exists
+				// For anonymous/unauthenticated requests, validate the tenant exists.
+				// If the header references a non-existent tenant, fall through to
+				// the default/JWT resolution below instead of returning 404.
+				// This prevents stale X-FB-Tenant headers from blocking all admin
+				// requests when auth hasn't run yet (middleware ordering: tenant
+				// runs before auth on the handler chain).
 				if headerTenant != "" {
 					var exists bool
 					err := cfg.DB.Pool().QueryRow(
@@ -74,7 +78,10 @@ func TenantMiddleware(cfg TenantConfig) fiber.Handler {
 						tenantID = headerTenant
 						tenantSource = "header"
 					} else {
-						return apperrors.SendErrorWithCode(c, fiber.StatusNotFound, "tenant not found", apperrors.ErrCodeTenantNotFound)
+						// Tenant not found — fall through to default/JWT resolution.
+						// Don't return 404: auth middleware hasn't run yet and may
+						// provide a valid tenant via JWT claim.
+						log.Debug().Str("tenant", headerTenant).Msg("Header tenant not found, falling through to default")
 					}
 				}
 			}

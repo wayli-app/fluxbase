@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  Shield,
-  AlertCircle,
-  Loader2,
-  Bot,
-  CheckCircle2,
-  Info,
+	AlertCircle,
+	Loader2,
+	Bot,
+	CheckCircle2,
+	Info,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {

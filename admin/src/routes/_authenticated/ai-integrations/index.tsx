@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Globe } from 'lucide-react'
 import { ToolIntegrationsTab } from '@/components/ai-integrations/tool-integrations-tab'
 
 const ToolIntegrationsPage = () => {
