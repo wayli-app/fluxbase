@@ -243,6 +243,34 @@ func (s *Storage) InterruptJob(ctx context.Context, jobID uuid.UUID, reason stri
 	return nil
 }
 
+// RecoverStaleJobs resets ALL running jobs back to pending on startup.
+// Called by Manager.Start before workers register. On restart, all
+// previous workers are dead, so any running job is orphaned regardless
+// of its worker_id. This is immediate — doesn't wait for the 15-second
+// staleWorkerCleanupLoop that only resets jobs where worker_id IS NULL.
+func (s *Storage) RecoverStaleJobs(ctx context.Context) (int64, error) {
+	query := `
+		UPDATE jobs.queue
+		SET status = $1,
+		    worker_id = NULL,
+		    started_at = NULL,
+		    last_progress_at = NULL
+		WHERE status = $2
+	`
+
+	var result pgconn.CommandTag
+	err := database.WrapWithServiceRole(ctx, s.DB, func(tx pgx.Tx) error {
+		var execErr error
+		result, execErr = tx.Exec(ctx, query, JobStatusPending, JobStatusRunning)
+		return execErr
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected(), nil
+}
+
 func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID, errorMsg string) error {
 	return s.requeueJobWithStatus(ctx, jobID, JobStatusRunning, errorMsg)
 }
