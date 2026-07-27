@@ -77,6 +77,27 @@ func (m *Manager) Start(ctx context.Context, workerCount int) error {
 		Str("mode", m.Config.WorkerMode).
 		Msg("Starting job worker manager")
 
+	// Recover stale jobs from any previous process. On restart, all
+	// previous workers are dead — their running jobs are orphaned.
+	// Reset them to pending immediately instead of waiting 15-45s for
+	// the staleWorkerCleanupLoop (which only runs from a live worker
+	// and only resets jobs where worker_id IS NULL).
+	recovered, err := m.Storage.RecoverStaleJobs(ctx)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to recover stale jobs on startup")
+	} else if recovered > 0 {
+		log.Info().Int64("jobs_recovered", recovered).Msg("Recovered stale running jobs from previous process")
+	}
+
+	// Clean up stale worker registrations. timeout=0 means clean ALL rows
+	// (they're all stale — no previous worker is alive on a fresh start).
+	cleaned, err := m.Storage.CleanupStaleWorkers(ctx, 0)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to clean up stale workers on startup")
+	} else if cleaned > 0 {
+		log.Info().Int64("workers_cleaned", cleaned).Msg("Cleaned up stale worker registrations from previous process")
+	}
+
 	m.targetCount = workerCount
 	m.supervisorCtx, m.supervisorStop = context.WithCancel(context.Background())
 
