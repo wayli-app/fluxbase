@@ -91,7 +91,7 @@ type dexTokens struct {
 //  1. GET /dex/auth?client_id=... → auto-follow redirects → land on login page
 //     (extract dex login state from the /dex/auth/local/login?state=<s> redirect)
 //  2. POST /dex/auth/local/login?back=&state=<dex_state> with login, password
-//     → 303 to /dex/approval?hmac=...&req=<req>
+//     → 303 to /dex/approval?hmac=...&req=<req> (older) or /dex/auth?hmac=...&req=<req> (newer)
 //  3. POST /dex/approval?hmac=...&req=<req> with approval=approve
 //     → 303 to redirect_uri?code=<code>&state=<oauth_state>
 func authenticateWithDex(t *testing.T, authURL string) string {
@@ -150,7 +150,10 @@ func authenticateWithDex(t *testing.T, authURL string) string {
 	approvalURL := resp.Header.Get("Location")
 	resp.Body.Close()
 	require.NotEmpty(t, approvalURL, "Dex should redirect to approval page after login")
-	require.Contains(t, approvalURL, "/dex/approval", "Should redirect to approval")
+	// Dex versions differ: older uses /dex/approval, newer uses /dex/auth?hmac=...
+	require.True(t,
+		strings.Contains(approvalURL, "/dex/approval") || strings.Contains(approvalURL, "/dex/auth"),
+		"Should redirect to Dex approval or auth page, got: %s", approvalURL)
 
 	// Phase 3: POST approval (grant access)
 	dexOrigin := fmt.Sprintf("http://%s:%s", dexHost(), dexPort)
