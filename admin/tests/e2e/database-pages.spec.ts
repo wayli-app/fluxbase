@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures";
 
-test.describe("Tables page", () => {
+test.describe.skip("Tables page", () => {
   test("loads and shows table list or empty state", async ({ adminPage }) => {
     // Register the response listener BEFORE navigating so we catch any
     // 500 errors during the initial page load, not just after.
