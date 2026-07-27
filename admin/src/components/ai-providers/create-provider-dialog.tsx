@@ -127,6 +127,7 @@ export function CreateProviderDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openai">OpenAI</SelectItem>
+                <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
                 <SelectItem value="azure">Azure OpenAI</SelectItem>
                 <SelectItem value="ollama">Ollama</SelectItem>
               </SelectContent>
