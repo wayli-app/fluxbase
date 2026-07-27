@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -376,9 +377,19 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 	}
 
 	var result map[string]interface{}
-	if err := apiClient.DoPost(ctx, "/api/v1/admin/migrations/sync", body, &result); err != nil {
+	resp, err := apiClient.Post(ctx, "/api/v1/admin/migrations/sync", body)
+	if err != nil {
 		return err
 	}
+
+	// The server returns 422 when migrations have partial errors.
+	// We need to decode the body regardless of status code to get
+	// the detailed error list (which migrations failed and why).
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		resp.Body.Close()
+		return fmt.Errorf("failed to parse sync response: %w", err)
+	}
+	resp.Body.Close()
 
 	// Parse the nested summary response
 	summary, ok := result["summary"].(map[string]interface{})
