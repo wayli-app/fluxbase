@@ -118,10 +118,10 @@ func (l *ToolAuditLogger) LogToolCall(
 		durationMs := int(time.Since(start).Milliseconds())
 
 		entry := &ToolAuditEntry{
-			ToolName:  toolName,
-			ToolType:  toolType,
-			Arguments: truncateBytes(arguments, 4000),
-			Agent:     agent,
+			ToolName:   toolName,
+			ToolType:   toolType,
+			Arguments:  truncateBytes(arguments, 4000),
+			Agent:      agent,
 			DurationMs: &durationMs,
 		}
 		if chatbotID != "" {
@@ -161,5 +161,5 @@ func truncateBytes(b []byte, limit int) []byte {
 }
 
 // boolPtr / strPtr are small helpers for building nullable audit fields inline.
-func boolPtr(b bool) *bool       { return &b }
-func strPtr(s string) *string    { return &s }
+func boolPtr(b bool) *bool    { return &b }
+func strPtr(s string) *string { return &s }

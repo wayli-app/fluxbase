@@ -28,8 +28,8 @@ func TestEvalRoutingCorpus_Deterministic(t *testing.T) {
 	// whitelisting is exercised the same way production configures it.
 	chatbotFactory := func(c eval.Case) *Chatbot {
 		cb := &Chatbot{
-			Name:      "wayli-assistant-eval",
-			Model:     "gpt-4",
+			Name:             "wayli-assistant-eval",
+			Model:            "gpt-4",
 			WebSearchEnabled: true,
 			PageProfiles: PageProfiles{
 				"default": {Page: "default", Agents: []string{"sql", "kb", "action", "chat", "web"}},

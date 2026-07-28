@@ -17,10 +17,10 @@ type fakeCustomTool struct {
 	name string
 }
 
-func (f *fakeCustomTool) Name() string                       { return f.name }
-func (f *fakeCustomTool) Description() string                { return "fake custom tool" }
-func (f *fakeCustomTool) InputSchema() map[string]any        { return map[string]any{"type": "object"} }
-func (f *fakeCustomTool) RequiredScopes() []string           { return []string{"execute:custom"} }
+func (f *fakeCustomTool) Name() string                { return f.name }
+func (f *fakeCustomTool) Description() string         { return "fake custom tool" }
+func (f *fakeCustomTool) InputSchema() map[string]any { return map[string]any{"type": "object"} }
+func (f *fakeCustomTool) RequiredScopes() []string    { return []string{"execute:custom"} }
 func (f *fakeCustomTool) Execute(_ context.Context, _ map[string]any, _ *mcp.AuthContext) (*mcp.ToolResult, error) {
 	return &mcp.ToolResult{}, nil
 }
@@ -41,8 +41,8 @@ func TestActionAgent_IncludesCustomTools(t *testing.T) {
 	executor := NewMCPToolExecutor(registry)
 
 	chatbot := &Chatbot{
-		Name:    "wayli",
-		Model:   "gpt-4",
+		Name:     "wayli",
+		Model:    "gpt-4",
 		MCPTools: []string{"custom:wayli:search_feed_posts", "custom:standalone_tool", "invoke_rpc"},
 	}
 	require.True(t, chatbot.HasMCPTools(), "chatbot should report it has MCP tools")
