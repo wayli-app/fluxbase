@@ -23,12 +23,13 @@ import (
 
 // ChatHandler handles WebSocket chat connections
 type ChatHandler struct {
-	storage        *Storage
-	conversations  *ConversationManager
-	schemaBuilder  *SchemaBuilder
-	executor       *Executor
-	auditLogger    *AuditLogger
-	ragService     *RAGService
+	storage         *Storage
+	conversations   *ConversationManager
+	schemaBuilder   *SchemaBuilder
+	executor        *Executor
+	auditLogger     *AuditLogger
+	toolAuditLogger *ToolAuditLogger
+	ragService      *RAGService
 	loggingService *logging.Service
 	metrics        *observability.Metrics
 	config         *config.AIConfig
@@ -66,10 +67,11 @@ func NewChatHandler(
 	return &ChatHandler{
 		storage:        storage,
 		conversations:  conversations,
-		schemaBuilder:  NewSchemaBuilder(db),
-		executor:       NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
-		auditLogger:    NewAuditLogger(db),
-		ragService:     ragService,
+		schemaBuilder:   NewSchemaBuilder(db),
+		executor:        NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
+		auditLogger:     NewAuditLogger(db),
+		toolAuditLogger: NewToolAuditLogger(db),
+		ragService:      ragService,
 		loggingService: loggingService,
 		metrics:        metrics,
 		config:         cfg,

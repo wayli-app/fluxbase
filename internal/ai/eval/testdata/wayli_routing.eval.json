@@ -1,0 +1,105 @@
+{
+  "_comment": "Routing eval corpus for the wayli-assistant chatbot. Each case is a (message, page_context, expected_route) tuple. In deterministic mode the fake provider returns the case's 'deterministic_plan' and we verify the parser + page-profile filtering apply it correctly. In live mode a real LLM decides the route from the message alone. Add cases as new routing failure modes are discovered.",
+  "cases": [
+    {
+      "id": "web-events-this-weekend",
+      "message": "What events are happening in Berlin this weekend?",
+      "page_context": "plan",
+      "expected_route_includes": ["web"],
+      "expected_route_excludes": [],
+      "category": "web_search",
+      "notes": "Temporal/current-info question → must route to web (Tavily).",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"web\"],\"requires_synthesis\":false,\"is_investigative\":false,\"min_tool_calls\":1}"
+    },
+    {
+      "id": "web-opening-hours",
+      "message": "Is the Van Gogh Museum open right now?",
+      "page_context": "default",
+      "expected_route_includes": ["web"],
+      "expected_route_excludes": [],
+      "category": "web_search",
+      "notes": "Opening hours / 'right now' → web.",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"web\"],\"requires_synthesis\":false,\"is_investigative\":false,\"min_tool_calls\":1}"
+    },
+    {
+      "id": "web-current-year",
+      "message": "What's new in Tokyo in 2026?",
+      "page_context": "plan",
+      "expected_route_includes": ["web"],
+      "expected_route_excludes": [],
+      "category": "web_search",
+      "notes": "Year-bound current info → web.",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"web\",\"action\"],\"requires_synthesis\":true,\"is_investigative\":false,\"min_tool_calls\":2}"
+    },
+    {
+      "id": "history-trips-count",
+      "message": "How many trips have I taken?",
+      "page_context": "default",
+      "expected_route_includes": ["sql"],
+      "expected_route_excludes": [],
+      "category": "history",
+      "notes": "Trip count → SQL against my_trips.",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"sql\"],\"requires_synthesis\":false,\"is_investigative\":true,\"min_tool_calls\":1}"
+    },
+    {
+      "id": "history-place-visits",
+      "message": "Which restaurants in France have I visited?",
+      "page_context": "default",
+      "expected_route_includes": ["action"],
+      "expected_route_excludes": [],
+      "category": "history",
+      "notes": "Filtered place visits → action agent (search_visits RPC).",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"action\"],\"requires_synthesis\":false,\"is_investigative\":true,\"min_tool_calls\":1}"
+    },
+    {
+      "id": "history-journal",
+      "message": "What did I write about Japan?",
+      "page_context": "default",
+      "expected_route_includes": ["action"],
+      "expected_route_excludes": [],
+      "category": "history",
+      "notes": "Journal search → action agent (search_journal_entries RPC).",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"action\"],\"requires_synthesis\":false,\"is_investigative\":true,\"min_tool_calls\":1}"
+    },
+    {
+      "id": "feed-posts",
+      "message": "What's in my feed about Tokyo?",
+      "page_context": "default",
+      "expected_route_includes": ["action"],
+      "expected_route_excludes": [],
+      "category": "feed",
+      "notes": "Feed/community posts → action agent (search_feed_posts RPC).",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"action\"],\"requires_synthesis\":false,\"is_investigative\":true,\"min_tool_calls\":1}"
+    },
+    {
+      "id": "greeting",
+      "message": "Hi there!",
+      "page_context": "default",
+      "expected_route_includes": ["chat"],
+      "expected_route_excludes": ["sql", "web"],
+      "category": "chitchat",
+      "notes": "Greeting → chat agent, must NOT hit SQL or web.",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"chat\"],\"requires_synthesis\":false,\"is_investigative\":false,\"min_tool_calls\":0}"
+    },
+    {
+      "id": "static-fact",
+      "message": "What is the Eiffel Tower?",
+      "page_context": "default",
+      "expected_route_includes": [],
+      "expected_route_excludes": ["web"],
+      "category": "static",
+      "notes": "Static factual info → should NOT route to web (use kb/chat).",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"kb\"],\"requires_synthesis\":false,\"is_investigative\":false,\"min_tool_calls\":1}"
+    },
+    {
+      "id": "plan-suggest-activities",
+      "message": "Suggest some activities for my Berlin trip",
+      "page_context": "plan",
+      "expected_route_includes": ["action"],
+      "expected_route_excludes": [],
+      "category": "plan_mode",
+      "notes": "Plan suggestion → action agent (get_trip_plan + suggestions).",
+      "deterministic_plan": "{\"user_language\":\"English\",\"route\":[\"action\",\"web\"],\"requires_synthesis\":true,\"is_investigative\":false,\"min_tool_calls\":2}"
+    }
+  ]
+}

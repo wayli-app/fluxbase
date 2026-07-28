@@ -1164,6 +1164,47 @@ CREATE INDEX IF NOT EXISTS idx_ai_query_audit_success ON query_audit_log (succes
 CREATE INDEX IF NOT EXISTS idx_ai_query_audit_user ON query_audit_log (user_id);
 
 --
+-- Name: tool_audit_log; Type: TABLE; Schema: -; Owner: -
+--
+-- Audit log for non-SQL tool calls (web_search, fetch_url, invoke_rpc,
+-- invoke_function, custom tools). Mirrors query_audit_log but records the tool
+-- name, arguments, and result summary so every agent action is inspectable
+-- after the fact (the SQL-only audit log misses web/RPC/function calls, which
+-- made Tavily-not-firing failures invisible).
+--
+
+CREATE TABLE IF NOT EXISTS tool_audit_log (
+    id uuid DEFAULT gen_random_uuid(),
+    chatbot_id uuid,
+    conversation_id uuid,
+    message_id uuid,
+    user_id uuid,
+    tool_name text NOT NULL,
+    tool_type text NOT NULL,
+    arguments jsonb,
+    success boolean,
+    error_message text,
+    result_summary text,
+    result_meta jsonb,
+    duration_ms integer,
+    agent text,
+    created_at timestamptz DEFAULT now(),
+    tenant_id uuid,
+    CONSTRAINT tool_audit_log_pkey PRIMARY KEY (id),
+    CONSTRAINT tool_audit_log_chatbot_id_fkey FOREIGN KEY (chatbot_id) REFERENCES chatbots (id) ON DELETE SET NULL,
+    CONSTRAINT tool_audit_log_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE SET NULL,
+    CONSTRAINT tool_audit_log_message_id_fkey FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE SET NULL
+);
+
+COMMENT ON TABLE tool_audit_log IS 'Audit log for non-SQL AI tool calls (web_search, fetch_url, invoke_rpc, invoke_function, custom)';
+
+CREATE INDEX IF NOT EXISTS idx_ai_tool_audit_chatbot ON tool_audit_log (chatbot_id);
+CREATE INDEX IF NOT EXISTS idx_ai_tool_audit_created ON tool_audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_tool_audit_conversation ON tool_audit_log (conversation_id);
+CREATE INDEX IF NOT EXISTS idx_ai_tool_audit_tool ON tool_audit_log (tool_name);
+CREATE INDEX IF NOT EXISTS idx_ai_tool_audit_user ON tool_audit_log (user_id);
+
+--
 -- Name: query_audit_log; Type: RLS; Schema: -; Owner: -
 --
 

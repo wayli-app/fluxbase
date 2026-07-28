@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/nimbleflux/fluxbase/internal/ai/integrations"
 )
 
@@ -47,6 +49,12 @@ func (a *WebAgent) Run(ctx context.Context, state *State) error {
 		return fmt.Errorf("web agent: no provider")
 	}
 	if a.deps.Integrations == nil {
+		log.Warn().
+			Str("chatbot", chatbot.Name).
+			Str("conversation_id", a.deps.ConversationID).
+			Msg("Web agent routed but no integrations storage configured — web search is effectively disabled. " +
+				"Set a Tavily API key via the admin UI (AI → Integrations) or FLUXBASE_AI_TAVILY_API_KEY. " +
+				"Falling back to ReAct loop (no web tool).")
 		return fmt.Errorf("web agent: no integrations storage configured")
 	}
 
@@ -57,11 +65,23 @@ func (a *WebAgent) Run(ctx context.Context, state *State) error {
 		return fmt.Errorf("web agent: resolve integration: %w", err)
 	}
 	if integration == nil {
+		log.Warn().
+			Str("chatbot", chatbot.Name).
+			Str("conversation_id", a.deps.ConversationID).
+			Msg("Web agent routed but no web_search integration resolves — the Tavily key is missing/empty. " +
+				"Configure it in the admin UI (AI → Integrations) or via FLUXBASE_AI_TAVILY_API_KEY. " +
+				"Falling back to ReAct loop (no web tool); current-info questions cannot be answered.")
 		return fmt.Errorf("web agent: no web_search integration configured")
 	}
 
 	apiKey := integration.Config["api_key"]
 	if apiKey == "" {
+		log.Warn().
+			Str("chatbot", chatbot.Name).
+			Str("integration", integration.Name).
+			Str("conversation_id", a.deps.ConversationID).
+			Msg("Web agent routed but the resolved integration has an empty api_key. " +
+				"Re-enter the Tavily API key in the admin UI (AI → Integrations).")
 		return fmt.Errorf("web agent: integration %q has empty api_key", integration.Name)
 	}
 	baseURL := integration.Config["base_url"]
@@ -89,7 +109,11 @@ func (a *WebAgent) Run(ctx context.Context, state *State) error {
 		{Role: RoleSystem, Content: systemPrompt},
 		{Role: RoleSystem, Content: dynamicContext},
 	}
-	messages = append(messages, tailMessages(state.ConversationHistory(), 4)...)
+	// Wider history window than the default 4: web-search follow-ups often
+	// depend on trip/city context established in earlier turns ("plan my Berlin
+	// trip" → "what's on there this weekend?"). 10 messages keeps ~3-5 turns
+	// of context without bloating the prompt.
+	messages = append(messages, tailMessages(state.ConversationHistory(), 10)...)
 	messages = append(messages, Message{Role: RoleUser, Content: userMsg})
 
 	tools := []Tool{WebSearchTool, FetchURLTool}
@@ -242,6 +266,15 @@ func (a *WebAgent) executeWebSearch(ctx context.Context, tc ToolCall, client *in
 		IncludeAnswer:  true,
 	})
 	if err != nil {
+		// Audit the failed web_search so "Tavily isn't firing" is diagnosable.
+		a.deps.ToolAuditLogger.Log(ctx, &ToolAuditEntry{
+			ToolName:     "web_search",
+			ToolType:     "web",
+			Agent:        "web",
+			Arguments:    []byte(tc.Function.Arguments),
+			Success:      boolPtr(false),
+			ErrorMessage: strPtr(fmt.Sprintf("web_search failed: %v", err)),
+		})
 		return fmt.Sprintf("Error running web_search: %v", err)
 	}
 
@@ -252,11 +285,28 @@ func (a *WebAgent) executeWebSearch(ctx context.Context, tc ToolCall, client *in
 		fmt.Fprintf(&sb, "Tavily synthesized answer: %s\n\n", result.Answer)
 	}
 	fmt.Fprintf(&sb, "Top %d web results:\n", len(result.Results))
+	topURL := ""
 	for i, r := range result.Results {
+		if i == 0 {
+			topURL = r.URL
+		}
 		fmt.Fprintf(&sb, "\n%d. %s\n   URL: %s\n   %s\n",
 			i+1, r.Title, r.URL, r.Content)
 	}
-	return sb.String()
+	formatted := sb.String()
+
+	// Audit the successful web_search with structured metadata (result count,
+	// top URL) so post-hoc inspection shows what was searched and returned.
+	a.deps.ToolAuditLogger.Log(ctx, &ToolAuditEntry{
+		ToolName:      "web_search",
+		ToolType:      "web",
+		Agent:         "web",
+		Arguments:     []byte(tc.Function.Arguments),
+		Success:       boolPtr(true),
+		ResultSummary: strPtr(fmt.Sprintf("query=%q → %d results", args.Query, len(result.Results))),
+		ResultMeta:    []byte(fmt.Sprintf(`{"query":%q,"results":%d,"top_url":%q}`, args.Query, len(result.Results), topURL)),
+	})
+	return formatted
 }
 
 // executeFetchURL runs a single Tavily /extract call.
@@ -278,13 +328,38 @@ func (a *WebAgent) executeFetchURL(ctx context.Context, tc ToolCall, client *int
 
 	result, err := client.Extract(ctx, integrations.ExtractOptions{URLs: []string{args.URL}})
 	if err != nil {
+		a.deps.ToolAuditLogger.Log(ctx, &ToolAuditEntry{
+			ToolName:     "fetch_url",
+			ToolType:     "web",
+			Agent:        "web",
+			Arguments:    []byte(tc.Function.Arguments),
+			Success:      boolPtr(false),
+			ErrorMessage: strPtr(fmt.Sprintf("fetch_url failed: %v", err)),
+		})
 		return fmt.Sprintf("Error running fetch_url: %v", err)
 	}
 	if len(result.Results) == 0 {
+		a.deps.ToolAuditLogger.Log(ctx, &ToolAuditEntry{
+			ToolName:      "fetch_url",
+			ToolType:      "web",
+			Agent:         "web",
+			Arguments:     []byte(tc.Function.Arguments),
+			Success:       boolPtr(false),
+			ErrorMessage:  strPtr("Tavily returned no results"),
+			ResultSummary: strPtr(fmt.Sprintf("url=%q → no results", args.URL)),
+		})
 		return "Error: Tavily returned no results for this URL"
 	}
 	r := result.Results[0]
 	if r.Failed {
+		a.deps.ToolAuditLogger.Log(ctx, &ToolAuditEntry{
+			ToolName:     "fetch_url",
+			ToolType:     "web",
+			Agent:        "web",
+			Arguments:    []byte(tc.Function.Arguments),
+			Success:      boolPtr(false),
+			ErrorMessage: strPtr(r.Error),
+		})
 		return fmt.Sprintf("Error extracting %s: %s", r.URL, r.Error)
 	}
 	// ponytail: cap content at 8KB so we don't blow the LLM context window.
@@ -294,6 +369,14 @@ func (a *WebAgent) executeFetchURL(ctx context.Context, tc ToolCall, client *int
 	if len(content) > maxLen {
 		content = content[:maxLen] + "\n\n[... content truncated at 8KB ...]"
 	}
+	a.deps.ToolAuditLogger.Log(ctx, &ToolAuditEntry{
+		ToolName:      "fetch_url",
+		ToolType:      "web",
+		Agent:         "web",
+		Arguments:     []byte(tc.Function.Arguments),
+		Success:       boolPtr(true),
+		ResultSummary: strPtr(fmt.Sprintf("url=%q → %d bytes", args.URL, len(r.RawContent))),
+	})
 	return fmt.Sprintf("URL: %s\n\n%s", r.URL, content)
 }
 
@@ -302,7 +385,7 @@ var WebSearchTool = Tool{
 	Type: "function",
 	Function: ToolFunction{
 		Name:        "web_search",
-		Description: "Search the web for current information using Tavily. Use for questions about recent events, current prices/hours, news, documentation, or anything that needs up-to-date info from the internet.\n\nWHEN TO USE:\n- User asks about current events, news, or anything time-sensitive\n- User asks \"what is the latest X\" or \"how do I do X today\"\n- User asks about specific websites, products, or services\n- KB doesn't have the answer and SQL data won't help\n\nWHEN NOT TO USE:\n- The user asks about historical facts that haven't changed\n- The chatbot's knowledge base already has the answer\n- The user is asking about data in the application's own database\n\nReturns: synthesized answer (when available) + top web results with title, URL, and content snippet.",
+			Description: "Search the web for current information using Tavily. Use for questions about recent events, current prices/hours, news, documentation, or anything that needs up-to-date info from the internet.\n\nWHEN TO USE:\n- User asks about current events, news, or anything time-sensitive (\"this weekend\", \"currently\", \"right now\", \"in 2026\", \"what's on\", \"events in {city}\")\n- Opening hours, admission prices, or whether a venue/attraction is open\n- Festivals, exhibitions, or seasonal happenings in a destination\n- User asks \"what is the latest X\" or \"how do I do X today\"\n- User asks about specific websites, products, or services\n- KB doesn't have the answer and SQL data won't help\n\nWHEN NOT TO USE:\n- The user asks about historical facts that haven't changed\n- The chatbot's knowledge base already has the answer\n- The user is asking about data in the application's own database\n\nReturns: synthesized answer (when available) + top web results with title, URL, and content snippet.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

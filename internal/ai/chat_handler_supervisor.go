@@ -70,9 +70,10 @@ func (h *ChatHandler) runSupervisorTurn(ctx context.Context, chatCtx *ChatContex
 		SchemaBuilder:  h.schemaBuilder,
 		RAGService:     h.ragService,
 		MCPExecutor:    h.mcpExecutor,
-		Integrations:   h.integrationsStorage,
-		ChatCtx:        chatCtx,
-		ConversationID: msg.ConversationID,
+		Integrations:     h.integrationsStorage,
+		ChatCtx:          chatCtx,
+		ConversationID:   msg.ConversationID,
+		ToolAuditLogger:  h.toolAuditLogger,
 		Sender: &chatHandlerSender{
 			h:              h,
 			chatCtx:        chatCtx,

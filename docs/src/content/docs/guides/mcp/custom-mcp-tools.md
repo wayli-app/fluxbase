@@ -86,6 +86,10 @@ For tools in non-default namespaces:
 export default `You are a production assistant with access to production tools.`;
 ```
 
+:::note[Supervisor mode]
+Custom tools are exposed to the **action specialist** in supervisor-mode chatbots (the default `@fluxbase:reasoning-mode supervisor`). The action agent is the one that executes user-defined capabilities — list your custom tool in `@fluxbase:mcp-tools` and the supervisor will route applicable requests to it. The `execute:custom` scope is derived automatically; you don't need to configure it separately.
+:::
+
 ## Tool Annotations
 
 All annotations are optional. The `@fluxbase:` prefix is consistent with edge functions and jobs.
