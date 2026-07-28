@@ -277,6 +277,41 @@ describe("QueryBuilder - Pagination", () => {
     expect(fetch.lastUrl).toContain("limit=25");
     expect(fetch.lastUrl).toContain("offset=50");
   });
+
+  it(".range() should set offset and limit", async () => {
+    await builder.range(20, 39).execute();
+    expect(fetch.lastUrl).toContain("offset=20");
+    expect(fetch.lastUrl).toContain("limit=20");
+  });
+
+  it(".range() should return a clone so the base builder can be reused", async () => {
+    // Build a base query, then call .range() multiple times for pagination.
+    const base = builder.select("*").order("id");
+    await base.range(0, 9).execute();
+    expect(fetch.lastUrl).toContain("offset=0");
+    expect(fetch.lastUrl).toContain("limit=10");
+
+    await base.range(10, 19).execute();
+    expect(fetch.lastUrl).toContain("offset=10");
+    expect(fetch.lastUrl).toContain("limit=10");
+
+    await base.range(20, 29).execute();
+    expect(fetch.lastUrl).toContain("offset=20");
+    expect(fetch.lastUrl).toContain("limit=10");
+  });
+
+  it(".clone() should produce an independent copy", async () => {
+    const original = builder.select("*").eq("status", "active").order("id");
+    const copy = original.clone();
+
+    // Mutating the copy's range must not affect the original.
+    await copy.range(10, 19).execute();
+    expect(fetch.lastUrl).toContain("offset=10");
+
+    // Original should still have no offset set.
+    await original.execute();
+    expect(fetch.lastUrl).not.toContain("offset=10");
+  });
 });
 
 describe("QueryBuilder - Insert Operations", () => {

@@ -626,12 +626,58 @@ export class QueryBuilder<T = unknown>
   }
 
   /**
+   * Create a deep copy of this query builder, preserving all filters, ordering,
+   * and state. Useful for paginating: build a base query once, then call
+   * `.range()` on it for each page (`.range()` returns a clone automatically).
+   *
+   * @example
+   * ```typescript
+   * const base = client.from('orders').select('*').eq('status', 'active')
+   * const p1 = await base.clone().range(0, 9)
+   * const p2 = await base.clone().range(10, 19)
+   * ```
+   */
+  clone(): QueryBuilder<T> {
+    const copy = new QueryBuilder<T>(this.fetch, this.table, this.schema);
+    copy.selectQuery = this.selectQuery;
+    copy.filters = [...this.filters];
+    copy.orFilters = [...this.orFilters];
+    copy.andFilters = [...this.andFilters];
+    copy.betweenFilters = [...this.betweenFilters];
+    copy.orderBys = [...this.orderBys];
+    copy.limitValue = this.limitValue;
+    copy.offsetValue = this.offsetValue;
+    copy.singleRow = this.singleRow;
+    copy.maybeSingleRow = this.maybeSingleRow;
+    copy.groupByColumns = this.groupByColumns ? [...this.groupByColumns] : undefined;
+    copy.operationType = this.operationType;
+    copy.countType = this.countType;
+    copy.headOnly = this.headOnly;
+    copy.isCountAggregation = this.isCountAggregation;
+    copy.insertData = this.insertData;
+    copy.updateData = this.updateData;
+    copy.truncateValue = this.truncateValue;
+    return copy;
+  }
+
+  /**
    * Range selection (pagination)
+   *
+   * Returns a **clone** of the builder with the new range applied, so the
+   * original builder can be reused for subsequent pages:
+   *
+   * @example
+   * ```typescript
+   * const base = client.from('orders').select('*').order('id')
+   * const page1 = await base.range(0, 9)    // rows 0-9
+   * const page2 = await base.range(10, 19)  // rows 10-19 (works!)
+   * ```
    */
   range(from: number, to: number): this {
-    this.offsetValue = from;
-    this.limitValue = to - from + 1;
-    return this;
+    const clone = this.clone();
+    clone.offsetValue = from;
+    clone.limitValue = to - from + 1;
+    return clone;
   }
 
   /**
