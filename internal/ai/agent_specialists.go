@@ -257,6 +257,19 @@ func (a *ActionAgent) buildToolList(chatbot *Chatbot) []Tool {
 	mcpDefs := a.deps.MCPExecutor.GetAvailableTools(chatbot)
 	var out []Tool
 	for _, def := range mcpDefs {
+		// Custom tools (registered via `fluxbase mcp tools sync` / the admin UI
+		// as "custom:{name}" / "custom:{ns}:{name}") are always execution-
+		// category capabilities — they're the user-defined actions the action
+		// agent exists to call. Without this they were silently filtered out
+		// (MCPToolInfoMap has no custom:* entries), making the custom-tools
+		// framework unreachable in the default supervisor mode.
+		if isCustomToolName(def.Name) {
+			out = append(out, Tool{
+				Type:     "function",
+				Function: ToolFunction(def),
+			})
+			continue
+		}
 		// Look up the tool's category to decide if it's an action tool.
 		info, ok := MCPToolInfoMap[def.Name]
 		if !ok || info.Category != MCPToolCategoryExecution {
@@ -268,6 +281,12 @@ func (a *ActionAgent) buildToolList(chatbot *Chatbot) []Tool {
 		})
 	}
 	return out
+}
+
+// isCustomToolName reports whether a tool name refers to a user-defined custom
+// tool (prefix "custom:" per internal/mcp/custom/handler.go's Name()).
+func isCustomToolName(name string) bool {
+	return strings.HasPrefix(name, "custom:")
 }
 
 // executeActionTool dispatches one MCP tool call.

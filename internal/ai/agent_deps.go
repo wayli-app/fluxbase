@@ -65,6 +65,11 @@ type AgentDeps struct {
 	// progress events, etc.).
 	ConversationID string
 
+	// ToolAuditLogger records non-SQL tool calls (web_search, fetch_url,
+	// invoke_rpc, invoke_function, custom) to ai.tool_audit_log. Best-effort;
+	// nil in tests that don't need observability.
+	ToolAuditLogger *ToolAuditLogger
+
 	// ── Streaming output to client ──
 
 	// Sender emits ServerMessages to the WebSocket client. nil in tests

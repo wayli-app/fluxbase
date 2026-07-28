@@ -73,6 +73,13 @@ func DeriveScopes(tools []string) []string {
 				scopeSet[scope] = true
 			}
 		}
+		// Custom tools (prefix "custom:") require the execute:custom scope,
+		// which the custom tool handler enforces via RequiredScopes. Without
+		// emitting it here, the derived AuthContext.Scopes omits it and a
+		// correctly-exposed custom tool is rejected at execution time.
+		if strings.HasPrefix(tool, "custom:") {
+			scopeSet["execute:custom"] = true
+		}
 	}
 
 	scopes := make([]string, 0, len(scopeSet))

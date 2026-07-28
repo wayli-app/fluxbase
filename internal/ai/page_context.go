@@ -28,11 +28,15 @@ type PageProfiles map[string]*PageProfile
 // validAgentNames is the closed set of agents a page profile may whitelist.
 // The supervisor itself, synthesizer, and verifier are always available
 // regardless of page whitelist; only the specialist set is constrainable.
+// "web" is included so a page can explicitly opt into web search (it's still
+// also gated by the chatbot's @fluxbase:web-search setting + a configured
+// integration at routing time).
 var validAgentNames = map[string]bool{
 	"sql":    true,
 	"kb":     true,
 	"action": true,
 	"chat":   true,
+	"web":    true,
 }
 
 // pageNamePattern validates page names: alphanumeric, underscore, hyphen only.

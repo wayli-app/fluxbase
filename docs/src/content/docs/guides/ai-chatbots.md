@@ -1009,6 +1009,8 @@ Two-part setup:
 
 When both are set, the supervisor routes current-info questions ("what's the latest X", "what time does Y close today", "find docs for Z") to the Web Agent automatically. No code changes elsewhere.
 
+If the Tavily key is missing or empty, the Web Agent can't run — the supervisor logs an actionable warning and falls back to the ReAct loop (which has no web tool). Check the server logs for `"Web agent routed but no web_search integration resolves"` to confirm the cause, and inspect the [`tool_audit_log`](#observability) table to see whether web searches were actually issued.
+
 See [Multi-Agent Supervisor](./ai-agents.md) for the full architecture, agent reference, and verification details.
 
 ## Page-aware Chatbots
@@ -1109,6 +1111,55 @@ Use **separate chatbots** when:
 - Each page needs a fundamentally different system prompt or personality
 - You want isolated rate limits / token budgets per page
 - Different chatbots need different providers or models
+
+## Observability
+
+Every AI tool call is recorded for post-hoc debugging — so "the chatbot didn't do what I expected" is answerable from data rather than guesswork.
+
+### Tool audit log
+
+SQL queries are logged to `ai.query_audit_log` (the pre-existing table). Non-SQL tool calls — `web_search`, `fetch_url`, `invoke_rpc`, `invoke_function`, and custom tools — are logged to the new `ai.tool_audit_log` table:
+
+| Column | Description |
+|--------|-------------|
+| `tool_name` | The tool invoked (e.g. `web_search`, `custom:wayli:search_feed_posts`) |
+| `tool_type` | Category: `web`, `rpc`, `function`, `custom` |
+| `arguments` | The raw tool-call argument JSON |
+| `success` / `error_message` | Outcome |
+| `result_summary` | Short human-readable result (e.g. `query="berlin events" → 3 results`) |
+| `result_meta` | Structured detail JSON (e.g. `{"results":3,"top_url":"..."}`) |
+| `agent` | Which specialist ran it (`web`, `action`, `react`, …) |
+| `duration_ms` | Execution time |
+
+```sql
+-- "Did the chatbot search the web for this conversation?"
+SELECT tool_name, result_summary, success, created_at
+FROM ai.tool_audit_log
+WHERE conversation_id = '<conv-id>'
+ORDER BY created_at;
+```
+
+### Supervisor metadata
+
+Supervisor-mode turns also persist their routing decision, per-agent outputs, and verification report to `ai.messages.metadata`. This is now surfaced through the user conversations API (`GET /api/v1/ai/conversations/:id`) on each assistant message's `metadata` field, so chat UIs can render a debug panel showing *why* the agent routed the way it did. Look for `metadata.supervisor_plan.route` (the chosen specialists) and `metadata.agent_outputs` (each specialist's final text).
+
+### Diagnosing "web search isn't firing"
+
+1. Check the server logs for `Web agent routed but no web_search integration resolves` → the Tavily key is missing/empty.
+2. Query `ai.tool_audit_log` for the conversation → if there are no `web_search` rows, the supervisor never routed to web (a prompt/routing issue) or the agent was gated off.
+3. Inspect `ai.messages.metadata.supervisor_plan.route` → confirm whether `web` was in the route at all.
+
+## Evaluation harness
+
+The `internal/ai/eval` package + `wayli_routing.eval.json` corpus form a regression guard for **supervisor routing**. Each case pins a (message, page context, expected route) tuple; the harness runs the supervisor against them and fails if a change breaks routing plumbing (page-context whitelisting, state flow, parser).
+
+This is the measurement layer that turns routing tuning from guesswork into a tested decision: edit the corpus at `internal/ai/eval/testdata/*.eval.json`, then run:
+
+```bash
+go test ./internal/ai/ -run TestEvalRoutingCorpus_Deterministic -v
+```
+
+The deterministic mode uses a fake provider returning each case's canned plan — it verifies the parser and page-profile filtering are correct (always-on, no API key needed). To verify a *real LLM* routes correctly from the message alone, add cases and run them against a live fluxbase with a configured provider.
 
 ## Next Steps
 

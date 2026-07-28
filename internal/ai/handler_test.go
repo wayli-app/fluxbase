@@ -1150,7 +1150,5 @@ func TestHandler_SyncChatbots(t *testing.T) {
 	})
 }
 
-// Helper function for pointer creation
-func strPtr(s string) *string {
-	return &s
-}
+// strPtr helper now lives in tool_audit.go (production) so both the agent
+// runtime and tests share one definition.

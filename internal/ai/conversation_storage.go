@@ -37,6 +37,11 @@ type UserMessageDetail struct {
 	Timestamp    time.Time         `json:"timestamp"`
 	QueryResults []UserQueryResult `json:"query_results,omitempty"` // Array of query results for assistant messages
 	Usage        *UserUsageStats   `json:"usage,omitempty"`
+	// Metadata carries the supervisor routing plan, per-agent outputs, and
+	// verify report for assistant messages (see buildSupervisorTurnMetadata).
+	// Exposed so the chat UI can render a debug panel showing WHY the agent
+	// did what it did. nil for non-supervisor / user messages.
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // UserQueryResult represents SQL query results for user API
@@ -255,7 +260,8 @@ func (s *Storage) GetUserConversation(ctx context.Context, userID, conversationI
 			sql_row_count,
 			prompt_tokens,
 			completion_tokens,
-			created_at
+			created_at,
+			metadata
 		FROM ai.messages
 		WHERE conversation_id = $1
 		ORDER BY sequence_number ASC
@@ -276,6 +282,7 @@ func (s *Storage) GetUserConversation(ctx context.Context, userID, conversationI
 			var sqlRowCount *int
 			var promptTokens *int
 			var completionTokens *int
+			var metadataJSON []byte
 
 			err := rows.Scan(
 				&msg.ID,
@@ -288,10 +295,21 @@ func (s *Storage) GetUserConversation(ctx context.Context, userID, conversationI
 				&promptTokens,
 				&completionTokens,
 				&msg.Timestamp,
+				&metadataJSON,
 			)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to scan message")
 				continue
+			}
+
+			// Parse supervisor metadata (routing plan, agent outputs, verify
+			// report). Only present on assistant messages from supervisor-mode
+			// turns. Surface it for the debug panel; ignore parse failures.
+			if metadataJSON != nil {
+				var md map[string]interface{}
+				if err := json.Unmarshal(metadataJSON, &md); err == nil && len(md) > 0 {
+					msg.Metadata = md
+				}
 			}
 
 			if queryResultsJSON != nil {

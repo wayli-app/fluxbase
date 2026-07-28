@@ -23,18 +23,19 @@ import (
 
 // ChatHandler handles WebSocket chat connections
 type ChatHandler struct {
-	storage        *Storage
-	conversations  *ConversationManager
-	schemaBuilder  *SchemaBuilder
-	executor       *Executor
-	auditLogger    *AuditLogger
-	ragService     *RAGService
-	loggingService *logging.Service
-	metrics        *observability.Metrics
-	config         *config.AIConfig
-	providers      map[string]Provider
-	providersMu    sync.RWMutex
-	limiter        *ChatbotLimiter
+	storage         *Storage
+	conversations   *ConversationManager
+	schemaBuilder   *SchemaBuilder
+	executor        *Executor
+	auditLogger     *AuditLogger
+	toolAuditLogger *ToolAuditLogger
+	ragService      *RAGService
+	loggingService  *logging.Service
+	metrics         *observability.Metrics
+	config          *config.AIConfig
+	providers       map[string]Provider
+	providersMu     sync.RWMutex
+	limiter         *ChatbotLimiter
 	// MCP integration
 	mcpExecutor *MCPToolExecutor
 	// Tool integrations (Web Agent). nil when AI is disabled or no
@@ -64,17 +65,18 @@ func NewChatHandler(
 	}
 
 	return &ChatHandler{
-		storage:        storage,
-		conversations:  conversations,
-		schemaBuilder:  NewSchemaBuilder(db),
-		executor:       NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
-		auditLogger:    NewAuditLogger(db),
-		ragService:     ragService,
-		loggingService: loggingService,
-		metrics:        metrics,
-		config:         cfg,
-		providers:      make(map[string]Provider),
-		limiter:        NewChatbotLimiter(),
+		storage:         storage,
+		conversations:   conversations,
+		schemaBuilder:   NewSchemaBuilder(db),
+		executor:        NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
+		auditLogger:     NewAuditLogger(db),
+		toolAuditLogger: NewToolAuditLogger(db),
+		ragService:      ragService,
+		loggingService:  loggingService,
+		metrics:         metrics,
+		config:          cfg,
+		providers:       make(map[string]Provider),
+		limiter:         NewChatbotLimiter(),
 	}
 }
 
