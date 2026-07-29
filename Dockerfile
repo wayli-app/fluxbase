@@ -21,6 +21,9 @@ WORKDIR /build
 COPY package.json bun.lock ./
 COPY sdk/ ./sdk/
 COPY sdk-react/ ./sdk-react/
+COPY sdk-svelte/ ./sdk-svelte/
+COPY sdk-next/ ./sdk-next/
+COPY sdk-vue/ ./sdk-vue/
 COPY admin/ ./admin/
 COPY docs/ ./docs/
 
