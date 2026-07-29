@@ -673,7 +673,7 @@ export class QueryBuilder<T = unknown>
    * const page2 = await base.range(10, 19)  // rows 10-19 (works!)
    * ```
    */
-  range(from: number, to: number): this {
+  range(from: number, to: number): QueryBuilder<T> {
     const clone = this.clone();
     clone.offsetValue = from;
     clone.limitValue = to - from + 1;
