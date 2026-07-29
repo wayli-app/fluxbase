@@ -89,6 +89,156 @@ describe("FluxbaseAuth", () => {
     });
   });
 
+  describe("custom storage adapter", () => {
+    /** Builds an in-memory StorageAdapter that records calls for assertions. */
+    const createAdapter = () => {
+      const store = new Map<string, string>();
+      const calls: string[] = [];
+      return {
+        calls,
+        adapter: {
+          getItem: (k: string) => {
+            calls.push(`get:${k}`);
+            return store.get(k) ?? null;
+          },
+          setItem: (k: string, v: string) => {
+            calls.push(`set:${k}`);
+            store.set(k, v);
+          },
+          removeItem: (k: string) => {
+            calls.push(`remove:${k}`);
+            store.delete(k);
+          },
+        },
+      };
+    };
+
+    it("loads a persisted session from a custom adapter", async () => {
+      const session = {
+        access_token: "custom-token",
+        refresh_token: "custom-refresh",
+        expires_in: 3600,
+        expires_at: Date.now() + 3600 * 1000,
+        token_type: "Bearer",
+        user: { id: "42", email: "custom@example.com", created_at: "" },
+      };
+
+      const { adapter } = createAdapter();
+      adapter.setItem("fluxbase.auth.session", JSON.stringify(session));
+
+      const newAuth = new FluxbaseAuth(mockFetch, true, true, adapter);
+
+      const { data: sessionData } = await newAuth.getSession();
+      expect(sessionData.session).toEqual(session);
+      expect(mockFetch.setAuthToken).toHaveBeenCalledWith("custom-token");
+    });
+
+    it("saves a signed-in session through the custom adapter", async () => {
+      const { adapter, calls } = createAdapter();
+      const newAuth = new FluxbaseAuth(mockFetch, true, true, adapter);
+
+      const authResponse: AuthResponse = {
+        access_token: "access-after-signin",
+        refresh_token: "refresh-after-signin",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: { id: "7", email: "signin@example.com", created_at: "" },
+      };
+
+      (mockFetch.post as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: authResponse,
+        error: null,
+      });
+
+      await newAuth.signIn({ email: "signin@example.com", password: "pw" });
+
+      // Session should have been persisted via the custom adapter.
+      expect(calls).toContain("set:fluxbase.auth.session");
+      expect(adapter.getItem("fluxbase.auth.session")).toContain(
+        "access-after-signin",
+      );
+    });
+
+    it("removes the session from the custom adapter on sign-out", async () => {
+      const session = {
+        access_token: "signout-token",
+        refresh_token: "signout-refresh",
+        expires_in: 3600,
+        expires_at: Date.now() + 3600 * 1000,
+        token_type: "Bearer",
+        user: { id: "9", email: "signout@example.com", created_at: "" },
+      };
+
+      const { adapter, calls } = createAdapter();
+      adapter.setItem("fluxbase.auth.session", JSON.stringify(session));
+
+      const newAuth = new FluxbaseAuth(mockFetch, true, true, adapter);
+
+      // Sanity: adapter has the session.
+      expect(adapter.getItem("fluxbase.auth.session")).not.toBeNull();
+
+      await newAuth.signOut();
+
+      expect(calls).toContain("remove:fluxbase.auth.session");
+      expect(adapter.getItem("fluxbase.auth.session")).toBeNull();
+    });
+
+    it("prefers the custom adapter over localStorage when both are present", async () => {
+      // Seed BOTH stores; only the custom adapter should be read.
+      const localStorageSession = {
+        access_token: "from-localStorage",
+        refresh_token: "r",
+        expires_in: 3600,
+        expires_at: Date.now() + 3600 * 1000,
+        token_type: "Bearer",
+        user: { id: "1", email: "ls@example.com", created_at: "" },
+      };
+      const customSession = {
+        access_token: "from-custom",
+        refresh_token: "r",
+        expires_in: 3600,
+        expires_at: Date.now() + 3600 * 1000,
+        token_type: "Bearer",
+        user: { id: "2", email: "custom@example.com", created_at: "" },
+      };
+
+      localStorage.setItem(
+        "fluxbase.auth.session",
+        JSON.stringify(localStorageSession),
+      );
+
+      const { adapter } = createAdapter();
+      adapter.setItem("fluxbase.auth.session", JSON.stringify(customSession));
+
+      const newAuth = new FluxbaseAuth(mockFetch, true, true, adapter);
+
+      const { data: sessionData } = await newAuth.getSession();
+      expect(sessionData.session?.access_token).toBe("from-custom");
+      // The custom adapter must win, so localStorage must be untouched.
+      expect(localStorage.getItem("fluxbase.auth.session")).toContain(
+        "from-localStorage",
+      );
+    });
+
+    it("falls back to localStorage when no adapter is provided (regression guard)", async () => {
+      // No 4th arg → default behavior: localStorage in this (jsdom-like) env.
+      const session = {
+        access_token: "default-token",
+        refresh_token: "r",
+        expires_in: 3600,
+        expires_at: Date.now() + 3600 * 1000,
+        token_type: "Bearer",
+        user: { id: "3", email: "default@example.com", created_at: "" },
+      };
+      localStorage.setItem("fluxbase.auth.session", JSON.stringify(session));
+
+      const newAuth = new FluxbaseAuth(mockFetch, true, true);
+
+      const { data: sessionData } = await newAuth.getSession();
+      expect(sessionData.session?.access_token).toBe("default-token");
+    });
+  });
+
   describe("signIn()", () => {
     it("should sign in successfully", async () => {
       const authResponse: AuthResponse = {

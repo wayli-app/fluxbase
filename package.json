@@ -8,6 +8,9 @@
     "admin",
     "sdk",
     "sdk-react",
+    "sdk-svelte",
+    "sdk-next",
+    "sdk-vue",
     "docs"
   ],
   "scripts": {

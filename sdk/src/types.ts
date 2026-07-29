@@ -3,6 +3,32 @@
  */
 
 /**
+ * Storage adapter for persisting auth state.
+ *
+ * Implements the same subset of the Web `Storage` interface used by the SDK
+ * (`getItem`, `setItem`, `removeItem`). This lets callers swap the default
+ * `localStorage`/in-memory storage for a custom store — most commonly a
+ * cookie-backed adapter for SSR frameworks (Next.js, SvelteKit, Nuxt) where
+ * the session must be read from an httpOnly cookie on the server.
+ *
+ * @example
+ * ```typescript
+ * import type { StorageAdapter } from '@nimbleflux/fluxbase-sdk'
+ *
+ * const memoryAdapter: StorageAdapter = {
+ *   getItem: (k) => myMap.get(k) ?? null,
+ *   setItem: (k, v) => myMap.set(k, v),
+ *   removeItem: (k) => myMap.delete(k),
+ * }
+ * ```
+ */
+export interface StorageAdapter {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+/**
  * Client configuration options (Supabase-compatible)
  * These options are passed as the third parameter to createClient()
  */
@@ -27,6 +53,17 @@ export interface FluxbaseClientOptions {
      * @default true
      */
     persist?: boolean;
+
+    /**
+     * Custom storage adapter for persisting the auth session.
+     *
+     * When provided, this adapter is always used (over the default
+     * localStorage/in-memory choice) — useful for SSR frameworks that need
+     * to back the session with an httpOnly cookie. When omitted, the SDK
+     * falls back to its default behavior (localStorage in browsers, in-memory
+     * in Node/SSR).
+     */
+    storage?: StorageAdapter;
   };
 
   /**

@@ -720,6 +720,24 @@ jobs:
           jq --arg version "^$VERSION" '.peerDependencies."@nimbleflux/fluxbase-sdk" = $version' sdk-react/package.json > sdk-react/package.json.tmp
           mv sdk-react/package.json.tmp sdk-react/package.json
 
+          # Update sdk-svelte package version + peerDependency
+          jq --arg version "$VERSION" '.version = $version' sdk-svelte/package.json > sdk-svelte/package.json.tmp
+          mv sdk-svelte/package.json.tmp sdk-svelte/package.json
+          jq --arg version "^$VERSION" '.peerDependencies."@nimbleflux/fluxbase-sdk" = $version' sdk-svelte/package.json > sdk-svelte/package.json.tmp
+          mv sdk-svelte/package.json.tmp sdk-svelte/package.json
+
+          # Update sdk-next package version + peerDependency
+          jq --arg version "$VERSION" '.version = $version' sdk-next/package.json > sdk-next/package.json.tmp
+          mv sdk-next/package.json.tmp sdk-next/package.json
+          jq --arg version "^$VERSION" '.peerDependencies."@nimbleflux/fluxbase-sdk" = $version' sdk-next/package.json > sdk-next/package.json.tmp
+          mv sdk-next/package.json.tmp sdk-next/package.json
+
+          # Update sdk-vue package version + peerDependency
+          jq --arg version "$VERSION" '.version = $version' sdk-vue/package.json > sdk-vue/package.json.tmp
+          mv sdk-vue/package.json.tmp sdk-vue/package.json
+          jq --arg version "^$VERSION" '.peerDependencies."@nimbleflux/fluxbase-sdk" = $version' sdk-vue/package.json > sdk-vue/package.json.tmp
+          mv sdk-vue/package.json.tmp sdk-vue/package.json
+
           # Update bun lock file from root (handles workspace properly)
           bun install
 
@@ -734,6 +752,9 @@ jobs:
           git add deploy/.env.example
           git add sdk/package.json bun.lock
           git add sdk-react/package.json
+          git add sdk-svelte/package.json
+          git add sdk-next/package.json
+          git add sdk-vue/package.json
           git add admin/package.json
           git add docs/src/content/docs/cli/installation.md
 
@@ -1182,6 +1203,159 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  publish-npm-sdk-svelte:
+    name: Publish Svelte SDK to NPM
+    needs: get-version
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_npm_sdk
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.18.0"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies (workspace)
+        run: bun install --frozen-lockfile
+
+      - name: Build core SDK
+        working-directory: ./sdk
+        run: bun run build
+
+      - name: Build Svelte SDK
+        working-directory: ./sdk-svelte
+        run: bun run build
+
+      - name: Publish Svelte SDK
+        working-directory: ./sdk-svelte
+        run: |
+          # Update version in package.json directly using jq
+          VERSION="${{ needs.get-version.outputs.version }}"
+          jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          # Update peerDependencies to reference the new SDK version
+          jq --arg version "^$VERSION" '.peerDependencies."@nimbleflux/fluxbase-sdk" = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          # Use 'rc' tag for pre-releases, 'latest' for stable releases
+          if [ "${{ needs.get-version.outputs.is_prerelease }}" = "true" ]; then
+            npm publish --access public --tag rc
+          else
+            npm publish --access public --tag latest
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-npm-sdk-next:
+    name: Publish Next.js SDK to NPM
+    needs: get-version
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_npm_sdk
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.18.0"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies (workspace)
+        run: bun install --frozen-lockfile
+
+      - name: Build core SDK
+        working-directory: ./sdk
+        run: bun run build
+
+      - name: Build Next.js SDK
+        working-directory: ./sdk-next
+        run: bun run build
+
+      - name: Publish Next.js SDK
+        working-directory: ./sdk-next
+        run: |
+          # Update version in package.json directly using jq
+          VERSION="${{ needs.get-version.outputs.version }}"
+          jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          # Update peerDependencies to reference the new SDK version
+          jq --arg version "^$VERSION" '.peerDependencies."@nimbleflux/fluxbase-sdk" = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          # Use 'rc' tag for pre-releases, 'latest' for stable releases
+          if [ "${{ needs.get-version.outputs.is_prerelease }}" = "true" ]; then
+            npm publish --access public --tag rc
+          else
+            npm publish --access public --tag latest
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-npm-sdk-vue:
+    name: Publish Vue SDK to NPM
+    needs: get-version
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_npm_sdk
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.18.0"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies (workspace)
+        run: bun install --frozen-lockfile
+
+      - name: Build core SDK
+        working-directory: ./sdk
+        run: bun run build
+
+      - name: Build Vue SDK
+        working-directory: ./sdk-vue
+        run: bun run build
+
+      - name: Publish Vue SDK
+        working-directory: ./sdk-vue
+        run: |
+          # Update version in package.json directly using jq
+          VERSION="${{ needs.get-version.outputs.version }}"
+          jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          # Update peerDependencies to reference the new SDK version
+          jq --arg version "^$VERSION" '.peerDependencies."@nimbleflux/fluxbase-sdk" = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          # Use 'rc' tag for pre-releases, 'latest' for stable releases
+          if [ "${{ needs.get-version.outputs.is_prerelease }}" = "true" ]; then
+            npm publish --access public --tag rc
+          else
+            npm publish --access public --tag latest
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   publish-go-module:
     name: Publish Go Module
     needs: get-version
@@ -1503,6 +1677,9 @@ jobs:
         publish-docker-manifest,
         publish-npm-sdk,
         publish-npm-sdk-react,
+        publish-npm-sdk-svelte,
+        publish-npm-sdk-next,
+        publish-npm-sdk-vue,
       ]
     runs-on: ubuntu-latest
     if: |
@@ -1608,6 +1785,93 @@ jobs:
             echo "::warning::React SDK installation verification failed"
           fi
 
+      - name: Test NPM Svelte SDK installation
+        if: needs.publish-npm-sdk-svelte.result == 'success'
+        run: |
+          VERSION="${{ needs.get-version.outputs.version }}"
+
+          echo "Testing NPM Svelte SDK installation: @nimbleflux/fluxbase-sdk-svelte@${VERSION}"
+
+          mkdir -p /tmp/sdk-svelte-test
+          cd /tmp/sdk-svelte-test
+          npm init -y
+          sleep 10
+
+          for i in 1 2 3; do
+            if npm install @nimbleflux/fluxbase-sdk-svelte@${VERSION}; then
+              echo "✅ Svelte SDK installed successfully"
+              break
+            else
+              echo "Attempt $i failed, retrying in 30s..."
+              sleep 30
+            fi
+          done
+
+          if [ -d "node_modules/@nimbleflux/fluxbase-sdk-svelte" ]; then
+            echo "✅ NPM Svelte SDK smoke test passed"
+            npm list @nimbleflux/fluxbase-sdk-svelte
+          else
+            echo "::warning::Svelte SDK installation verification failed"
+          fi
+
+      - name: Test NPM Next.js SDK installation
+        if: needs.publish-npm-sdk-next.result == 'success'
+        run: |
+          VERSION="${{ needs.get-version.outputs.version }}"
+
+          echo "Testing NPM Next.js SDK installation: @nimbleflux/fluxbase-sdk-next@${VERSION}"
+
+          mkdir -p /tmp/sdk-next-test
+          cd /tmp/sdk-next-test
+          npm init -y
+          sleep 10
+
+          for i in 1 2 3; do
+            if npm install @nimbleflux/fluxbase-sdk-next@${VERSION}; then
+              echo "✅ Next.js SDK installed successfully"
+              break
+            else
+              echo "Attempt $i failed, retrying in 30s..."
+              sleep 30
+            fi
+          done
+
+          if [ -d "node_modules/@nimbleflux/fluxbase-sdk-next" ]; then
+            echo "✅ NPM Next.js SDK smoke test passed"
+            npm list @nimbleflux/fluxbase-sdk-next
+          else
+            echo "::warning::Next.js SDK installation verification failed"
+          fi
+
+      - name: Test NPM Vue SDK installation
+        if: needs.publish-npm-sdk-vue.result == 'success'
+        run: |
+          VERSION="${{ needs.get-version.outputs.version }}"
+
+          echo "Testing NPM Vue SDK installation: @nimbleflux/fluxbase-sdk-vue@${VERSION}"
+
+          mkdir -p /tmp/sdk-vue-test
+          cd /tmp/sdk-vue-test
+          npm init -y
+          sleep 10
+
+          for i in 1 2 3; do
+            if npm install @nimbleflux/fluxbase-sdk-vue@${VERSION}; then
+              echo "✅ Vue SDK installed successfully"
+              break
+            else
+              echo "Attempt $i failed, retrying in 30s..."
+              sleep 30
+            fi
+          done
+
+          if [ -d "node_modules/@nimbleflux/fluxbase-sdk-vue" ]; then
+            echo "✅ NPM Vue SDK smoke test passed"
+            npm list @nimbleflux/fluxbase-sdk-vue
+          else
+            echo "::warning::Vue SDK installation verification failed"
+          fi
+
       - name: Report smoke test results
         if: always()
         env:
@@ -1624,6 +1888,9 @@ jobs:
           | Docker Image | ${{ needs.publish-docker-manifest.result == 'success' && '✅ Verified' || '⏭️ Skipped' }} |
           | NPM SDK | ${{ needs.publish-npm-sdk.result == 'success' && '✅ Verified' || '⏭️ Skipped' }} |
           | NPM React SDK | ${{ needs.publish-npm-sdk-react.result == 'success' && '✅ Verified' || '⏭️ Skipped' }} |
+          | NPM Svelte SDK | ${{ needs.publish-npm-sdk-svelte.result == 'success' && '✅ Verified' || '⏭️ Skipped' }} |
+          | NPM Next.js SDK | ${{ needs.publish-npm-sdk-next.result == 'success' && '✅ Verified' || '⏭️ Skipped' }} |
+          | NPM Vue SDK | ${{ needs.publish-npm-sdk-vue.result == 'success' && '✅ Verified' || '⏭️ Skipped' }} |
 
           *Smoke tests completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
 

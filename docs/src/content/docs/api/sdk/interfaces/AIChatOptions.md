@@ -11,6 +11,7 @@ Chat connection options
 
 | Property | Type | Description |
 | ------ | ------ | ------ |
+| <a id="onagentthought"></a> `onAgentThought?` | (`thought`, `conversationId`) => `void` | Callback for agent thought events (supervisor mode only). Fires for each piece of agent reasoning: routing plan, streamed thought chunk, tool call decision, or tool result summary. Use this to render a "thought process" stream alongside the final response. Suppressed server-side when the chatbot has @fluxbase:show-reasoning false — only reasoning chunks are gated, tool_call/tool_result/plan events always fire so users see actions. |
 | <a id="onagenttransition"></a> `onAgentTransition?` | (`transition`, `conversationId`) => `void` | Callback for agent transition events (supervisor mode only). Fires when the supervisor routes to a specialist agent, when one agent hands off to another, and when the synthesizer/verifier engage. Use this to render the multi-agent flow as observable UI. |
 | <a id="oncontent"></a> `onContent?` | (`delta`, `conversationId`) => `void` | Callback for content chunks (streaming) |
 | <a id="ondone"></a> `onDone?` | (`usage`, `conversationId`, `extras?`) => `void` | Callback when message is complete |

@@ -12,6 +12,7 @@ AI chat server message
 | Property | Type | Description |
 | ------ | ------ | ------ |
 | <a id="agent"></a> `agent?` | `string` | Currently-active specialist agent name, on agent_transition events. |
+| <a id="agent_thought"></a> `agent_thought?` | `AIAgentThought` | Agent thought payload, present on agent_thought events (supervisor mode). |
 | <a id="agent_transition"></a> `agent_transition?` | `AIAgentTransition` | Agent transition payload, present on agent_transition events (supervisor mode). |
 | <a id="chatbot"></a> `chatbot?` | `string` | - |
 | <a id="code"></a> `code?` | `string` | - |
@@ -28,5 +29,5 @@ AI chat server message
 | <a id="row_count"></a> `row_count?` | `number` | - |
 | <a id="step"></a> `step?` | `string` | - |
 | <a id="summary"></a> `summary?` | `string` | - |
-| <a id="type"></a> `type` | `"error"` \| `"cancelled"` \| `"chat_started"` \| `"progress"` \| `"content"` \| `"query_result"` \| `"tool_result"` \| `"agent_transition"` \| `"done"` | - |
+| <a id="type"></a> `type` | `"error"` \| `"cancelled"` \| `"tool_result"` \| `"chat_started"` \| `"progress"` \| `"content"` \| `"query_result"` \| `"agent_transition"` \| `"agent_thought"` \| `"done"` | - |
 | <a id="usage"></a> `usage?` | [`AIUsageStats`](/api/sdk/interfaces/aiusagestats/) | - |

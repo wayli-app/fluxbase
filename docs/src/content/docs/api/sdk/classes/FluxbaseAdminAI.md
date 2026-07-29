@@ -46,6 +46,25 @@ Promise resolving to { data, error } tuple
 
 ***
 
+### createIntegration()
+
+> **createIntegration**(`request`): `Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Create a new tool integration. api_key in config is encrypted at the
+storage layer; never appears in plaintext in API responses.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`CreateToolIntegrationRequest`](/api/sdk/interfaces/createtoolintegrationrequest/) |
+
+#### Returns
+
+`Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+***
+
 ### createProvider()
 
 > **createProvider**(`params`): `Promise`\<\{ `data`: [`AIProvider`](/api/sdk/interfaces/aiprovider/) \| `null`; `error`: `Error` \| `null`; \}\>
@@ -97,6 +116,25 @@ const { data, error } = await client.admin.ai.deleteChatbot('uuid')
 
 ***
 
+### deleteIntegration()
+
+> **deleteIntegration**(`id`): `Promise`\<\{ `error`: `Error` \| `null`; \}\>
+
+Delete a tool integration. Refuses to delete read-only integrations
+configured via env/YAML.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `id` | `string` |
+
+#### Returns
+
+`Promise`\<\{ `error`: `Error` \| `null`; \}\>
+
+***
+
 ### deleteProvider()
 
 > **deleteProvider**(`id`): `Promise`\<\{ `data`: `null`; `error`: `Error` \| `null`; \}\>
@@ -143,6 +181,24 @@ if (data) {
   console.log('Chatbot:', data.name)
 }
 ```
+
+***
+
+### getIntegration()
+
+> **getIntegration**(`id`): `Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Get a single tool integration by ID.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `id` | `string` |
+
+#### Returns
+
+`Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 ***
 
@@ -289,6 +345,31 @@ if (data) {
 
 ***
 
+### listIntegrations()
+
+> **listIntegrations**(`params?`): `Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/)[] \| `null`; `error`: `Error` \| `null`; \}\>
+
+List tool integrations, optionally filtered by integration_type.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `params?` | \{ `integration_type?`: [`IntegrationType`](/api/sdk/type-aliases/integrationtype/); \} |
+| `params.integration_type?` | [`IntegrationType`](/api/sdk/type-aliases/integrationtype/) |
+
+#### Returns
+
+`Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/)[] \| `null`; `error`: `Error` \| `null`; \}\>
+
+#### Example
+
+```ts
+const { data, error } = await client.admin.ai.listIntegrations({ integration_type: "web_search" })
+```
+
+***
+
 ### listProviders()
 
 > **listProviders**(): `Promise`\<\{ `data`: [`AIProvider`](/api/sdk/interfaces/aiprovider/)[] \| `null`; `error`: `Error` \| `null`; \}\>
@@ -309,6 +390,26 @@ if (data) {
   console.log('Providers:', data.map(p => p.name))
 }
 ```
+
+***
+
+### setDefaultIntegration()
+
+> **setDefaultIntegration**(`id`): `Promise`\<\{ `error`: `Error` \| `null`; \}\>
+
+Mark an integration as the default for its integration_type within
+the current tenant. The server clears any prior default in the same
+transaction.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `id` | `string` |
+
+#### Returns
+
+`Promise`\<\{ `error`: `Error` \| `null`; \}\>
 
 ***
 
@@ -402,6 +503,33 @@ if (data) {
 
 ***
 
+### testIntegration()
+
+> **testIntegration**(`id`): `Promise`\<\{ `data`: [`TestToolIntegrationResult`](/api/sdk/interfaces/testtoolintegrationresult/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Test an integration by running a real "hello world" call against
+its provider. Stores last_tested_at + last_test_status + error
+on the integration row so the admin UI can display health.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `id` | `string` |
+
+#### Returns
+
+`Promise`\<\{ `data`: [`TestToolIntegrationResult`](/api/sdk/interfaces/testtoolintegrationresult/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+#### Example
+
+```ts
+const { data, error } = await client.admin.ai.testIntegration(integrationId)
+if (data?.status === "ok") { console.log("Tavily credentials verified") }
+```
+
+***
+
 ### toggleChatbot()
 
 > **toggleChatbot**(`id`, `enabled`): `Promise`\<\{ `data`: [`AIChatbot`](/api/sdk/interfaces/aichatbot/) \| `null`; `error`: `Error` \| `null`; \}\>
@@ -485,6 +613,27 @@ const { data, error } = await client.admin.ai.updateChatbotKnowledgeBase(
   { max_chunks: 10, enabled: true }
 )
 ```
+
+***
+
+### updateIntegration()
+
+> **updateIntegration**(`id`, `request`): `Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Update an existing tool integration. Passing config.api_key =
+"***masked***" preserves the existing encrypted value (useful when
+the admin changes only the name and not the API key).
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `id` | `string` |
+| `request` | [`UpdateToolIntegrationRequest`](/api/sdk/interfaces/updatetoolintegrationrequest/) |
+
+#### Returns
+
+`Promise`\<\{ `data`: [`ToolIntegration`](/api/sdk/interfaces/toolintegration/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 ***
 

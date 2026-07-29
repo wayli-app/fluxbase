@@ -12,6 +12,7 @@ Chat event data
 | Property | Type | Description |
 | ------ | ------ | ------ |
 | <a id="agent"></a> `agent?` | `string` | Currently-active specialist agent name, on agent_transition events. |
+| <a id="agentthought"></a> `agentThought?` | `AIAgentThought` | Agent thought payload, present on agent_thought events (supervisor mode). |
 | <a id="agenttransition"></a> `agentTransition?` | `AIAgentTransition` | Agent transition payload, present on agent_transition events (supervisor mode). |
 | <a id="chatbot"></a> `chatbot?` | `string` | - |
 | <a id="code"></a> `code?` | `string` | - |

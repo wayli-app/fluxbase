@@ -5,6 +5,6 @@ prev: false
 title: "AIProviderType"
 ---
 
-> **AIProviderType** = `"openai"` \| `"azure"` \| `"ollama"`
+> **AIProviderType** = `"openai"` \| `"azure"` \| `"ollama"` \| `"anthropic"`
 
 AI provider type

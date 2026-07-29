@@ -1,0 +1,69 @@
+{
+  "name": "@nimbleflux/fluxbase-sdk-svelte",
+  "version": "2026.7.3-rc.24",
+  "description": "Svelte stores and SvelteKit SSR helpers for Fluxbase SDK",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "fluxbase",
+    "svelte",
+    "sveltekit",
+    "stores",
+    "database",
+    "realtime",
+    "ssr"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nimbleflux/fluxbase"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@nimbleflux/fluxbase-sdk": "^2026.7.3-rc.24",
+    "@tanstack/svelte-query": "^5.90.0",
+    "svelte": "^4.0.0 || ^5.0.0"
+  },
+  "devDependencies": {
+    "@nimbleflux/fluxbase-sdk": "workspace:*",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@testing-library/svelte": "^4.2.3",
+    "@tanstack/svelte-query": "^5.90.0",
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.9.4",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.1.1",
+    "tsup": "^8.5.1",
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "engines": {
+    "node": ">=24.18.0"
+  }
+}

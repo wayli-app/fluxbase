@@ -145,6 +145,32 @@ if (error) {
 console.log(data);
 ```
 
+## SSR / Custom Storage Adapter
+
+For server-side-rendered frameworks (Next.js, SvelteKit, Nuxt), the auth session
+is best backed by an **httpOnly cookie** rather than `localStorage`. Provide a
+`StorageAdapter` to `auth.storage` to take full control of where the session is
+persisted:
+
+```typescript
+import { createClient, type StorageAdapter } from "@nimbleflux/fluxbase-sdk";
+
+const cookieStorage: StorageAdapter = {
+  getItem: (key) => readCookie(key), // e.g. from the incoming request
+  setItem: (key, value) => writeCookie(key, value, { httpOnly: true, sameSite: "lax" }),
+  removeItem: (key) => deleteCookie(key),
+};
+
+const client = createClient({
+  url: process.env.FLUXBASE_URL!,
+  auth: { storage: cookieStorage },
+});
+```
+
+When `auth.storage` is provided it takes precedence over the default
+(`localStorage` in browsers, in-memory in Node/SSR). The framework-specific
+SDKs ship ready-made cookie adapters for their platforms.
+
 ## Next Steps
 
 - [Advanced Features](../advanced-features) — Aggregations, vector search, batch operations

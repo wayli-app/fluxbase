@@ -9,7 +9,7 @@ title: "FluxbaseAuth"
 
 ### Constructor
 
-> **new FluxbaseAuth**(`fetch`, `autoRefresh?`, `persist?`): `FluxbaseAuth`
+> **new FluxbaseAuth**(`fetch`, `autoRefresh?`, `persist?`, `storage?`): `FluxbaseAuth`
 
 #### Parameters
 
@@ -18,6 +18,7 @@ title: "FluxbaseAuth"
 | `fetch` | [`FluxbaseFetch`](/api/sdk/classes/fluxbasefetch/) | `undefined` |
 | `autoRefresh` | `boolean` | `true` |
 | `persist` | `boolean` | `true` |
+| `storage?` | [`StorageAdapter`](/api/sdk/interfaces/storageadapter/) | `undefined` |
 
 #### Returns
 

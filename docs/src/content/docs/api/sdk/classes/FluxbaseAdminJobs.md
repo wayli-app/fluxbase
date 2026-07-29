@@ -136,7 +136,7 @@ if (data) {
 
 ### getJob()
 
-> **getJob**(`jobId`): `Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+> **getJob**(`jobId`): `Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Get details of a specific job (execution)
 
@@ -148,7 +148,7 @@ Get details of a specific job (execution)
 
 #### Returns
 
-`Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with job details
 
@@ -223,7 +223,7 @@ if (data) {
 
 ### listJobs()
 
-> **listJobs**(`filters?`): `Promise`\<\{ `data`: `Job`[] \| `null`; `error`: `Error` \| `null`; \}\>
+> **listJobs**(`filters?`): `Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/)[] \| `null`; `error`: `Error` \| `null`; \}\>
 
 List all jobs (executions) across all namespaces (admin view)
 
@@ -240,7 +240,7 @@ List all jobs (executions) across all namespaces (admin view)
 
 #### Returns
 
-`Promise`\<\{ `data`: `Job`[] \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/)[] \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with array of jobs
 
@@ -311,7 +311,7 @@ if (data) {
 
 ### retry()
 
-> **retry**(`jobId`): `Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+> **retry**(`jobId`): `Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Retry a failed job
 
@@ -323,7 +323,7 @@ Retry a failed job
 
 #### Returns
 
-`Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with new job
 
