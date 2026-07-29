@@ -46,9 +46,9 @@ func TestIsAdminUser(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "service_role",
+			name:     "service_role bypasses caps (BYPASSRLS, no security purpose in capping)",
 			role:     "service_role",
-			expected: false,
+			expected: true,
 		},
 		{
 			name:     "empty string",
