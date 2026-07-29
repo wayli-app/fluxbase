@@ -44,24 +44,24 @@
   },
   "peerDependencies": {
     "@nimbleflux/fluxbase-sdk": "^2026.7.3-rc.24",
-    "@tanstack/svelte-query": "^5.90.0",
+    "@tanstack/svelte-query": "^6.1.36",
     "svelte": "^4.0.0 || ^5.0.0"
   },
   "devDependencies": {
     "@nimbleflux/fluxbase-sdk": "workspace:*",
-    "@sveltejs/vite-plugin-svelte": "^7.0.0",
-    "@testing-library/svelte": "^4.2.3",
-    "@tanstack/svelte-query": "^5.90.0",
-    "@types/node": "^24.0.0",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@testing-library/svelte": "^5.4.2",
+    "@tanstack/svelte-query": "^6.1.36",
+    "@types/node": "^26.1.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "jsdom": "^29.1.1",
-    "prettier": "^3.9.4",
+    "prettier": "^3.9.5",
     "svelte": "^5.0.0",
-    "svelte-check": "^4.1.1",
+    "svelte-check": "^4.7.2",
     "tsup": "^8.5.1",
-    "typedoc": "^0.28.19",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "typedoc": "^0.28.20",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=24.18.0"
