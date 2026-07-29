@@ -4,6 +4,34 @@ entries:
   - annotations:
       artifacthub.io/prerelease: "true"
     apiVersion: v2
+    appVersion: 2026.7.3-rc.25
+    created: "2026-07-29T16:35:50.246124675Z"
+    description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
+      PostgreSQL
+    digest: 12c320ee001b402b9d4d0b51cdf998236750f909dcf3f9fe73f8e7910bfc634d
+    home: https://github.com/nimbleflux/fluxbase
+    icon: https://raw.githubusercontent.com/nimbleflux/fluxbase/main/docs/src/assets/logo.svg
+    keywords:
+    - backend
+    - baas
+    - postgresql
+    - rest-api
+    - realtime
+    - storage
+    - auth
+    maintainers:
+    - email: hello@fluxbase.io
+      name: Fluxbase Team
+    name: fluxbase
+    sources:
+    - https://github.com/nimbleflux/fluxbase
+    type: application
+    urls:
+    - https://nimbleflux.github.io/fluxbase/fluxbase-2026.7.3-rc.25.tgz
+    version: 2026.7.3-rc.25
+  - annotations:
+      artifacthub.io/prerelease: "true"
+    apiVersion: v2
     appVersion: 2026.7.3-rc.24
     created: "2026-07-29T04:48:42.702890433Z"
     description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
@@ -7891,4 +7919,4 @@ entries:
     urls:
     - https://fluxbase-eu.github.io/fluxbase/fluxbase-0.0.1-rc.51.tgz
     version: 0.0.1-rc.51
-generated: "2026-07-29T04:48:42.69961664Z"
+generated: "2026-07-29T16:35:50.242592013Z"
