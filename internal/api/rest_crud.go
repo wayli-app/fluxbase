@@ -17,7 +17,7 @@ import (
 // isAdminUser checks if the request is from an admin or instance_admin user
 func isAdminUser(c fiber.Ctx) bool {
 	role, ok := c.Locals("user_role").(string)
-	return ok && (role == "admin" || role == "instance_admin" || role == "tenant_service")
+	return ok && (role == "admin" || role == "instance_admin" || role == "tenant_service" || role == "service_role")
 }
 
 // injectTenantID adds tenant_id from the current tenant context into the
