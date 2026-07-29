@@ -17,7 +17,7 @@ export function createStorageList(
 ) {
   const tenantId = client.getTenantId();
   return createQuery(
-    {
+    () => ({
       queryKey: [
         "fluxbase",
         tenantId ?? null,
@@ -30,8 +30,8 @@ export function createStorageList(
         if (error) throw error;
         return data ?? [];
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
@@ -39,26 +39,26 @@ export function createStorageList(
 export function createStorageBuckets({ client, queryClient }: StoreDeps) {
   const tenantId = client.getTenantId();
   return createQuery(
-    {
+    () => ({
       queryKey: ["fluxbase", tenantId ?? null, "storage", "buckets"],
       queryFn: async () => {
         const { data, error } = await client.storage.listBuckets();
         if (error) throw error;
         return data ?? [];
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
-/** Upload a file, then invalidate the bucket's file list. */
+/** Upload a file, then invalidate the bucket's files list. */
 export function createStorageUpload(
   { client, queryClient }: StoreDeps,
   bucket: string,
 ) {
   const tenantId = client.getTenantId();
   return createMutation(
-    {
+    () => ({
       mutationFn: async (params: { path: string; file: Blob | File }) => {
         const { data, error } = await client.storage
           .from(bucket)
@@ -71,8 +71,8 @@ export function createStorageUpload(
           queryKey: ["fluxbase", tenantId ?? null, "storage", bucket],
         });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
@@ -82,7 +82,7 @@ export function createStorageDownload(
   bucket: string,
 ) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (path: string) => {
         const { data, error } = await client.storage
           .from(bucket)
@@ -90,19 +90,19 @@ export function createStorageDownload(
         if (error) throw error;
         return data;
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
-/** Delete a file, then invalidate the bucket's file list. */
+/** Delete a file, then invalidate the bucket's files list. */
 export function createStorageDelete(
   { client, queryClient }: StoreDeps,
   bucket: string,
 ) {
   const tenantId = client.getTenantId();
   return createMutation(
-    {
+    () => ({
       mutationFn: async (paths: string | string[]) => {
         const { error } = await client.storage.from(bucket).remove(
           Array.isArray(paths) ? paths : [paths],
@@ -114,8 +114,8 @@ export function createStorageDelete(
           queryKey: ["fluxbase", tenantId ?? null, "storage", bucket],
         });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 

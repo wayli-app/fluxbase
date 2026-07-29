@@ -79,6 +79,12 @@
       "matchManagers": ["npm"]
     },
     {
+      "description": "Pin typescript to v6 until typescript-eslint and rollup-plugin-dts support v7",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "6.x",
+      "matchManagers": ["npm"]
+    },
+    {
       "description": "Allow both elasticsearch v8 and v9 as separate major versions",
       "matchPackageNames": [
         "github.com/elastic/go-elasticsearch/v8",

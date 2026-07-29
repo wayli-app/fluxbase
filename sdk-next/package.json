@@ -40,17 +40,17 @@
   },
   "peerDependencies": {
     "@nimbleflux/fluxbase-sdk": "^2026.7.3-rc.24",
-    "next": "^14.0.0 || ^15.0.0",
+    "next": "^14.0.0 || ^15.0.0 || ^16.0.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@nimbleflux/fluxbase-sdk": "workspace:*",
-    "@types/node": "^24.0.0",
-    "@types/react": "^19.0.0",
-    "prettier": "^3.9.4",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "prettier": "^3.9.5",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=24.18.0"

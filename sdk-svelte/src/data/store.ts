@@ -44,7 +44,7 @@ export function createFluxbaseQuery<T = any>(
     : ["fluxbase", tenantId ?? null, "query", "unstable"];
 
   return createQuery(
-    {
+    () => ({
       queryKey,
       queryFn: async () => {
         const query = buildQuery(client);
@@ -53,8 +53,8 @@ export function createFluxbaseQuery<T = any>(
         return (Array.isArray(data) ? data : data ? [data] : []) as T[];
       },
       ...queryOptions,
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
@@ -97,7 +97,7 @@ export function createInsertMutation<T = any>(
   tableName: string,
 ) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (data: Partial<T> | Partial<T>[]) => {
         const query = client.from<T>(tableName);
         const { data: result, error } = await query.insert(data as Partial<T>);
@@ -110,8 +110,8 @@ export function createInsertMutation<T = any>(
           queryKey: ["fluxbase", tenantId ?? null, "table", tableName],
         });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
@@ -121,7 +121,7 @@ export function createUpdateMutation<T = any>(
   tableName: string,
 ) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (params: {
         data: Partial<T>;
         buildQuery: (query: QueryBuilder<T>) => QueryBuilder<T>;
@@ -138,8 +138,8 @@ export function createUpdateMutation<T = any>(
           queryKey: ["fluxbase", tenantId ?? null, "table", tableName],
         });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
@@ -149,7 +149,7 @@ export function createUpsertMutation<T = any>(
   tableName: string,
 ) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (data: Partial<T> | Partial<T>[]) => {
         const query = client.from<T>(tableName);
         const { data: result, error } = await query.upsert(data as Partial<T>);
@@ -162,8 +162,8 @@ export function createUpsertMutation<T = any>(
           queryKey: ["fluxbase", tenantId ?? null, "table", tableName],
         });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
@@ -173,7 +173,7 @@ export function createDeleteMutation<T = any>(
   tableName: string,
 ) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (
         buildQuery: (query: QueryBuilder<T>) => QueryBuilder<T>,
       ) => {
@@ -188,7 +188,7 @@ export function createDeleteMutation<T = any>(
           queryKey: ["fluxbase", tenantId ?? null, "table", tableName],
         });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
