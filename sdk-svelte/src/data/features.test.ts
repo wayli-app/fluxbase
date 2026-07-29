@@ -1,11 +1,11 @@
 /**
  * Tests for the feature store factories (functions, jobs, branches, rpc).
  *
- * svelte-query stores are unwrapped with `get()` from `svelte/store`.
+ * `@tanstack/svelte-query` v6 is runes-based, so each factory runs inside a
+ * rendered component (via `renderStore`) and its result is read directly.
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { get } from "svelte/store";
 import {
   createInvokeFunction,
   createSubmitJob,
@@ -16,6 +16,7 @@ import {
 import {
   createMockClient,
   createTestQueryClient,
+  renderStore,
 } from "../test-utils";
 
 describe("createInvokeFunction", () => {
@@ -27,8 +28,10 @@ describe("createInvokeFunction", () => {
     });
     const queryClient = createTestQueryClient();
 
-    const mutation = createInvokeFunction({ client, queryClient });
-    await get(mutation).mutateAsync({ name: "hello", options: { body: { a: 1 } } });
+    const mutation = renderStore(() =>
+      createInvokeFunction({ client, queryClient }),
+    );
+    await mutation.mutateAsync({ name: "hello", options: { body: { a: 1 } } });
 
     expect(client.functions.invoke).toHaveBeenCalledWith("hello", {
       body: { a: 1 },
@@ -45,8 +48,10 @@ describe("createInvokeFunction", () => {
     });
     const queryClient = createTestQueryClient();
 
-    const mutation = createInvokeFunction({ client, queryClient });
-    await expect(get(mutation).mutateAsync({ name: "bad" })).rejects.toThrow(
+    const mutation = renderStore(() =>
+      createInvokeFunction({ client, queryClient }),
+    );
+    await expect(mutation.mutateAsync({ name: "bad" })).rejects.toThrow(
       "fn failed",
     );
   });
@@ -65,8 +70,10 @@ describe("createSubmitJob", () => {
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const mutation = createSubmitJob({ client, queryClient });
-    await get(mutation).mutateAsync({ function: "work" } as any);
+    const mutation = renderStore(() =>
+      createSubmitJob({ client, queryClient }),
+    );
+    await mutation.mutateAsync({ function: "work" } as any);
 
     expect(client.jobs.submit).toHaveBeenCalled();
     expect(invalidateSpy).toHaveBeenCalledWith({
@@ -111,8 +118,10 @@ describe("createCreateBranch", () => {
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const mutation = createCreateBranch({ client, queryClient });
-    await get(mutation).mutateAsync({ slug: "x" } as any);
+    const mutation = renderStore(() =>
+      createCreateBranch({ client, queryClient }),
+    );
+    await mutation.mutateAsync({ slug: "x" } as any);
 
     expect(client.branching.create).toHaveBeenCalled();
     expect(invalidateSpy).toHaveBeenCalledWith({
@@ -134,8 +143,10 @@ describe("createInvokeRPC", () => {
     });
     const queryClient = createTestQueryClient();
 
-    const mutation = createInvokeRPC({ client, queryClient });
-    await get(mutation).mutateAsync({ name: "calc", params: { x: 1 } });
+    const mutation = renderStore(() =>
+      createInvokeRPC({ client, queryClient }),
+    );
+    await mutation.mutateAsync({ name: "calc", params: { x: 1 } });
 
     expect(invokeMock).toHaveBeenCalledWith("calc", { x: 1 }, undefined);
   });

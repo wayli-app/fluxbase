@@ -1,11 +1,11 @@
 /**
  * Tests for the auth store factories.
  *
- * svelte-query stores are unwrapped with `get()` from `svelte/store`.
+ * `@tanstack/svelte-query` v6 is runes-based, so each factory runs inside a
+ * rendered component (via `renderStore`) and its result is read directly.
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { get } from "svelte/store";
 import { flushSync } from "svelte";
 import {
   createSessionStore,
@@ -16,6 +16,7 @@ import {
 import {
   createMockClient,
   createTestQueryClient,
+  renderStore,
 } from "../test-utils";
 
 describe("createSessionStore", () => {
@@ -37,7 +38,9 @@ describe("createSessionStore", () => {
     });
     const queryClient = createTestQueryClient();
 
-    const store = createSessionStore({ client, queryClient });
+    const store = renderStore(() =>
+      createSessionStore({ client, queryClient }),
+    );
 
     await queryClient.fetchQuery({
       queryKey: ["fluxbase", "auth", "session"],
@@ -49,7 +52,7 @@ describe("createSessionStore", () => {
     flushSync();
 
     expect(client.auth.getSession).toHaveBeenCalled();
-    expect(get(store).data).toBeDefined();
+    expect(store.data).toBeDefined();
   });
 
   it("returns null when there is no session", async () => {
@@ -62,7 +65,7 @@ describe("createSessionStore", () => {
     });
     const queryClient = createTestQueryClient();
 
-    createSessionStore({ client, queryClient });
+    renderStore(() => createSessionStore({ client, queryClient }));
 
     await queryClient.fetchQuery({
       queryKey: ["fluxbase", "auth", "session"],
@@ -81,7 +84,7 @@ describe("createUserStore", () => {
     const client = createMockClient();
     const queryClient = createTestQueryClient();
 
-    createUserStore({ client, queryClient });
+    renderStore(() => createUserStore({ client, queryClient }));
 
     await queryClient.fetchQuery({
       queryKey: ["fluxbase", "auth", "user"],
@@ -119,8 +122,10 @@ describe("createSignInMutation", () => {
       } as any,
     });
 
-    const mutation = createSignInMutation({ client, queryClient });
-    await get(mutation).mutateAsync({ email: "x@y.com", password: "pw" });
+    const mutation = renderStore(() =>
+      createSignInMutation({ client, queryClient }),
+    );
+    await mutation.mutateAsync({ email: "x@y.com", password: "pw" });
 
     expect(client.auth.signIn).toHaveBeenCalledWith({
       email: "x@y.com",
@@ -147,8 +152,10 @@ describe("createSignInMutation", () => {
       } as any,
     });
 
-    const mutation = createSignInMutation({ client, queryClient });
-    await get(mutation).mutateAsync({ email: "x@y.com", password: "pw" });
+    const mutation = renderStore(() =>
+      createSignInMutation({ client, queryClient }),
+    );
+    await mutation.mutateAsync({ email: "x@y.com", password: "pw" });
 
     expect(
       queryClient.getQueryData(["fluxbase", "auth", "session"]),
@@ -168,8 +175,10 @@ describe("createSignOutMutation", () => {
       access_token: "stale",
     });
 
-    const mutation = createSignOutMutation({ client, queryClient });
-    await get(mutation).mutateAsync();
+    const mutation = renderStore(() =>
+      createSignOutMutation({ client, queryClient }),
+    );
+    await mutation.mutateAsync();
 
     expect(client.auth.signOut).toHaveBeenCalled();
     expect(

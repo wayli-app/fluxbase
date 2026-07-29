@@ -7,8 +7,26 @@
  */
 
 import { QueryClient } from "@tanstack/svelte-query";
+import { render } from "@testing-library/svelte";
 import type { FluxbaseClient } from "@nimbleflux/fluxbase-sdk";
 import { vi } from "vitest";
+import TestHarness from "./test-harness.svelte";
+
+/**
+ * Run a store factory inside a Svelte component context and return its result.
+ *
+ * `@tanstack/svelte-query` v6 is runes-based, so `createQuery`/`createMutation`
+ * must execute during component initialization. This renders the test harness,
+ * which calls the factory and captures the returned query/mutation.
+ */
+export function renderStore<T>(factory: () => T): T {
+  let store!: T;
+  render(TestHarness, {
+    factory: () => (store = factory()),
+    capture: () => {},
+  });
+  return store;
+}
 
 /**
  * Create a mock FluxbaseClient for testing. Any subset of the client can be

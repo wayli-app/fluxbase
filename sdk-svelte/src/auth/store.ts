@@ -36,15 +36,15 @@ export interface StoreDeps {
  */
 export function createSessionStore({ client, queryClient }: StoreDeps) {
   return createQuery(
-    {
+    () => ({
       queryKey: ["fluxbase", "auth", "session"],
       queryFn: async () => {
         const { data } = await client.auth.getSession();
         return data?.session ?? null;
       },
       staleTime: 1000 * 60 * 5, // 5 minutes
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
@@ -54,7 +54,7 @@ export function createSessionStore({ client, queryClient }: StoreDeps) {
  */
 export function createUserStore({ client, queryClient }: StoreDeps) {
   return createQuery(
-    {
+    () => ({
       queryKey: ["fluxbase", "auth", "user"],
       queryFn: async () => {
         const { data } = await client.auth.getSession();
@@ -67,15 +67,15 @@ export function createUserStore({ client, queryClient }: StoreDeps) {
         }
       },
       staleTime: 1000 * 60 * 5,
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
 /** Sign-in mutation. On success it warms the session + user caches. */
 export function createSignInMutation({ client, queryClient }: StoreDeps) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (credentials: SignInCredentials) => {
         return await client.auth.signIn(credentials);
       },
@@ -92,27 +92,27 @@ export function createSignInMutation({ client, queryClient }: StoreDeps) {
           }
         }
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
 /** Sign-up mutation. */
 export function createSignUpMutation({ client, queryClient }: StoreDeps) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (credentials: SignUpCredentials) => {
         return await client.auth.signUp(credentials);
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
 /** Sign-out mutation. Clears session + user caches on success. */
 export function createSignOutMutation({ client, queryClient }: StoreDeps) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async () => {
         await client.auth.signOut();
       },
@@ -121,22 +121,22 @@ export function createSignOutMutation({ client, queryClient }: StoreDeps) {
         queryClient.setQueryData(["fluxbase", "auth", "user"], null);
         queryClient.invalidateQueries({ queryKey: ["fluxbase"] });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }
 
 /** Update-user mutation. Refreshes the user cache on success. */
 export function createUpdateUserMutation({ client, queryClient }: StoreDeps) {
   return createMutation(
-    {
+    () => ({
       mutationFn: async (attrs: Parameters<FluxbaseClient["auth"]["updateUser"]>[0]) => {
         return await client.auth.updateUser(attrs);
       },
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["fluxbase", "auth", "user"] });
       },
-    },
-    queryClient,
+    }),
+    () => queryClient,
   );
 }

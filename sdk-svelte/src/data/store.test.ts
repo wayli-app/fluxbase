@@ -1,13 +1,11 @@
 /**
  * Tests for the database query store factories.
  *
- * Note: svelte-query's `createQuery`/`createMutation` return Svelte *stores*.
- * Tests unwrap them with `get()` from `svelte/store` to access the underlying
- * `.data` / `.mutateAsync`.
+ * `@tanstack/svelte-query` v6 is runes-based, so each factory runs inside a
+ * rendered component (via `renderStore`) and its result is read directly.
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { get } from "svelte/store";
 import { flushSync } from "svelte";
 import {
   createFluxbaseQuery,
@@ -18,6 +16,7 @@ import {
 import {
   createMockClient,
   createTestQueryClient,
+  renderStore,
 } from "../test-utils";
 
 describe("createFluxbaseQuery", () => {
@@ -31,10 +30,12 @@ describe("createFluxbaseQuery", () => {
     });
     const queryClient = createTestQueryClient();
 
-    const store = createFluxbaseQuery(
-      { client, queryClient },
-      (c) => c.from("products").select("*"),
-      { queryKey: ["products", "all"] },
+    const store = renderStore(() =>
+      createFluxbaseQuery(
+        { client, queryClient },
+        (c) => c.from("products").select("*"),
+        { queryKey: ["products", "all"] },
+      ),
     );
 
     // Wait for the query to resolve.
@@ -50,7 +51,7 @@ describe("createFluxbaseQuery", () => {
     flushSync();
 
     expect(client.from).toHaveBeenCalledWith("products");
-    expect(get(store).data).toBeDefined();
+    expect(store.data).toBeDefined();
   });
 
   it("throws on query error", async () => {
@@ -88,11 +89,13 @@ describe("createTableQuery", () => {
     });
     const queryClient = createTestQueryClient();
 
-    createTableQuery(
-      { client, queryClient },
-      "users",
-      (q) => q.eq("status", "active"),
-      { queryKey: ["users", "active"] },
+    renderStore(() =>
+      createTableQuery(
+        { client, queryClient },
+        "users",
+        (q) => q.eq("status", "active"),
+        { queryKey: ["users", "active"] },
+      ),
     );
 
     await queryClient.fetchQuery({
@@ -120,11 +123,10 @@ describe("createInsertMutation", () => {
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const mutation = createInsertMutation(
-      { client, queryClient },
-      "products",
+    const mutation = renderStore(() =>
+      createInsertMutation({ client, queryClient }, "products"),
     );
-    await get(mutation).mutateAsync({ name: "Widget" });
+    await mutation.mutateAsync({ name: "Widget" });
 
     expect(client.from).toHaveBeenCalledWith("products");
     expect(invalidateSpy).toHaveBeenCalled();
@@ -142,11 +144,10 @@ describe("createDeleteMutation", () => {
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const mutation = createDeleteMutation(
-      { client, queryClient },
-      "products",
+    const mutation = renderStore(() =>
+      createDeleteMutation({ client, queryClient }, "products"),
     );
-    await get(mutation).mutateAsync((q: any) => q.eq("id", "1"));
+    await mutation.mutateAsync((q: any) => q.eq("id", "1"));
 
     expect(invalidateSpy).toHaveBeenCalled();
   });
