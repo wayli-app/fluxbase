@@ -30,7 +30,7 @@ for development, testing, and preview environments.
 
 ### create()
 
-> **create**(`name`, `options?`): `Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+> **create**(`name`, `options?`): `Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Create a new database branch
 
@@ -43,7 +43,7 @@ Create a new database branch
 
 #### Returns
 
-`Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with created branch
 
@@ -142,7 +142,7 @@ if (!exists) {
 
 ### get()
 
-> **get**(`idOrSlug`): `Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+> **get**(`idOrSlug`): `Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Get a specific branch by ID or slug
 
@@ -154,7 +154,7 @@ Get a specific branch by ID or slug
 
 #### Returns
 
-`Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with branch details
 
@@ -237,7 +237,7 @@ if (data) {
 
 ### list()
 
-> **list**(`options?`): `Promise`\<\{ `data`: `ListBranchesResponse` \| `null`; `error`: `Error` \| `null`; \}\>
+> **list**(`options?`): `Promise`\<\{ `data`: [`ListBranchesResponse`](/api/sdk/interfaces/listbranchesresponse/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 List all database branches
 
@@ -249,7 +249,7 @@ List all database branches
 
 #### Returns
 
-`Promise`\<\{ `data`: `ListBranchesResponse` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`ListBranchesResponse`](/api/sdk/interfaces/listbranchesresponse/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with branches list
 
@@ -276,7 +276,7 @@ const { data } = await client.branching.list({ limit: 10, offset: 20 })
 
 ### reset()
 
-> **reset**(`idOrSlug`): `Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+> **reset**(`idOrSlug`): `Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Reset a branch to its parent state
 
@@ -291,7 +291,7 @@ to match the parent branch. Cannot reset the main branch.
 
 #### Returns
 
-`Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with reset branch
 
@@ -310,7 +310,7 @@ if (data) {
 
 ### waitForReady()
 
-> **waitForReady**(`idOrSlug`, `options?`): `Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+> **waitForReady**(`idOrSlug`, `options?`): `Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Wait for a branch to be ready
 
@@ -327,7 +327,7 @@ Polls the branch status until it reaches 'ready' or an error state.
 
 #### Returns
 
-`Promise`\<\{ `data`: `Branch` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Branch`](/api/sdk/interfaces/branch/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with ready branch
 

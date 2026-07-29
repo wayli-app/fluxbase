@@ -61,7 +61,7 @@ if (!error) {
 
 ### get()
 
-> **get**(`jobId`): `Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+> **get**(`jobId`): `Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Get status and details of a specific job
 
@@ -73,7 +73,7 @@ Get status and details of a specific job
 
 #### Returns
 
-`Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with job details
 
@@ -145,7 +145,7 @@ const channel = client.realtime
 
 ### list()
 
-> **list**(`filters?`): `Promise`\<\{ `data`: `Job`[] \| `null`; `error`: `Error` \| `null`; \}\>
+> **list**(`filters?`): `Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/)[] \| `null`; `error`: `Error` \| `null`; \}\>
 
 List jobs submitted by the current user
 
@@ -162,7 +162,7 @@ List jobs submitted by the current user
 
 #### Returns
 
-`Promise`\<\{ `data`: `Job`[] \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/)[] \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with array of jobs
 
@@ -188,7 +188,7 @@ const { data: page } = await client.jobs.list({
 
 ### retry()
 
-> **retry**(`jobId`): `Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+> **retry**(`jobId`): `Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Retry a failed job
 
@@ -202,7 +202,7 @@ Creates a new job execution with the same parameters
 
 #### Returns
 
-`Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with new job
 
@@ -220,7 +220,7 @@ if (newJob) {
 
 ### submit()
 
-> **submit**(`jobName`, `payload?`, `options?`): `Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+> **submit**(`jobName`, `payload?`, `options?`): `Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Submit a new job for execution
 
@@ -238,7 +238,7 @@ Submit a new job for execution
 
 #### Returns
 
-`Promise`\<\{ `data`: `Job` \| `null`; `error`: `Error` \| `null`; \}\>
+`Promise`\<\{ `data`: [`Job`](/api/sdk/interfaces/job/) \| `null`; `error`: `Error` \| `null`; \}\>
 
 Promise resolving to { data, error } tuple with submitted job details
 

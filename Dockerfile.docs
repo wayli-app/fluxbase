@@ -16,11 +16,17 @@ COPY bun.lock ./
 COPY docs/package.json ./docs/
 COPY sdk/package.json ./sdk/
 COPY sdk-react/package.json ./sdk-react/
+COPY sdk-svelte/package.json ./sdk-svelte/
+COPY sdk-next/package.json ./sdk-next/
+COPY sdk-vue/package.json ./sdk-vue/
 COPY admin/package.json ./admin/
 
 # Copy SDK source files (needed for TypeDoc generation)
 COPY sdk/ ./sdk/
 COPY sdk-react/ ./sdk-react/
+COPY sdk-svelte/ ./sdk-svelte/
+COPY sdk-next/ ./sdk-next/
+COPY sdk-vue/ ./sdk-vue/
 
 # Copy docs source
 COPY docs/ ./docs/

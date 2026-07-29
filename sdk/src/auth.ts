@@ -54,6 +54,7 @@ import type {
   SAMLProvidersResponse,
   SAMLLoginOptions,
   SAMLLoginResponse,
+  StorageAdapter,
 } from "./types";
 import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
@@ -123,9 +124,14 @@ export class FluxbaseAuth {
   private autoRefresh: boolean;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private stateChangeListeners: Set<AuthStateChangeCallback> = new Set();
-  private storage: Storage | null = null;
+  private storage: StorageAdapter | null = null;
 
-  constructor(fetch: FluxbaseFetch, autoRefresh = true, persist = true) {
+  constructor(
+    fetch: FluxbaseFetch,
+    autoRefresh = true,
+    persist = true,
+    storage?: StorageAdapter,
+  ) {
     this.fetch = fetch;
     this.persist = persist;
     this.autoRefresh = autoRefresh;
@@ -136,8 +142,11 @@ export class FluxbaseAuth {
       return !result.error;
     });
 
-    // Initialize storage based on persist option and environment
-    if (this.persist) {
+    // Initialize storage: an explicit adapter wins; otherwise fall back to the
+    // default localStorage/in-memory choice when persist is enabled.
+    if (storage) {
+      this.storage = storage;
+    } else if (this.persist) {
       if (isLocalStorageAvailable()) {
         this.storage = localStorage;
       } else {

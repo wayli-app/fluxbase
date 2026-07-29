@@ -80,6 +80,19 @@ jobs:
               - 'sdk-react/package.json'
               - 'sdk-react/tsup.config.ts'
               - 'sdk-react/tsconfig.json'
+              - 'sdk-svelte/src/**'
+              - 'sdk-svelte/package.json'
+              - 'sdk-svelte/tsup.config.ts'
+              - 'sdk-svelte/tsconfig.json'
+              - 'sdk-svelte/vitest.config.ts'
+              - 'sdk-next/src/**'
+              - 'sdk-next/package.json'
+              - 'sdk-next/tsup.config.ts'
+              - 'sdk-next/tsconfig.json'
+              - 'sdk-vue/src/**'
+              - 'sdk-vue/package.json'
+              - 'sdk-vue/tsup.config.ts'
+              - 'sdk-vue/tsconfig.json'
               - 'package.json'
               - 'bun.lock'
             e2e-ui:
@@ -295,6 +308,42 @@ jobs:
 
       - name: Build SDK-React
         working-directory: ./sdk-react
+        run: bun run build
+
+      - name: Test SDK-Svelte
+        working-directory: ./sdk-svelte
+        run: bun run test
+
+      - name: Type check SDK-Svelte
+        working-directory: ./sdk-svelte
+        run: bun run type-check
+
+      - name: Build SDK-Svelte
+        working-directory: ./sdk-svelte
+        run: bun run build
+
+      - name: Test SDK-Next
+        working-directory: ./sdk-next
+        run: bun run test
+
+      - name: Type check SDK-Next
+        working-directory: ./sdk-next
+        run: bun run type-check
+
+      - name: Build SDK-Next
+        working-directory: ./sdk-next
+        run: bun run build
+
+      - name: Test SDK-Vue
+        working-directory: ./sdk-vue
+        run: bun run test
+
+      - name: Type check SDK-Vue
+        working-directory: ./sdk-vue
+        run: bun run type-check
+
+      - name: Build SDK-Vue
+        working-directory: ./sdk-vue
         run: bun run build
 
       - name: Type check Admin

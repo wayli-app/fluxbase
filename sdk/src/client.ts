@@ -321,6 +321,7 @@ export class FluxbaseClient<
       this.fetch,
       options?.auth?.autoRefresh ?? true,
       options?.auth?.persist ?? true,
+      options?.auth?.storage,
     );
 
     // Set auth token if provided

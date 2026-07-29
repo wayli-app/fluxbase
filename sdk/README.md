@@ -72,6 +72,37 @@ client.realtime
 await client.storage.from("avatars").upload("user-123.png", file);
 ```
 
+## SSR / Custom Storage Adapter
+
+By default the SDK persists the auth session to `localStorage` in the browser
+and an in-memory store in Node/SSR. For server-side-rendered frameworks
+(Next.js, SvelteKit, Nuxt, etc.) you usually want the session backed by an
+**httpOnly cookie** so the JWT never reaches client-side JavaScript.
+
+Pass a `StorageAdapter` via `auth.storage` to take full control of persistence:
+
+```typescript
+import { createClient, type StorageAdapter } from "@nimbleflux/fluxbase-sdk";
+
+// Minimal adapter over any key/value store (here, a cookie API)
+const cookieStorage: StorageAdapter = {
+  getItem: (key) => readCookie(key),
+  setItem: (key, value) => writeCookie(key, value, { httpOnly: true, sameSite: "lax" }),
+  removeItem: (key) => deleteCookie(key),
+};
+
+const client = createClient({
+  url: "http://localhost:8080",
+  auth: {
+    storage: cookieStorage, // takes precedence over the default localStorage/in-memory choice
+  },
+});
+```
+
+When `auth.storage` is provided it is always used; omit it to keep the default
+behavior. The framework-specific SDKs (`@nimbleflux/fluxbase-sdk-svelte`, etc.)
+ship ready-made cookie adapters wired to their framework's cookie APIs.
+
 ## Documentation
 
 📚 **[SDK Documentation](../../docs/src/content/docs/sdk/)**

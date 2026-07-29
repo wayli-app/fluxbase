@@ -226,6 +226,54 @@ export default defineConfig({
             typeDeclarationFormat: "table",
           },
         }),
+        starlightTypeDoc({
+          entryPoints: ["../sdk-svelte/src/index.ts"],
+          tsconfig: "../sdk-svelte/tsconfig.json",
+          output: "api/sdk-svelte",
+          typeDoc: {
+            readme: "none",
+            disableSources: true,
+            excludePrivate: true,
+            excludeProtected: true,
+            excludeInternal: true,
+            parametersFormat: "table",
+            propertiesFormat: "table",
+            enumMembersFormat: "table",
+            typeDeclarationFormat: "table",
+          },
+        }),
+        starlightTypeDoc({
+          entryPoints: ["../sdk-next/src/index.ts"],
+          tsconfig: "../sdk-next/tsconfig.json",
+          output: "api/sdk-next",
+          typeDoc: {
+            readme: "none",
+            disableSources: true,
+            excludePrivate: true,
+            excludeProtected: true,
+            excludeInternal: true,
+            parametersFormat: "table",
+            propertiesFormat: "table",
+            enumMembersFormat: "table",
+            typeDeclarationFormat: "table",
+          },
+        }),
+        starlightTypeDoc({
+          entryPoints: ["../sdk-vue/src/index.ts"],
+          tsconfig: "../sdk-vue/tsconfig.json",
+          output: "api/sdk-vue",
+          typeDoc: {
+            readme: "none",
+            disableSources: true,
+            excludePrivate: true,
+            excludeProtected: true,
+            excludeInternal: true,
+            parametersFormat: "table",
+            propertiesFormat: "table",
+            enumMembersFormat: "table",
+            typeDeclarationFormat: "table",
+          },
+        }),
       ],
       sidebar: [
         {
@@ -346,6 +394,27 @@ export default defineConfig({
           ],
         },
         {
+          label: "Svelte SDK",
+          collapsed: true,
+          items: [
+            { label: "Getting Started", link: "/sdk-svelte/getting-started/" },
+          ],
+        },
+        {
+          label: "Next.js SDK",
+          collapsed: true,
+          items: [
+            { label: "Getting Started", link: "/sdk-next/getting-started/" },
+          ],
+        },
+        {
+          label: "Vue SDK",
+          collapsed: true,
+          items: [
+            { label: "Getting Started", link: "/sdk-vue/getting-started/" },
+          ],
+        },
+        {
           label: "CLI",
           collapsed: true,
           items: [
@@ -411,6 +480,21 @@ export default defineConfig({
               label: "React SDK",
               collapsed: true,
               items: [{ autogenerate: { directory: "api/sdk-react" } }],
+            },
+            {
+              label: "Svelte SDK",
+              collapsed: true,
+              items: [{ autogenerate: { directory: "api/sdk-svelte" } }],
+            },
+            {
+              label: "Next.js SDK",
+              collapsed: true,
+              items: [{ autogenerate: { directory: "api/sdk-next" } }],
+            },
+            {
+              label: "Vue SDK",
+              collapsed: true,
+              items: [{ autogenerate: { directory: "api/sdk-vue" } }],
             },
             { label: "HTTP API", link: "/api/http/" },
             { label: "GraphQL API", link: "/api/http/graphql/" },

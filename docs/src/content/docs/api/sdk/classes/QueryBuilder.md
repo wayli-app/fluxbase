@@ -402,6 +402,28 @@ between('price', 10, 100)
 
 ***
 
+### clone()
+
+> **clone**(): `QueryBuilder`\<`T`\>
+
+Create a deep copy of this query builder, preserving all filters, ordering,
+and state. Useful for paginating: build a base query once, then call
+`.range()` on it for each page (`.range()` returns a clone automatically).
+
+#### Returns
+
+`QueryBuilder`\<`T`\>
+
+#### Example
+
+```typescript
+const base = client.from('orders').select('*').eq('status', 'active')
+const p1 = await base.clone().range(0, 9)
+const p2 = await base.clone().range(10, 19)
+```
+
+***
+
 ### containedBy()
 
 > **containedBy**(`column`, `value`): `this`
@@ -1025,9 +1047,12 @@ overlaps('tags', '["news","sports"]')
 
 ### range()
 
-> **range**(`from`, `to`): `this`
+> **range**(`from`, `to`): `QueryBuilder`\<`T`\>
 
 Range selection (pagination)
+
+Returns a **clone** of the builder with the new range applied, so the
+original builder can be reused for subsequent pages:
 
 #### Parameters
 
@@ -1038,7 +1063,15 @@ Range selection (pagination)
 
 #### Returns
 
-`this`
+`QueryBuilder`\<`T`\>
+
+#### Example
+
+```typescript
+const base = client.from('orders').select('*').order('id')
+const page1 = await base.range(0, 9)    // rows 0-9
+const page2 = await base.range(10, 19)  // rows 10-19 (works!)
+```
 
 ***
 

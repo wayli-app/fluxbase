@@ -192,6 +192,7 @@ export {
 export type {
   // Client options
   FluxbaseClientOptions,
+  StorageAdapter,
 
   // Auth types
   AuthSession,
@@ -249,6 +250,14 @@ export type {
   ExecutionLogLevel,
   ExecutionType,
   ExecutionLogConfig,
+
+  // Jobs types
+  Job,
+  SubmitJobRequest,
+
+  // Branching types
+  Branch,
+  ListBranchesResponse,
 
   // Storage types
   FileObject,

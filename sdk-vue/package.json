@@ -1,0 +1,56 @@
+{
+  "name": "@nimbleflux/fluxbase-sdk-vue",
+  "version": "2026.7.3-rc.24",
+  "description": "Vue/Nuxt composables and SSR cookie storage for Fluxbase SDK",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "docs": "typedoc",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "fluxbase",
+    "vue",
+    "nuxt",
+    "ssr",
+    "database",
+    "auth"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nimbleflux/fluxbase"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@nimbleflux/fluxbase-sdk": "^2026.7.3-rc.24",
+    "vue": "^3.3.0"
+  },
+  "devDependencies": {
+    "@nimbleflux/fluxbase-sdk": "workspace:*",
+    "@types/node": "^24.0.0",
+    "prettier": "^3.9.4",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "engines": {
+    "node": ">=24.18.0"
+  }
+}
