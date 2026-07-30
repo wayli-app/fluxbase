@@ -2114,6 +2114,56 @@ One-time migration from imperative internal migrations to the declarative schema
 
 **Persistent flag:** `--file` — path to a schema file (for backward compatibility).
 
+## Schema Commands
+
+Manage your application's own database schema (e.g. the `public` schema) declaratively from a desired-state SQL file. This is the app-developer counterpart to `internal-schema` (which manages Fluxbase's internal schemas) and an opt-in alternative to imperative `migrations sync`. Fluxbase stores the synced content and reconciles the live database via pgschema diff/apply on every sync. A given `(namespace, schema)` should use one mode, not both. Requires `database.declarative_app_schema.enabled=true` on the server for startup auto-apply; `sync`/`plan`/`apply` work on demand regardless. See the [Database Migrations guide](/guides/database-migrations/) for the full workflow.
+
+### `fluxbase schema sync`
+
+Read a desired-state schema file (`<dir>/<schema>.sql`) and sync it to Fluxbase. Computes a fingerprint, stores the content, and applies the diff unless `--no-apply` is set. Re-syncing unchanged content is a no-op; drift introduced outside Fluxbase is reconciled on every sync.
+
+```bash
+fluxbase schema sync --dir fluxbase/schema --namespace wayli
+fluxbase schema sync --dir fluxbase/schema --namespace wayli --no-apply
+```
+
+**Flags:** `--dir` (directory containing the schema file, default `./schema`), `--no-apply` (store content only, do not apply), `--allow-destructive` (permit destructive changes during apply).
+
+### `fluxbase schema status`
+
+Show the status of declarative app schema(s). With `--namespace`, shows a single schema's stored fingerprint and last-applied state; without it, lists all stored app schemas.
+
+```bash
+fluxbase schema status
+fluxbase schema status --namespace wayli
+```
+
+### `fluxbase schema plan`
+
+Compare the stored schema content to the live database and show the pending changes. Does not modify the database.
+
+```bash
+fluxbase schema plan --namespace wayli
+```
+
+### `fluxbase schema validate`
+
+Validate that the live database matches the stored schema content. Useful for CI/CD pipelines. **Flag:** `--fail-on-drift` (exit non-zero if drift is detected).
+
+```bash
+fluxbase schema validate --namespace wayli --fail-on-drift
+```
+
+### `fluxbase schema apply`
+
+Apply the already-stored schema content for a namespace (reconcile drift).
+
+```bash
+fluxbase schema apply --namespace wayli
+```
+
+**Persistent flags:** `--namespace` (app namespace, e.g. `wayli`), `--schema` (PostgreSQL schema name, default `public`).
+
 ## Command Aliases
 
 Many commands have shorter aliases for convenience:

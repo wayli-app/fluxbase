@@ -440,6 +440,7 @@ export default defineConfig({
                 { label: "Webhooks", link: "/cli/commands/#webhook-commands" },
                 { label: "Client Keys", link: "/cli/commands/#client-key-commands" },
                 { label: "Migrations", link: "/cli/commands/#migration-commands" },
+                { label: "Schema", link: "/cli/commands/#schema-commands" },
                 { label: "Internal Schema", link: "/cli/commands/#internal-schema-commands" },
                 { label: "Extensions", link: "/cli/commands/#extension-commands" },
                 { label: "Realtime", link: "/cli/commands/#realtime-commands" },
