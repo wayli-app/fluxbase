@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgplex/pgparser/nodes"
 	"github.com/pgplex/pgparser/parser"
@@ -103,6 +105,7 @@ func (s *AppDeclarativeService) ensureAppSchemasTable(ctx context.Context) error
 			schema_name        TEXT NOT NULL DEFAULT 'public',
 			schema_content     TEXT NOT NULL,
 			schema_fingerprint TEXT NOT NULL,
+			ignore_content     TEXT NOT NULL DEFAULT '',
 			enabled            BOOLEAN NOT NULL DEFAULT true,
 			updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
 			PRIMARY KEY (namespace, schema_name)
@@ -111,6 +114,11 @@ func (s *AppDeclarativeService) ensureAppSchemasTable(ctx context.Context) error
 	if err != nil {
 		return fmt.Errorf("failed to ensure platform.app_schemas: %w", err)
 	}
+
+	// Add ignore_content column to existing tables (idempotent; ignores "exists" error).
+	_, _ = s.pool.Exec(ctx, `
+		ALTER TABLE platform.app_schemas ADD COLUMN IF NOT EXISTS ignore_content TEXT NOT NULL DEFAULT ''
+	`)
 
 	_, err = s.pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS platform.app_schema_state (
@@ -130,7 +138,8 @@ func (s *AppDeclarativeService) ensureAppSchemasTable(ctx context.Context) error
 
 // StoreSchemaContent upserts synced schema content for a (namespace, schema).
 // Returns the computed fingerprint and whether the content changed.
-func (s *AppDeclarativeService) StoreSchemaContent(ctx context.Context, namespace, schemaName, schemaContent string) (fingerprint string, changed bool, err error) {
+// ignoreContent is optional pgschema .pgschemaignore content; empty disables filtering.
+func (s *AppDeclarativeService) StoreSchemaContent(ctx context.Context, namespace, schemaName, schemaContent, ignoreContent string) (fingerprint string, changed bool, err error) {
 	if namespace == "" {
 		return "", false, fmt.Errorf("namespace is required")
 	}
@@ -148,30 +157,31 @@ func (s *AppDeclarativeService) StoreSchemaContent(ctx context.Context, namespac
 	sum := sha256.Sum256([]byte(schemaContent))
 	fingerprint = hex.EncodeToString(sum[:])
 
-	// Check if content is unchanged.
+	// Check if content is unchanged (schema + ignore).
 	var existing string
 	err = s.pool.QueryRow(ctx, `
 		SELECT schema_fingerprint FROM platform.app_schemas
 		WHERE namespace = $1 AND schema_name = $2
 	`, namespace, schemaName).Scan(&existing)
 	if err == nil && existing == fingerprint {
-		// Unchanged — touch updated_at only.
+		// Unchanged — touch updated_at + keep ignore_content in sync.
 		_, _ = s.pool.Exec(ctx, `
-			UPDATE platform.app_schemas SET updated_at = now()
+			UPDATE platform.app_schemas SET updated_at = now(), ignore_content = $3
 			WHERE namespace = $1 AND schema_name = $2
-		`, namespace, schemaName)
+		`, namespace, schemaName, ignoreContent)
 		return fingerprint, false, nil
 	}
 
 	_, err = s.pool.Exec(ctx, `
-		INSERT INTO platform.app_schemas (namespace, schema_name, schema_content, schema_fingerprint, enabled, updated_at)
-		VALUES ($1, $2, $3, $4, true, now())
+		INSERT INTO platform.app_schemas (namespace, schema_name, schema_content, schema_fingerprint, ignore_content, enabled, updated_at)
+		VALUES ($1, $2, $3, $4, $5, true, now())
 		ON CONFLICT (namespace, schema_name) DO UPDATE SET
 			schema_content     = EXCLUDED.schema_content,
 			schema_fingerprint = EXCLUDED.schema_fingerprint,
+			ignore_content     = EXCLUDED.ignore_content,
 			enabled            = true,
 			updated_at         = now()
-	`, namespace, schemaName, schemaContent, fingerprint)
+	`, namespace, schemaName, schemaContent, fingerprint, ignoreContent)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to store app schema: %w", err)
 	}
@@ -192,6 +202,26 @@ func (s *AppDeclarativeService) GetStoredSchemaContent(ctx context.Context, name
 		WHERE namespace = $1 AND schema_name = $2
 	`, namespace, schemaName).Scan(&content, &fingerprint, &updatedAt)
 	return content, fingerprint, updatedAt, err
+}
+
+// GetStoredIgnoreContent retrieves the stored .pgschemaignore content for a
+// (namespace, schema). Returns "" if none is stored.
+func (s *AppDeclarativeService) GetStoredIgnoreContent(ctx context.Context, namespace, schemaName string) (string, error) {
+	if schemaName == "" {
+		schemaName = "public"
+	}
+	if err := s.ensureAppSchemasTable(ctx); err != nil {
+		return "", err
+	}
+	var ignore string
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE(ignore_content, '') FROM platform.app_schemas
+		WHERE namespace = $1 AND schema_name = $2
+	`, namespace, schemaName).Scan(&ignore)
+	if err == pgx.ErrNoRows {
+		return "", nil
+	}
+	return ignore, err
 }
 
 // ListStoredSchemas lists stored app schemas, optionally filtered by namespace.
@@ -248,20 +278,23 @@ func (s *AppDeclarativeService) Plan(ctx context.Context, namespace, schemaName 
 	if content == "" {
 		return &Plan{Changes: []Change{}}, nil
 	}
-	return s.planFromContent(ctx, schemaName, content)
+	ignore, _ := s.GetStoredIgnoreContent(ctx, namespace, schemaName)
+	return s.planFromContent(ctx, schemaName, content, ignore)
 }
 
-// planFromContent writes content to a temp file and runs `pgschema plan`.
-func (s *AppDeclarativeService) planFromContent(ctx context.Context, schemaName, schemaContent string) (*Plan, error) {
+// planFromContent writes content to a temp dir (alongside an optional
+// .pgschemaignore) and runs `pgschema plan`. Setting cmd.Dir to that dir makes
+// pgschema auto-discover the ignore file.
+func (s *AppDeclarativeService) planFromContent(ctx context.Context, schemaName, schemaContent, ignoreContent string) (*Plan, error) {
 	content, err := s.substituteAppUserForContent(schemaContent)
 	if err != nil {
 		return nil, fmt.Errorf("invalid app user placeholder: %w", err)
 	}
-	tmpFile, err := writeContentToTemp("app-schema-*.sql", content)
+	workDir, schemaFile, err := writeSchemaWorkDir(content, ignoreContent)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = os.Remove(tmpFile) }()
+	defer func() { _ = os.RemoveAll(workDir) }()
 
 	args := []string{
 		"plan",
@@ -269,7 +302,7 @@ func (s *AppDeclarativeService) planFromContent(ctx context.Context, schemaName,
 		"--port", fmt.Sprintf("%d", s.dbPort),
 		"--user", s.dbUser,
 		"--db", s.dbName,
-		"--file", tmpFile,
+		"--file", schemaFile,
 		"--schema", schemaName,
 		"--output-json", "stdout",
 		"--plan-host", s.dbHost,
@@ -283,6 +316,7 @@ func (s *AppDeclarativeService) planFromContent(ctx context.Context, schemaName,
 	}
 
 	cmd := exec.CommandContext(ctx, s.pgschemaPath, args...)
+	cmd.Dir = workDir
 	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.dbPassword))
 
 	start := time.Now()
@@ -480,13 +514,13 @@ func stripLeadingComma(s string) string {
 // If the stored fingerprint already matches the last-applied fingerprint, the
 // plan is still computed (cheap no-op) so drift outside Fluxbase is detected and
 // reconciled on every apply — consistent with the internal declarative engine.
-func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace, schemaName, schemaContent string) (*ApplyResult, error) {
+func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace, schemaName, schemaContent, ignoreContent string) (*ApplyResult, error) {
 	if schemaName == "" {
 		schemaName = "public"
 	}
 
 	// Store first (also computes fingerprint + ensures tables exist).
-	fingerprint, _, err := s.StoreSchemaContent(ctx, namespace, schemaName, schemaContent)
+	fingerprint, _, err := s.StoreSchemaContent(ctx, namespace, schemaName, schemaContent, ignoreContent)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +531,7 @@ func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace,
 		Str("fingerprint", fingerprint[:12]).
 		Msg("Applying declarative app schema")
 
-	plan, err := s.planFromContent(ctx, schemaName, schemaContent)
+	plan, err := s.planFromContent(ctx, schemaName, schemaContent, ignoreContent)
 	if err != nil {
 		// pgschema plan can fail when the desired-state SQL references objects or
 		// operators from extensions (e.g. pgvector's <=> operator) or other schemas,
@@ -610,7 +644,8 @@ func (s *AppDeclarativeService) ApplyStored(ctx context.Context, namespace, sche
 	if content == "" {
 		return &ApplyResult{Applied: []Change{}}, nil
 	}
-	return s.ApplyFromContent(ctx, namespace, schemaName, content)
+	ignore, _ := s.GetStoredIgnoreContent(ctx, namespace, schemaName)
+	return s.ApplyFromContent(ctx, namespace, schemaName, content, ignore)
 }
 
 // ApplyAllPending applies stored content for all enabled (namespace, schema) pairs,
@@ -768,6 +803,30 @@ func (s *AppDeclarativeService) WarnIfImperativeCoexists(ctx context.Context, na
 				Msg("Namespace is managed declaratively but also has imperative migrations in platform.migrations; a schema should use one mode. Stop running 'fluxbase migrations sync' for this namespace or remove its declarative schema.")
 		}
 	}
+}
+
+// writeSchemaWorkDir creates a temp directory, writes the schema SQL to
+// "schema.sql" inside it, and (if ignoreContent is non-empty) writes a
+// ".pgschemaignore" next to it. Returns the dir path (to use as pgschema's
+// working directory so it auto-discovers the ignore file) and the schema file
+// path. Caller must remove the dir.
+func writeSchemaWorkDir(schemaContent, ignoreContent string) (dir, schemaFile string, err error) {
+	dir, err = os.MkdirTemp("", "app-schema-*")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	schemaFile = filepath.Join(dir, "schema.sql")
+	if err := os.WriteFile(schemaFile, []byte(schemaContent), 0o644); err != nil { //nolint:gosec
+		_ = os.RemoveAll(dir)
+		return "", "", fmt.Errorf("failed to write schema file: %w", err)
+	}
+	if ignoreContent != "" {
+		if err := os.WriteFile(filepath.Join(dir, ".pgschemaignore"), []byte(ignoreContent), 0o644); err != nil { //nolint:gosec
+			_ = os.RemoveAll(dir)
+			return "", "", fmt.Errorf("failed to write ignore file: %w", err)
+		}
+	}
+	return dir, schemaFile, nil
 }
 
 // writeContentToTemp writes content to a temp file and returns its path. The

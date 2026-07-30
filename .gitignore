@@ -136,3 +136,4 @@ admin/playwright-report/
 # root with leading slash so it doesn't match deploy/helm/fluxbase/ or any
 # other path component named "fluxbase".
 /fluxbase
+.zcode/

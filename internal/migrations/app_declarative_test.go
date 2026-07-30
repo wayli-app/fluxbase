@@ -109,13 +109,13 @@ func TestStoreSchemaContent_ValidationGuard(t *testing.T) {
 	// No pool set — these validations must fail before touching the DB.
 
 	t.Run("rejects empty namespace", func(t *testing.T) {
-		_, _, err := svc.StoreSchemaContent(ctx, "", "public", "CREATE TABLE x ();")
+		_, _, err := svc.StoreSchemaContent(ctx, "", "public", "CREATE TABLE x ();", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "namespace is required")
 	})
 
 	t.Run("rejects empty content", func(t *testing.T) {
-		_, _, err := svc.StoreSchemaContent(ctx, "wayli", "public", "")
+		_, _, err := svc.StoreSchemaContent(ctx, "wayli", "public", "", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "content cannot be empty")
 	})
