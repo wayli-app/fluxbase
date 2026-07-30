@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -388,7 +390,12 @@ func (s *AppDeclarativeService) ensureMissingColumnsFromContent(ctx context.Cont
 			).Scan(&colExists); err != nil || colExists {
 				continue
 			}
-			colDef := extractColumnSQL(content, col.Location)
+			colDef := extractColumnDefByName(content, tableName, col.Colname)
+			if colDef == "" {
+				// Fall back to the byte-offset-based extractor (works when the
+				// parser tracks locations, which it often does not).
+				colDef = extractColumnSQL(content, col.Location)
+			}
 			if colDef == "" {
 				continue
 			}
@@ -400,6 +407,70 @@ func (s *AppDeclarativeService) ensureMissingColumnsFromContent(ctx context.Cont
 		}
 	}
 	return nil
+}
+
+// extractColumnDefByName locates a column definition within the CREATE TABLE
+// block for the given table by scanning the raw content for the column name and
+// reading to the next top-level comma. This is a content-based fallback used
+// because pgparser frequently reports Location=-1 for column definitions, making
+// the byte-offset-based extractColumnSQL unreliable.
+func extractColumnDefByName(content, tableName, colName string) string {
+	// Find the CREATE TABLE IF NOT EXISTS <table> ( ... block.
+	createRe := regexp.MustCompile(`(?is)CREATE TABLE IF NOT EXISTS\s+"?` + regexp.QuoteMeta(tableName) + `"?\s*\(`)
+	loc := createRe.FindStringIndex(content)
+	if loc == nil {
+		return ""
+	}
+	// Scan from the opening paren for the column at top-level (depth 0).
+	start := loc[1]
+	depth := 0
+	lineStart := start
+	for i := start; i < len(content); i++ {
+		switch content[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth == 0 {
+				return "" // reached end of table block
+			}
+			depth--
+		case '\n':
+			lineStart = i + 1
+		case ',':
+			if depth == 0 {
+				// This comma ends a top-level column/constraint entry.
+				entry := strings.TrimSpace(content[lineStart:i])
+				if matchesColumnDef(entry, colName) {
+					return stripLeadingComma(entry)
+				}
+				lineStart = i + 1
+			}
+		}
+	}
+	return ""
+}
+
+// matchesColumnDef reports whether a CREATE TABLE entry is the column named
+// colName (as opposed to a table-level CONSTRAINT). Column entries begin with
+// the column identifier; constraint entries begin with CONSTRAINT/PRIMARY/etc.
+func matchesColumnDef(entry, colName string) bool {
+	if entry == "" {
+		return false
+	}
+	upper := strings.ToUpper(entry)
+	for _, kw := range []string{"CONSTRAINT ", "PRIMARY KEY", "UNIQUE", "CHECK", "FOREIGN KEY"} {
+		if strings.HasPrefix(upper, kw) {
+			return false
+		}
+	}
+	// Entry should start with the (optionally quoted) column name.
+	trimmed := strings.TrimPrefix(entry, `"`)
+	return strings.HasPrefix(trimmed, colName)
+}
+
+// stripLeadingComma removes a stray leading comma if the scanner captured one.
+func stripLeadingComma(s string) string {
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s), ","))
 }
 
 // ApplyFromContent stores the content and applies it via pgschema. This is the
