@@ -109,13 +109,13 @@ func TestStoreSchemaContent_ValidationGuard(t *testing.T) {
 	// No pool set — these validations must fail before touching the DB.
 
 	t.Run("rejects empty namespace", func(t *testing.T) {
-		_, _, err := svc.StoreSchemaContent(ctx, "", "public", "CREATE TABLE x ();")
+		_, _, err := svc.StoreSchemaContent(ctx, "", "public", "CREATE TABLE x ();", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "namespace is required")
 	})
 
 	t.Run("rejects empty content", func(t *testing.T) {
-		_, _, err := svc.StoreSchemaContent(ctx, "wayli", "public", "")
+		_, _, err := svc.StoreSchemaContent(ctx, "wayli", "public", "", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "content cannot be empty")
 	})
@@ -131,6 +131,75 @@ func TestAppDeclarativeService_DestructiveDefault(t *testing.T) {
 
 	svc.SetAllowDestructive(true)
 	assert.True(t, svc.allowDestructive)
+}
+
+// TestCountDestructiveStatements verifies the fallback-path destructive scanner
+// detects user-authored destructive statements but ignores MakeSQLIdempotent's
+// own re-creation-aid DROPs (POLICY/TRIGGER/INDEX/CONSTRAINT IF EXISTS).
+func TestCountDestructiveStatements(t *testing.T) {
+	tests := []struct {
+		name string
+		sql  string
+		want int
+	}{
+		{"no destructive", "CREATE TABLE t (id int); CREATE INDEX ON t (id);", 0},
+		{"drop table", "DROP TABLE old_data;", 1},
+		{"drop column via alter", "ALTER TABLE t DROP COLUMN obsolete;", 1},
+		{"drop type", "DROP TYPE old_enum;", 1},
+		{"truncate", "TRUNCATE staging;", 1},
+		{"drop view", "DROP VIEW old_view;", 1},
+		{"drop function", "DROP FUNCTION old_fn();", 1},
+		{"multiple destructive", "DROP TABLE a;\nDROP TABLE b;\nTRUNCATE c;", 3},
+		// MakeSQLIdempotent-generated DROPs (re-creation aids) must NOT count:
+		{"drop policy if exists (idempotent aid)", `DROP POLICY IF EXISTS "p" ON t CASCADE;`, 0},
+		{"drop trigger if exists (idempotent aid)", `DROP TRIGGER IF EXISTS "trg" ON t CASCADE;`, 0},
+		{"drop index if exists (idempotent aid)", `DROP INDEX IF EXISTS idx;`, 0},
+		{"alter table drop constraint if exists (idempotent aid)", `ALTER TABLE t DROP CONSTRAINT IF EXISTS "c";`, 0},
+		{"comment lines ignored", "-- DROP TABLE commented_out;", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := countDestructiveStatements(tt.sql)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestApplyDirectFallback_DestructiveBlocked verifies the fallback path blocks
+// destructive content when allowDestructive=false, without touching the DB.
+func TestApplyDirectFallback_DestructiveBlocked(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestAppService(t, false) // allowDestructive=false, no pool
+
+	t.Run("blocks DROP TABLE", func(t *testing.T) {
+		res, err := svc.applyDirectFallback(ctx, "public", "DROP TABLE old_data;")
+		require.NoError(t, err) // blocked, not an error
+		require.NotNil(t, res)
+		assert.True(t, res.Fallback, "result must indicate fallback path")
+		require.Error(t, res.Error, "must contain blocking error")
+		assert.Contains(t, res.Error.Error(), "destructive")
+	})
+
+	t.Run("blocks DROP COLUMN", func(t *testing.T) {
+		res, err := svc.applyDirectFallback(ctx, "public", "ALTER TABLE t DROP COLUMN obsolete;")
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Error(t, res.Error)
+		assert.Contains(t, res.Error.Error(), "destructive")
+	})
+}
+
+// TestApplyDirectFallback_NondestructivePassesContentScan verifies that
+// non-destructive content clears the destructive check (then fails later at DB
+// access, which is expected without a pool).
+func TestApplyDirectFallback_NondestructivePassesContentScan(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestAppService(t, false)
+	res, err := svc.applyDirectFallback(ctx, "public", "CREATE TABLE IF NOT EXISTS t (id int);")
+	// No pool set → fails at connection, NOT at the destructive check.
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.NotContains(t, err.Error(), "destructive", "must not be blocked as destructive")
 }
 
 // TestSubstituteAppUserForContent covers placeholder substitution logic (pure).

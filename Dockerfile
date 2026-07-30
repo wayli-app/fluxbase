@@ -141,7 +141,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=deno-bin /deno /usr/local/bin/deno
 
 # Install pgschema for declarative schema management
-ARG PGSCHEMA_VERSION=1.7.4
+# Bumped from 1.7.4 to 1.12.1: fixes plan validation for LANGUAGE sql functions
+# with SET search_path that use extension operators (e.g. pgvector <=>), plus
+# schema-qualified function-body references (pgplex/pgschema#399).
+ARG PGSCHEMA_VERSION=1.12.1
 RUN ARCH=$(dpkg --print-architecture) \
     && if [ "$ARCH" = "amd64" ]; then PGSCHEMA_ARCH="linux-amd64"; \
     elif [ "$ARCH" = "arm64" ]; then PGSCHEMA_ARCH="linux-arm64"; \

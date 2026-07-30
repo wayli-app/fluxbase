@@ -159,15 +159,22 @@ func runSchemaSync(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("schema file %s is empty", schemaFile)
 	}
 
+	// Optional .pgschemaignore in the same directory; suppresses diffs on objects
+	// pgschema shouldn't manage (e.g. extension-member objects). Sent alongside the
+	// schema so Fluxbase writes it next to the temp file and pgschema discovers it.
+	ignoreFile := filepath.Join(dir, ".pgschemaignore")
+	ignoreContent, _ := os.ReadFile(ignoreFile) //nolint:gosec // optional file
+
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	body := map[string]interface{}{
-		"namespace": schemaNamespace,
-		"schema":    effectiveSchemaName(schemaName),
-		"content":   string(content),
-		"no_apply":  schemaNoApply,
-		"apply":     !schemaNoApply,
+		"namespace":      schemaNamespace,
+		"schema":         effectiveSchemaName(schemaName),
+		"content":        string(content),
+		"ignore_content": string(ignoreContent),
+		"no_apply":       schemaNoApply,
+		"apply":          !schemaNoApply,
 	}
 	_ = schemaAllowDest // destructive allowance is a server-side config; flagged through for future use
 
@@ -191,7 +198,12 @@ func runSchemaSync(cmd *cobra.Command, args []string) error {
 	if applied {
 		changes, _ := result["changes"].(float64)
 		duration, _ := result["duration"].(string)
-		fmt.Printf("Applied %d change(s) in %s\n", int(changes), duration)
+		isFallback, _ := result["fallback"].(bool)
+		note := ""
+		if isFallback {
+			note = " (via direct fallback; statement count is approximate)"
+		}
+		fmt.Printf("Applied %d change(s) in %s%s\n", int(changes), duration, note)
 	} else if schemaNoApply {
 		fmt.Println("Stored only (--no-apply).")
 	}
@@ -345,7 +357,12 @@ func runSchemaApply(cmd *cobra.Command, args []string) error {
 
 	applied, _ := result["applied"].(float64)
 	duration, _ := result["duration"].(string)
-	fmt.Printf("Applied %d change(s) in %s\n", int(applied), duration)
+	isFallback, _ := result["fallback"].(bool)
+	note := ""
+	if isFallback {
+		note = " (via direct fallback; statement count is approximate)"
+	}
+	fmt.Printf("Applied %d change(s) in %s%s\n", int(applied), duration, note)
 	return nil
 }
 

@@ -77,10 +77,11 @@ func (h *AppSchemaHandler) SyncSchema(c fiber.Ctx) error {
 
 	var req struct {
 		Namespace string `json:"namespace"`
-		Schema    string `json:"schema"`   // optional, defaults to "public"
-		Content   string `json:"content"`  // the SQL schema body
-		Apply     bool   `json:"apply"`    // store + apply immediately
-		NoApply   bool   `json:"no_apply"` // explicit store-only
+		Schema    string `json:"schema"`         // optional, defaults to "public"
+		Content   string `json:"content"`        // the SQL schema body
+		Ignore    string `json:"ignore_content"` // optional .pgschemaignore content
+		Apply     bool   `json:"apply"`          // store + apply immediately
+		NoApply   bool   `json:"no_apply"`       // explicit store-only
 	}
 	if err := c.Bind().Body(&req); err != nil && err != fiber.ErrUnprocessableEntity {
 		return SendBadRequest(c, "Invalid request body", ErrCodeInvalidBody)
@@ -94,7 +95,7 @@ func (h *AppSchemaHandler) SyncSchema(c fiber.Ctx) error {
 
 	ctx := c.Context()
 
-	fingerprint, changed, err := h.service.StoreSchemaContent(ctx, req.Namespace, req.Schema, req.Content)
+	fingerprint, changed, err := h.service.StoreSchemaContent(ctx, req.Namespace, req.Schema, req.Content, req.Ignore)
 	if err != nil {
 		return SendInternalError(c, fmt.Sprintf("Failed to store schema: %v", err))
 	}
@@ -117,6 +118,7 @@ func (h *AppSchemaHandler) SyncSchema(c fiber.Ctx) error {
 		resp["applied"] = true
 		resp["changes"] = len(res.Applied)
 		resp["duration"] = res.Duration.String()
+		resp["fallback"] = res.Fallback
 		if res.Error != nil {
 			resp["message"] = res.Error.Error()
 		}
@@ -152,6 +154,7 @@ func (h *AppSchemaHandler) ApplySchema(c fiber.Ctx) error {
 		"message":  "Schema applied successfully",
 		"applied":  len(res.Applied),
 		"duration": res.Duration.String(),
+		"fallback": res.Fallback,
 	}
 	if res.Error != nil {
 		resp["message"] = res.Error.Error()
