@@ -389,18 +389,18 @@ func (s *AppDeclarativeService) applyDirectFallback(ctx context.Context, schemaN
 		return nil, fmt.Errorf("failed to set search_path: %w", err)
 	}
 
+	// Add missing columns BEFORE the bulk SQL exec. LANGUAGE sql function bodies
+	// are validated at creation time and reference columns by name — if a column
+	// is declared in a CREATE TABLE but missing from the live DB (additive change),
+	// a CREATE OR REPLACE FUNCTION referencing it would fail before the column is
+	// added. Running ensureMissingColumns first prevents this ordering issue.
+	if err := s.ensureMissingColumnsFromContent(ctx, schemaName, content, pool); err != nil {
+		log.Warn().Err(err).Str("schema", schemaName).Msg("Failed to ensure missing columns, continuing")
+	}
+
 	idempotentSQL := dbschema.MakeSQLIdempotent(content)
 	if _, err := pool.Exec(ctx, idempotentSQL); err != nil {
 		return nil, fmt.Errorf("failed to execute schema: %w", err)
-	}
-
-	// pgschema treats CREATE TABLE IF NOT EXISTS as atomic, so missing columns on
-	// existing tables are not added by the idempotent re-run above. Port the same
-	// ensureMissingColumns step the internal declarative engine uses: scan the
-	// schema content for column definitions and ALTER TABLE ADD COLUMN any that
-	// are absent. This makes additive schema evolution work via the fallback path.
-	if err := s.ensureMissingColumnsFromContent(ctx, schemaName, content, pool); err != nil {
-		log.Warn().Err(err).Str("schema", schemaName).Msg("Failed to ensure missing columns, continuing")
 	}
 
 	// Report the count of top-level statements executed (best-effort feedback;
