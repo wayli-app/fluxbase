@@ -486,3 +486,33 @@ func BenchmarkIsValidIdentifier_Invalid(b *testing.B) {
 		_ = isValidIdentifier("invalid-identifier")
 	}
 }
+
+// =============================================================================
+// categoryForExtension Tests
+// =============================================================================
+
+func TestCategoryForExtension(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"postgis", "geospatial"},
+		{"postgis_topology", "geospatial"},
+		{"PostGIS", "geospatial"}, // case-insensitive
+		{"vector", "ai_ml"},
+		{"pg_trgm", "text_search"},
+		{"pgcrypto", "data_types"},
+		{"uuid-ossp", "indexing"},
+		{"timescaledb", "scheduling"},
+		{"postgres_fdw", "foreign_data"},
+		{"pg_stat_statements", "monitoring"},
+		{"some_unknown_ext", "utilities"},
+		{"", "utilities"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := categoryForExtension(tt.name)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

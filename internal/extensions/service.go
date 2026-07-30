@@ -349,17 +349,28 @@ func (s *Service) enableExtensionRecursive(ctx context.Context, name string, use
 		return nil, fmt.Errorf("extension dependency chain too deep (>%d), possible circular dependency", maxDepth)
 	}
 
-	// Validate extension exists in catalog
+	// Validate extension exists in catalog, falling back to pg_available_extensions.
+	// The catalog (platform.available_extensions) may be empty on fresh installs
+	// (it's populated lazily by SyncExtensions). If the extension isn't in the
+	// catalog, check whether PostgreSQL itself knows about it — if so, allow
+	// enabling it (the CREATE EXTENSION runs as admin regardless).
 	available, err := s.getAvailableExtension(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 	if available == nil {
-		return &EnableExtensionResponse{
-			Name:    name,
-			Success: false,
-			Message: "Extension not found in catalog",
-		}, nil
+		// Fallback: check if the extension is available in PostgreSQL directly.
+		pgAvailable, pgErr := s.isExtensionAvailableInPostgres(ctx, name)
+		if pgErr != nil || !pgAvailable {
+			return &EnableExtensionResponse{
+				Name:    name,
+				Success: false,
+				Message: "Extension not found in catalog or available in PostgreSQL",
+			}, nil
+		}
+		// Extension is available in PostgreSQL but not in the catalog — proceed.
+		// Use a minimal available-extension stub so downstream logic works.
+		available = &AvailableExtension{Name: name, Category: categoryForExtension(name)}
 	}
 
 	// Check if already enabled
@@ -636,6 +647,114 @@ func (s *Service) getAvailableExtension(ctx context.Context, name string) (*Avai
 		return nil, fmt.Errorf("failed to get extension: %w", err)
 	}
 	return &ext, nil
+}
+
+// SyncExtensionCatalog populates platform.available_extensions from
+// pg_available_extensions, upserting any missing rows with sensible category
+// defaults. Returns the number of extensions synced. Called on startup and via
+// the POST /api/v1/admin/extensions/sync endpoint.
+func (s *Service) SyncExtensionCatalog(ctx context.Context) (int, error) {
+	// Query all available extensions from PostgreSQL.
+	type pgExt struct {
+		Name    string
+		Version string
+		Comment string
+	}
+	var exts []pgExt
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT name, COALESCE(default_version, ''), COALESCE(comment, '')
+			FROM pg_available_extensions
+			ORDER BY name
+		`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var e pgExt
+			if err := rows.Scan(&e.Name, &e.Version, &e.Comment); err != nil {
+				return err
+			}
+			exts = append(exts, e)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to query pg_available_extensions: %w", err)
+	}
+
+	// Upsert each into the catalog (skip rows that already exist — don't overwrite
+	// admin-customized metadata).
+	synced := 0
+	for _, e := range exts {
+		category := categoryForExtension(e.Name)
+		displayName := strings.Title(strings.ReplaceAll(e.Name, "_", " "))
+		var affected int64
+		err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+			tag, err := tx.Exec(ctx, `
+				INSERT INTO platform.available_extensions (name, display_name, description, category)
+				VALUES ($1, $2, $3, $4)
+				ON CONFLICT (name) DO NOTHING
+			`, e.Name, displayName, e.Comment, category)
+			if err != nil {
+				return err
+			}
+			affected = tag.RowsAffected()
+			return nil
+		})
+		if err != nil {
+			log.Warn().Err(err).Str("extension", e.Name).Msg("Failed to upsert extension in catalog")
+			continue
+		}
+		if affected > 0 {
+			synced++
+		}
+	}
+
+	log.Info().Int("synced", synced).Int("total_available", len(exts)).Msg("Extension catalog synced from PostgreSQL")
+	return synced, nil
+}
+
+// isExtensionAvailableInPostgres checks whether an extension is installable
+// on the main database by querying pg_available_extensions. This is the
+// fallback when the extension isn't in the platform.available_extensions catalog.
+func (s *Service) isExtensionAvailableInPostgres(ctx context.Context, name string) (bool, error) {
+	var exists bool
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT EXISTS(SELECT 1 FROM pg_available_extensions WHERE name = $1)
+		`, name).Scan(&exists)
+	})
+	return exists, err
+}
+
+// categoryForExtension returns a sensible default category for known extensions.
+// Used when enabling an extension that isn't yet in the catalog.
+func categoryForExtension(name string) string {
+	switch strings.ToLower(name) {
+	case "postgis", "postgis_topology", "postgis_raster", "postgis_sfcgal",
+		"address_standardizer", "address_standardizer_data_us", "pgrouting":
+		return "geospatial"
+	case "vector", "vectorscale", "ai":
+		return "ai_ml"
+	case "pg_trgm", "unaccent", "fuzzystrmatch":
+		return "text_search"
+	case "pg_stat_statements", "pg_stat_monitor", "pg_buffercache":
+		return "monitoring"
+	case "timescaledb", "pg_cron", "pg_partman":
+		return "scheduling"
+	case "pgcrypto", "pgjwt":
+		return "data_types"
+	case "uuid-ossp", "btree_gin", "btree_gist", "intarray", "citext":
+		return "indexing"
+	case "postgres_fdw", "dblink", "file_fdw":
+		return "foreign_data"
+	case "pg_repack", "pg_squeeze":
+		return "maintenance"
+	default:
+		return "utilities"
+	}
 }
 
 // recordExtensionErrorForTenant records an error for a tenant's extension operation

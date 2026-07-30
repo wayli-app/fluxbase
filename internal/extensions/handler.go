@@ -1,6 +1,8 @@
 package extensions
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
@@ -161,9 +163,17 @@ func (h *Handler) DisableExtension(c fiber.Ctx) error {
 // SyncExtensions syncs the extension catalog with PostgreSQL
 // POST /api/v1/admin/extensions/sync
 func (h *Handler) SyncExtensions(c fiber.Ctx) error {
+	count, err := h.service.SyncExtensionCatalog(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Failed to sync extensions: %v", err),
+		})
+	}
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Extensions synced successfully",
+		"message": fmt.Sprintf("Synced %d extensions from PostgreSQL", count),
+		"count":   count,
 	})
 }
 
