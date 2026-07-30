@@ -5,6 +5,35 @@ entries:
       category: Database
       licenses: MIT
     apiVersion: v2
+    appVersion: 2026.7.5
+    created: "2026-07-30T17:09:14.798444003Z"
+    description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
+      PostgreSQL
+    digest: a975a52fd04c43f48bdd3d3a19824f44057ebe81b873e3071a53c98cdb4675b5
+    home: https://github.com/nimbleflux/fluxbase
+    icon: https://raw.githubusercontent.com/nimbleflux/fluxbase/main/docs/src/assets/logo.svg
+    keywords:
+    - backend
+    - baas
+    - postgresql
+    - rest-api
+    - realtime
+    - storage
+    - auth
+    maintainers:
+    - email: hello@fluxbase.io
+      name: Fluxbase Team
+    name: fluxbase
+    sources:
+    - https://github.com/nimbleflux/fluxbase
+    type: application
+    urls:
+    - https://nimbleflux.github.io/fluxbase/fluxbase-2026.7.5.tgz
+    version: 2026.7.5
+  - annotations:
+      category: Database
+      licenses: MIT
+    apiVersion: v2
     appVersion: 2026.7.4
     created: "2026-07-30T13:47:33.606606592Z"
     description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
@@ -8116,4 +8145,4 @@ entries:
     urls:
     - https://fluxbase-eu.github.io/fluxbase/fluxbase-0.0.1-rc.51.tgz
     version: 0.0.1-rc.51
-generated: "2026-07-30T13:47:33.603242829Z"
+generated: "2026-07-30T17:09:14.794781289Z"
