@@ -20,6 +20,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/database"
 	"github.com/nimbleflux/fluxbase/internal/database/bootstrap"
 	"github.com/nimbleflux/fluxbase/internal/database/schema"
+	"github.com/nimbleflux/fluxbase/internal/extensions"
 	"github.com/nimbleflux/fluxbase/internal/migrations"
 	"github.com/nimbleflux/fluxbase/internal/storage"
 	"github.com/nimbleflux/fluxbase/internal/tenantdb"
@@ -179,6 +180,16 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info().Msg("Database bootstrap completed successfully")
+
+	// Sync the extension catalog from pg_available_extensions so that
+	// `fluxbase extensions enable <name>` works out-of-the-box (the catalog
+	// is empty on fresh installs, which blocked the enable path).
+	extService := extensions.NewService(db)
+	if count, err := extService.SyncExtensionCatalog(context.Background()); err != nil {
+		log.Warn().Err(err).Msg("Failed to sync extension catalog, continuing")
+	} else if count > 0 {
+		log.Info().Int("synced", count).Msg("Extension catalog synced from PostgreSQL")
+	}
 
 	// Apply declarative schema (tables, indexes, functions, policies)
 	// This uses pgschema to apply the internal Fluxbase schema
