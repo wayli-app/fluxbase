@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database/bootstrap"
+	dbschema "github.com/nimbleflux/fluxbase/internal/database/schema"
 )
 
 // AppDeclarativeService manages an application's own schema (e.g. the `public`
@@ -298,6 +299,45 @@ func (s *AppDeclarativeService) planFromContent(ctx context.Context, schemaName,
 	return &plan, nil
 }
 
+// applyDirectFallback applies schema content directly via SQL execution, as a
+// fallback when pgschema plan cannot validate the desired state (e.g. references
+// to extension-provided operators like pgvector's <=>, or cross-schema objects).
+// Mirrors DeclarativeService.applySchemaDirectFallback. The content is made
+// idempotent via MakeSQLIdempotent, so re-applying a matching schema is a no-op.
+func (s *AppDeclarativeService) applyDirectFallback(ctx context.Context, schemaName, schemaContent string) error {
+	content, err := s.substituteAppUserForContent(schemaContent)
+	if err != nil {
+		return fmt.Errorf("invalid app user placeholder: %w", err)
+	}
+
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		s.dbUser, s.dbPassword, s.dbHost, s.dbPort, s.dbName)
+	pool, err := pgxpool.New(ctx, connStr)
+	if err != nil {
+		return fmt.Errorf("failed to create connection pool: %w", err)
+	}
+	defer pool.Close()
+
+	// Set search_path so unqualified names and extension operators resolve. The
+	// target schema comes first; `public` is included for shared types.
+	if schemaName == "" {
+		schemaName = "public"
+	}
+	searchPath := schemaName
+	if schemaName != "public" {
+		searchPath = schemaName + ", public"
+	}
+	if _, err := pool.Exec(ctx, fmt.Sprintf("SET search_path TO %s", searchPath)); err != nil {
+		return fmt.Errorf("failed to set search_path: %w", err)
+	}
+
+	idempotentSQL := dbschema.MakeSQLIdempotent(content)
+	if _, err := pool.Exec(ctx, idempotentSQL); err != nil {
+		return fmt.Errorf("failed to execute schema: %w", err)
+	}
+	return nil
+}
+
 // ApplyFromContent stores the content and applies it via pgschema. This is the
 // entry point used by `fluxbase schema sync` (store + apply) and by ApplyAllPending
 // (startup) against already-stored content.
@@ -324,7 +364,25 @@ func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace,
 
 	plan, err := s.planFromContent(ctx, schemaName, schemaContent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to plan app schema for namespace=%s: %w", namespace, err)
+		// pgschema plan can fail when the desired-state SQL references objects or
+		// operators from extensions (e.g. pgvector's <=> operator) or other schemas,
+		// because plan validation applies the SQL to a temporary schema where those
+		// aren't available. This mirrors the internal declarative engine: fall back
+		// to applying the idempotent SQL directly. Since pgschema-dump content uses
+		// CREATE ... IF NOT EXISTS throughout, direct application is safe and a
+		// re-apply against a matching DB is a no-op.
+		log.Warn().Err(err).
+			Str("namespace", namespace).
+			Str("schema", schemaName).
+			Msg("pgschema plan failed, applying app schema via direct fallback")
+		if ferr := s.applyDirectFallback(ctx, schemaName, schemaContent); ferr != nil {
+			return nil, fmt.Errorf("failed to plan app schema for namespace=%s schema=%s: %w (and direct fallback failed: %v)", namespace, schemaName, err, ferr)
+		}
+		if err := s.recordApply(ctx, namespace, schemaName, fingerprint); err != nil {
+			log.Warn().Err(err).Msg("Failed to record app schema state")
+		}
+		log.Info().Str("namespace", namespace).Str("schema", schemaName).Msg("App schema applied via direct fallback")
+		return &ApplyResult{Applied: []Change{}, Duration: 0}, nil
 	}
 
 	if len(plan.Changes) == 0 {
