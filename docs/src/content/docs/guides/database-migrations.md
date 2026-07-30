@@ -1,16 +1,19 @@
 ---
 title: Database Migrations
-description: Manage database schema changes in Fluxbase with declarative schema management for platform tables and optional imperative migrations for your application.
+description: Manage database schema changes in Fluxbase with declarative schema management for platform tables and your choice of declarative or imperative schema for your application tables.
 ---
 
-Fluxbase uses a **declarative schema management** approach for internal platform tables, combined with optional **imperative migrations** for your application schema.
+Fluxbase uses a **declarative schema management** approach for internal platform tables, and lets you choose between **declarative** or **imperative** schema management for your own application tables.
 
 ## Overview
 
-Fluxbase provides two ways to manage database schema:
+Fluxbase provides three schema mechanisms:
 
-1. **Declarative Schema (Internal)** - Fluxbase platform tables managed automatically via bootstrap + pgschema
-2. **User Migrations (Optional)** - Your custom application tables via imperative SQL migration files
+1. **Declarative Schema (Internal)** - Fluxbase platform tables managed automatically via bootstrap + pgschema (always on)
+2. **Declarative App Schema (Optional)** - Your own application tables managed declaratively from a desired-state SQL file (opt-in)
+3. **User Migrations (Optional)** - Your custom application tables via imperative SQL migration files
+
+You pick **one** of (2) or (3) for a given `(namespace, schema)` — do not use both against the same schema.
 
 ```mermaid
 graph LR
@@ -19,14 +22,26 @@ graph LR
         B2 --> B3[Platform Tables]
     end
 
-    subgraph "User Schema (Imperative)"
+    subgraph "App Schema (choose one)"
+        D1[public.sql desired-state] --> D2[platform.app_schemas]
+        D2 --> D3[App Tables via pgschema diff]
         U1[Migration Files] --> U2[platform.migrations]
-        U2 --> U3[Application Tables]
+        U2 --> U3[App Tables imperative]
     end
 
     B3 -.-> DB[(PostgreSQL)]
+    D3 -.-> DB
     U3 -.-> DB
 ```
+
+### Which app-schema mode should I pick?
+
+| Use Declarative App Schema | Use User Migrations (Imperative) |
+| -------------------------- | -------------------------------- |
+| You want the schema file to be the single source of truth | You need ordered, reversible migrations |
+| You want automatic drift reconciliation on every sync | You need data-transformations / backfills between versions |
+| You want the deployed schema to be readable at a glance | You prefer explicit up/down rollback files |
+| You want a simpler mental model (no version numbers) | You have complex, stepwise data migrations |
 
 ## Declarative Schema (Internal)
 
@@ -56,6 +71,91 @@ The internal Fluxbase schema (auth, storage, functions, jobs, etc.) is managed d
 - **Automatic drift detection** - Can detect if database was modified outside Fluxbase
 - **Safe by default** - Destructive changes require explicit approval
 - **Works with CI/CD** - Schema is applied automatically, no migration commands needed
+
+## Declarative App Schema (Optional)
+
+**Purpose:** Your own application tables managed declaratively from a desired-state SQL file
+
+The declarative app schema applies the same proven pgschema engine used for internal
+platform tables to **your** application schema (e.g. `public`). You commit a single
+desired-state SQL file and sync it; Fluxbase stores the content and reconciles the live
+database to match on every sync. This is an opt-in alternative to imperative user
+migrations.
+
+- **Schema file:** `fluxbase/schema/public.sql` (or `<dir>/<schema>.sql`) — a pgschema-style desired-state dump
+- **Storage:** `platform.app_schemas` (content + fingerprint) and `platform.app_schema_state` (last applied)
+- **Execution:** Applied on startup when `database.declarative_app_schema.enabled=true`; also runnable on demand
+- **Safety:** Destructive changes (`DROP`, etc.) are blocked by default and require `allow_destructive=true`
+
+### Enabling it
+
+Set the following on the Fluxbase server (environment variables use the `FLUXBASE_` prefix):
+
+```yaml
+database:
+  declarative_app_schema:
+    enabled: true
+    schema: public
+    namespaces: ["wayli"]   # restrict which synced namespaces apply on startup; empty = all
+    on_startup: true
+    allow_destructive: false
+```
+
+### Syncing your schema
+
+Commit a desired-state SQL file and sync it with the CLI:
+
+```bash
+fluxbase schema sync --dir fluxbase/schema --namespace wayli
+# Reads fluxbase/schema/public.sql, stores it, and applies the diff
+```
+
+Other commands:
+
+```bash
+fluxbase schema status                       # list all stored app schemas
+fluxbase schema status --namespace wayli     # status for one namespace
+fluxbase schema plan --namespace wayli       # preview pending changes
+fluxbase schema validate --namespace wayli --fail-on-drift   # CI drift check
+fluxbase schema apply --namespace wayli      # re-apply stored content (reconcile drift)
+```
+
+### Generating the schema file
+
+To adopt declarative schema on an existing app, dump the current live schema so the
+first sync is a zero-diff no-op:
+
+```bash
+pgschema dump --host $DB_HOST --port 5432 --user $DB_USER --db $DB --schema public > fluxbase/schema/public.sql
+```
+
+Then edit the file to keep only your application objects (strip Fluxbase-owned schemas
+like `auth`, `storage`, `platform`, `app`). After the first clean sync, future edits to
+the file are diffed and applied automatically.
+
+> **Note:** Extensions (`CREATE EXTENSION`) cannot be managed by pgschema. Keep them in a
+> separate bootstrap step (e.g. a tiny `extensions.sql` applied out-of-band), not in
+> `public.sql`. Fluxbase's bootstrap already enables `uuid-ossp`, `pgcrypto`, `pg_trgm`,
+> `btree_gin`, and `vector`; add any others (e.g. `postgis`) separately.
+
+### Coexistence with imperative migrations
+
+A `(namespace, schema)` should be owned by **one** mode. If Fluxbase detects that a
+declaratively-managed namespace also has imperative migrations in `platform.migrations`,
+it logs a warning on startup. To switch an app to declarative: stop running
+`fluxbase migrations sync` for that namespace and remove its imperative migrations from
+the sync path.
+
+### Declarative App Schema API
+
+| Endpoint                                  | Description                          |
+| ----------------------------------------- | ------------------------------------ |
+| `POST /api/v1/admin/app-schema/sync`      | Store schema content (+ apply)       |
+| `POST /api/v1/admin/app-schema/apply`     | Apply already-stored content         |
+| `POST /api/v1/admin/app-schema/plan`      | Preview pending changes              |
+| `GET  /api/v1/admin/app-schema/validate`  | Check for drift                      |
+| `GET  /api/v1/admin/app-schema/status`    | Status / list stored schemas         |
+| `DELETE /api/v1/admin/app-schema`         | Remove stored content (no DB change) |
 
 ## User Migrations (Optional)
 

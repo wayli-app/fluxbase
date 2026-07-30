@@ -49,6 +49,14 @@ type SchemaAdminDeps struct {
 	GetInternalSchemaStatus fiber.Handler
 	MigrateInternalSchema   fiber.Handler
 
+	// App Schema (Declarative) — opt-in declarative management for application tables (public)
+	SyncAppSchema      fiber.Handler
+	ApplyAppSchema     fiber.Handler
+	PlanAppSchema      fiber.Handler
+	ValidateAppSchema  fiber.Handler
+	GetAppSchemaStatus fiber.Handler
+	DeleteAppSchema    fiber.Handler
+
 	// Middleware for branch context
 	BranchMiddleware fiber.Handler
 }
@@ -131,6 +139,14 @@ func BuildSchemaAdminRoutes(deps *SchemaAdminDeps) *RouteGroup {
 			{Method: "GET", Path: "/internal-schema/validate", Handler: deps.ValidateInternalSchema, Summary: "Validate schema for drift", Roles: []string{"admin", "instance_admin"}},
 			{Method: "GET", Path: "/internal-schema/status", Handler: deps.GetInternalSchemaStatus, Summary: "Get schema status", Roles: []string{"admin", "instance_admin"}},
 			{Method: "POST", Path: "/internal-schema/migrate", Handler: deps.MigrateInternalSchema, Summary: "Migrate from imperative to declarative", Roles: []string{"admin", "instance_admin"}},
+
+			// App Schema (Declarative) - opt-in declarative management for application tables - instance admin only
+			{Method: "POST", Path: "/app-schema/sync", Handler: deps.SyncAppSchema, Summary: "Sync declarative app schema content", Roles: []string{"admin", "instance_admin"}},
+			{Method: "POST", Path: "/app-schema/apply", Handler: deps.ApplyAppSchema, Summary: "Apply declarative app schema", Roles: []string{"admin", "instance_admin"}},
+			{Method: "POST", Path: "/app-schema/plan", Handler: deps.PlanAppSchema, Summary: "Plan app schema changes", Roles: []string{"admin", "instance_admin"}},
+			{Method: "GET", Path: "/app-schema/validate", Handler: deps.ValidateAppSchema, Summary: "Validate app schema for drift", Roles: []string{"admin", "instance_admin"}},
+			{Method: "GET", Path: "/app-schema/status", Handler: deps.GetAppSchemaStatus, Summary: "Get app schema status", Roles: []string{"admin", "instance_admin"}},
+			{Method: "DELETE", Path: "/app-schema", Handler: deps.DeleteAppSchema, Summary: "Remove stored app schema content", Roles: []string{"admin", "instance_admin"}},
 		},
 	}
 }

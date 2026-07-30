@@ -46,6 +46,13 @@ func setDefaults() {
 	viper.SetDefault("database.user_migrations_path", "/migrations/user")
 	viper.SetDefault("database.slow_query_threshold", "1s")
 
+	// Declarative app-schema defaults (opt-in — off by default so existing apps are unaffected)
+	viper.SetDefault("database.declarative_app_schema.enabled", false)
+	viper.SetDefault("database.declarative_app_schema.schema", "public")
+	viper.SetDefault("database.declarative_app_schema.namespaces", []string{})
+	viper.SetDefault("database.declarative_app_schema.on_startup", true)
+	viper.SetDefault("database.declarative_app_schema.allow_destructive", false)
+
 	// Auth defaults
 	viper.SetDefault("auth.jwt_secret", "your-secret-key-change-in-production")
 	viper.SetDefault("auth.jwt_expiry", "15m")

@@ -10,21 +10,41 @@ import (
 
 // DatabaseConfig contains PostgreSQL connection settings
 type DatabaseConfig struct {
-	Host               string        `mapstructure:"host"`
-	Port               int           `mapstructure:"port"`
-	User               string        `mapstructure:"user"`           // Database user for normal operations
-	AdminUser          string        `mapstructure:"admin_user"`     // Optional admin user for migrations (defaults to User)
-	Password           string        `mapstructure:"password"`       // Password for runtime user
-	AdminPassword      string        `mapstructure:"admin_password"` // Optional password for admin user (defaults to Password)
-	Database           string        `mapstructure:"database"`
-	SSLMode            string        `mapstructure:"ssl_mode"`
-	MaxConnections     int32         `mapstructure:"max_connections"`
-	MinConnections     int32         `mapstructure:"min_connections"`
-	MaxConnLifetime    time.Duration `mapstructure:"max_conn_lifetime"`
-	MaxConnIdleTime    time.Duration `mapstructure:"max_conn_idle_time"`
-	HealthCheck        time.Duration `mapstructure:"health_check_period"`
-	UserMigrationsPath string        `mapstructure:"user_migrations_path"` // Path to user-provided migration files
-	SlowQueryThreshold time.Duration `mapstructure:"slow_query_threshold"` // Log queries slower than this (default: 1s)
+	Host                 string                      `mapstructure:"host"`
+	Port                 int                         `mapstructure:"port"`
+	User                 string                      `mapstructure:"user"`           // Database user for normal operations
+	AdminUser            string                      `mapstructure:"admin_user"`     // Optional admin user for migrations (defaults to User)
+	Password             string                      `mapstructure:"password"`       // Password for runtime user
+	AdminPassword        string                      `mapstructure:"admin_password"` // Optional password for admin user (defaults to Password)
+	Database             string                      `mapstructure:"database"`
+	SSLMode              string                      `mapstructure:"ssl_mode"`
+	MaxConnections       int32                       `mapstructure:"max_connections"`
+	MinConnections       int32                       `mapstructure:"min_connections"`
+	MaxConnLifetime      time.Duration               `mapstructure:"max_conn_lifetime"`
+	MaxConnIdleTime      time.Duration               `mapstructure:"max_conn_idle_time"`
+	HealthCheck          time.Duration               `mapstructure:"health_check_period"`
+	UserMigrationsPath   string                      `mapstructure:"user_migrations_path"`   // Path to user-provided migration files
+	SlowQueryThreshold   time.Duration               `mapstructure:"slow_query_threshold"`   // Log queries slower than this (default: 1s)
+	DeclarativeAppSchema *DeclarativeAppSchemaConfig `mapstructure:"declarative_app_schema"` // Opt-in declarative schema for application tables (e.g. public)
+}
+
+// DeclarativeAppSchemaConfig enables declarative (desired-state) schema management for
+// an application's own tables on the main/shared database. This is an opt-in alternative
+// to imperative user migrations (database.user_migrations_path): an app developer chooses
+// one mode per (namespace, schema). When enabled, Fluxbase applies synced schema content
+// via pgschema on startup. Off by default — existing apps see no change.
+type DeclarativeAppSchemaConfig struct {
+	// Enabled controls whether declarative app-schema management is active.
+	Enabled bool `mapstructure:"enabled"`
+	// Schema is the target PostgreSQL schema (default "public").
+	Schema string `mapstructure:"schema"`
+	// Namespaces restricts which synced app namespaces are applied on startup.
+	// Empty/nil means all stored namespaces.
+	Namespaces []string `mapstructure:"namespaces"`
+	// OnStartup applies stored app-schema content during server startup.
+	OnStartup bool `mapstructure:"on_startup"`
+	// AllowDestructive permits DROP/ALTER destructive changes (default false; they are blocked and reported).
+	AllowDestructive bool `mapstructure:"allow_destructive"`
 }
 
 // Validate validates database configuration
