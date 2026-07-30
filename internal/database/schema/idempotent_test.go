@@ -55,6 +55,30 @@ func TestMakeSQLIdempotent_CreateTriggerQuoted(t *testing.T) {
 	}
 }
 
+func TestMakeSQLIdempotent_CreateOrReplaceView(t *testing.T) {
+	sql := `CREATE OR REPLACE VIEW my_tracker_data WITH (security_barrier=true) AS SELECT id, name FROM tracker_data WHERE user_id = 1;`
+	out := MakeSQLIdempotent(sql)
+	if !strings.Contains(out, `DROP VIEW IF EXISTS "my_tracker_data" CASCADE;`) {
+		t.Errorf("expected DROP VIEW prepended, got:\n%s", out)
+	}
+	if !strings.Contains(out, `CREATE OR REPLACE VIEW my_tracker_data`) {
+		t.Errorf("expected original CREATE VIEW preserved, got:\n%s", out)
+	}
+	dropIdx := strings.Index(out, "DROP VIEW")
+	createIdx := strings.Index(out, "CREATE OR REPLACE VIEW")
+	if dropIdx < 0 || createIdx < 0 || dropIdx > createIdx {
+		t.Errorf("expected DROP before CREATE, got dropIdx=%d createIdx=%d", dropIdx, createIdx)
+	}
+}
+
+func TestMakeSQLIdempotent_CreateOrReplaceViewQuoted(t *testing.T) {
+	sql := `CREATE OR REPLACE VIEW "My View" AS SELECT 1;`
+	out := MakeSQLIdempotent(sql)
+	if !strings.Contains(out, `DROP VIEW IF EXISTS "My View" CASCADE;`) {
+		t.Errorf("expected DROP VIEW for quoted name, got:\n%s", out)
+	}
+}
+
 func TestMakeSQLIdempotent_CreateIndex(t *testing.T) {
 	sql := `CREATE INDEX idx_users_email ON public.users (email);`
 	out := MakeSQLIdempotent(sql)

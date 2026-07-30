@@ -71,6 +71,21 @@ func MakeSQLIdempotent(sql string) string {
 				drops = append(drops, dropInfo{pattern: patternUnquoted, dropSQL: dropSQL, foundPos: -1})
 			}
 
+		case *nodes.ViewStmt:
+			// CREATE OR REPLACE VIEW cannot change column names, types, or order
+			// of an existing view. When the view definition changes (e.g. a new
+			// column is added to the underlying table and selected), OR REPLACE
+			// fails with "cannot change name of view column". Prepend
+			// DROP VIEW IF EXISTS so the view is recreated fresh.
+			if stmt.View != nil {
+				viewName := formatRangeVar(stmt.View)
+				dropSQL := fmt.Sprintf("DROP VIEW IF EXISTS %s CASCADE;\n", viewName)
+				patternQuoted := "CREATE OR REPLACE VIEW \"" + stmt.View.Relname + "\""
+				patternUnquoted := "CREATE OR REPLACE VIEW " + stmt.View.Relname
+				drops = append(drops, dropInfo{pattern: patternQuoted, dropSQL: dropSQL, foundPos: -1})
+				drops = append(drops, dropInfo{pattern: patternUnquoted, dropSQL: dropSQL, foundPos: -1})
+			}
+
 		case *nodes.AlterTableStmt:
 			if stmt.Cmds != nil && stmt.Relation != nil {
 				for _, cmd := range stmt.Cmds.Items {
