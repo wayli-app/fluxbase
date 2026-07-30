@@ -40,6 +40,17 @@
       "matchStrings": ["FROM\\s+golang:(?<currentValue>[0-9.]+)(?:-[a-z]+)?"],
       "depNameTemplate": "golang",
       "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update pgschema version (declarative schema tool) in Dockerfiles",
+      "fileMatch": [
+        "Dockerfile",
+        "Dockerfile\\..+",
+        "^\\.devcontainer/Dockerfile"
+      ],
+      "matchStrings": ["ARG\\s+PGSCHEMA_VERSION=(?<currentValue>[0-9.]+)"],
+      "depNameTemplate": "pgplex/pgschema",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
