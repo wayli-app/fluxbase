@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pgplex/pgparser/nodes"
+	"github.com/pgplex/pgparser/parser"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/database/bootstrap"
@@ -334,6 +336,68 @@ func (s *AppDeclarativeService) applyDirectFallback(ctx context.Context, schemaN
 	idempotentSQL := dbschema.MakeSQLIdempotent(content)
 	if _, err := pool.Exec(ctx, idempotentSQL); err != nil {
 		return fmt.Errorf("failed to execute schema: %w", err)
+	}
+
+	// pgschema treats CREATE TABLE IF NOT EXISTS as atomic, so missing columns on
+	// existing tables are not added by the idempotent re-run above. Port the same
+	// ensureMissingColumns step the internal declarative engine uses: scan the
+	// schema content for column definitions and ALTER TABLE ADD COLUMN any that
+	// are absent. This makes additive schema evolution work via the fallback path.
+	if err := s.ensureMissingColumnsFromContent(ctx, schemaName, content, pool); err != nil {
+		log.Warn().Err(err).Str("schema", schemaName).Msg("Failed to ensure missing columns, continuing")
+	}
+	return nil
+}
+
+// ensureMissingColumnsFromContent scans CREATE TABLE IF NOT EXISTS column
+// definitions in the given SQL content and adds any columns missing from the
+// live database via ALTER TABLE ADD COLUMN. Content-based counterpart to
+// DeclarativeService.ensureMissingColumns.
+func (s *AppDeclarativeService) ensureMissingColumnsFromContent(ctx context.Context, schemaName, content string, pool *pgxpool.Pool) error {
+	if schemaName == "" {
+		schemaName = "public"
+	}
+	stmts, err := parser.Parse(content)
+	if err != nil {
+		return nil // Unparseable; nothing to do — the idempotent run already executed.
+	}
+	for _, item := range stmts.Items {
+		create, ok := item.(*nodes.CreateStmt)
+		if !ok || !create.IfNotExists || create.Relation == nil || create.TableElts == nil {
+			continue
+		}
+		tableName := create.Relation.Relname
+
+		var tableExists bool
+		if err := pool.QueryRow(ctx,
+			"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2)",
+			schemaName, tableName,
+		).Scan(&tableExists); err != nil || !tableExists {
+			continue
+		}
+
+		for _, elt := range create.TableElts.Items {
+			col, ok := elt.(*nodes.ColumnDef)
+			if !ok {
+				continue
+			}
+			var colExists bool
+			if err := pool.QueryRow(ctx,
+				"SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3)",
+				schemaName, tableName, col.Colname,
+			).Scan(&colExists); err != nil || colExists {
+				continue
+			}
+			colDef := extractColumnSQL(content, col.Location)
+			if colDef == "" {
+				continue
+			}
+			if _, err := pool.Exec(ctx, fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s", schemaName, tableName, colDef)); err != nil {
+				log.Warn().Err(err).Str("schema", schemaName).Str("table", tableName).Str("column", col.Colname).Msg("Failed to add missing column")
+			} else {
+				log.Info().Str("schema", schemaName).Str("table", tableName).Str("column", col.Colname).Msg("Added missing column for app schema upgrade")
+			}
+		}
 	}
 	return nil
 }
