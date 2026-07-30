@@ -78,7 +78,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:${FLUXBASE_VERSION:-2026.7.7}
+    image: ghcr.io/nimbleflux/fluxbase:${FLUXBASE_VERSION:-2026.7.8}
     container_name: fluxbase
     ports:
       - "8080:8080"
