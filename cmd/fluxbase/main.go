@@ -181,16 +181,6 @@ func main() {
 	}
 	log.Info().Msg("Database bootstrap completed successfully")
 
-	// Sync the extension catalog from pg_available_extensions so that
-	// `fluxbase extensions enable <name>` works out-of-the-box (the catalog
-	// is empty on fresh installs, which blocked the enable path).
-	extService := extensions.NewService(db)
-	if count, err := extService.SyncExtensionCatalog(context.Background()); err != nil {
-		log.Warn().Err(err).Msg("Failed to sync extension catalog, continuing")
-	} else if count > 0 {
-		log.Info().Int("synced", count).Msg("Extension catalog synced from PostgreSQL")
-	}
-
 	// Apply declarative schema (tables, indexes, functions, policies)
 	// This uses pgschema to apply the internal Fluxbase schema
 	log.Info().Msg("Applying declarative schema...")
@@ -280,6 +270,16 @@ func main() {
 	log.Debug().Msg("Recreating connection pool after migrations...")
 	if err := db.RecreatePool(); err != nil {
 		log.Warn().Err(err).Msg("Failed to recreate connection pool, continuing with existing pool")
+	}
+
+	// Sync the extension catalog from pg_available_extensions so that
+	// `fluxbase extensions enable <name>` works out-of-the-box. Must run AFTER
+	// the declarative schema apply (which creates platform.available_extensions).
+	extService := extensions.NewService(db)
+	if count, err := extService.SyncExtensionCatalog(context.Background()); err != nil {
+		log.Warn().Err(err).Msg("Failed to sync extension catalog, continuing")
+	} else if count > 0 {
+		log.Info().Int("synced", count).Msg("Extension catalog synced from PostgreSQL")
 	}
 
 	// Apply declarative app schema (opt-in). Lets an application developer manage

@@ -349,6 +349,12 @@ func (s *Service) enableExtensionRecursive(ctx context.Context, name string, use
 		return nil, fmt.Errorf("extension dependency chain too deep (>%d), possible circular dependency", maxDepth)
 	}
 
+	// Normalize: empty-string userID (e.g. from service-role CLI calls with no
+	// user context) must be NULL for UUID columns, not an empty string.
+	if userID != nil && *userID == "" {
+		userID = nil
+	}
+
 	// Validate extension exists in catalog, falling back to pg_available_extensions.
 	// The catalog (platform.available_extensions) may be empty on fresh installs
 	// (it's populated lazily by SyncExtensions). If the extension isn't in the
