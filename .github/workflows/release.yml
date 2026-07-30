@@ -393,16 +393,27 @@ jobs:
 
       - name: Get previous stable tag
         id: prev_tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Get the last stable release tag (excluding release candidates)
-          # This ensures release notes show all changes since the last stable release
-          PREV_TAG=$(git tag -l 'v*' | grep -v '\-rc\.' | sort -V | tail -n1)
+          # Anchor on the last PUBLISHED stable release, not just the last git tag.
+          # A tag-only "skipped" release (e.g. v2026.7.3, created as a tag but never
+          # published as a GitHub Release) would otherwise make the notes start at that
+          # tag and silently drop its commits. Anchoring on published releases rolls
+          # those commits into the next real release's notes.
+          PREV_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -L 100 \
+            --json tagName -q '.[].tagName' | sort -V | tail -n1)
+
+          # Fallback: last non-RC git tag if no published release exists at all
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git tag -l 'v*' | grep -v '\-rc\.' | sort -V | tail -n1)
+          fi
           if [ -z "$PREV_TAG" ]; then
             # If no previous stable tag, use first commit
             PREV_TAG=$(git rev-list --max-parents=0 HEAD)
           fi
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
-          echo "Previous stable tag: $PREV_TAG"
+          echo "Previous published stable tag: $PREV_TAG"
 
       - name: Generate changelog from commits and PRs
         id: changelog
