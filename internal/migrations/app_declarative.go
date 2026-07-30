@@ -534,13 +534,19 @@ func stripLeadingComma(s string) string {
 	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s), ","))
 }
 
-// ApplyFromContent stores the content and applies it via pgschema. This is the
-// entry point used by `fluxbase schema sync` (store + apply) and by ApplyAllPending
-// (startup) against already-stored content.
+// ApplyFromContent stores the content and applies it. This is the entry point
+// used by `fluxbase schema sync` (store + apply) and by ApplyAllPending (startup)
+// against already-stored content.
 //
-// If the stored fingerprint already matches the last-applied fingerprint, the
-// plan is still computed (cheap no-op) so drift outside Fluxbase is detected and
-// reconciled on every apply — consistent with the internal declarative engine.
+// Apply uses the DIRECT-APPLY FALLBACK as the primary path, not pgschema's plan.
+// Rationale: pgschema's plan is a whole-schema diff that includes Fluxbase's
+// infrastructure grants (service_role, tenant roles, default privileges) which
+// the app's schema file doesn't (and shouldn't) declare — producing destructive
+// REVOKEs that would break Fluxbase if applied. The fallback applies only the
+// app's declared DDL idempotently (CREATE IF NOT EXISTS + ensureMissingColumns +
+// MakeSQLIdempotent for policies/triggers/indexes/constraints), which is the
+// correct model for a Fluxbase app. pgschema's plan remains available for
+// plan/validate (drift detection) via the Plan() method.
 func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace, schemaName, schemaContent, ignoreContent string) (*ApplyResult, error) {
 	if schemaName == "" {
 		schemaName = "public"
@@ -558,117 +564,23 @@ func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace,
 		Str("fingerprint", fingerprint[:12]).
 		Msg("Applying declarative app schema")
 
-	plan, err := s.planFromContent(ctx, schemaName, schemaContent, ignoreContent)
+	res, err := s.applyDirectFallback(ctx, schemaName, schemaContent)
 	if err != nil {
-		// pgschema plan can fail when the desired-state SQL references objects or
-		// operators from extensions (e.g. pgvector's <=> operator) or other schemas,
-		// because plan validation applies the SQL to a temporary schema where those
-		// aren't available. This mirrors the internal declarative engine: fall back
-		// to applying the idempotent SQL directly. Since pgschema-dump content uses
-		// CREATE ... IF NOT EXISTS throughout, direct application is safe and a
-		// re-apply against a matching DB is a no-op.
-		log.Warn().Err(err).
-			Str("namespace", namespace).
-			Str("schema", schemaName).
-			Msg("pgschema plan failed, applying app schema via direct fallback")
-		res, ferr := s.applyDirectFallback(ctx, schemaName, schemaContent)
-		if ferr != nil {
-			return nil, fmt.Errorf("failed to plan app schema for namespace=%s schema=%s: %w (and direct fallback failed: %w)", namespace, schemaName, err, ferr)
-		}
-		// If the fallback blocked destructive changes, surface that result.
-		if res != nil && res.Error != nil {
-			return res, nil
-		}
-		if err := s.recordApply(ctx, namespace, schemaName, fingerprint); err != nil {
-			log.Warn().Err(err).Msg("Failed to record app schema state")
-		}
-		log.Info().
-			Str("namespace", namespace).
-			Str("schema", schemaName).
-			Int("statements", len(res.Applied)).
-			Msg("App schema applied via direct fallback")
+		return nil, fmt.Errorf("failed to apply app schema for namespace=%s schema=%s: %w", namespace, schemaName, err)
+	}
+	// If the fallback blocked destructive changes, surface that result without recording apply.
+	if res != nil && res.Error != nil {
 		return res, nil
 	}
-
-	if len(plan.Changes) == 0 {
-		if err := s.recordApply(ctx, namespace, schemaName, fingerprint); err != nil {
-			log.Warn().Err(err).Msg("Failed to record app schema state")
-		}
-		log.Info().Str("namespace", namespace).Str("schema", schemaName).Msg("No app schema changes to apply")
-		return &ApplyResult{Applied: []Change{}, Duration: 0}, nil
-	}
-
-	// Block destructive changes unless explicitly allowed.
-	if !s.allowDestructive {
-		destructive := 0
-		for _, c := range plan.Changes {
-			if c.Destructive {
-				destructive++
-			}
-		}
-		if destructive > 0 {
-			if err := s.recordApply(ctx, namespace, schemaName, fingerprint); err != nil {
-				log.Warn().Err(err).Msg("Failed to record app schema state")
-			}
-			return &ApplyResult{
-				Applied:  []Change{},
-				Duration: 0,
-				Error:    fmt.Errorf("app schema plan for namespace=%s schema=%s contains %d destructive change(s); blocked (set allow_destructive=true to permit)", namespace, schemaName, destructive),
-			}, nil
-		}
-	}
-
-	// Apply using pgschema (plan + auto-approve), same as the tenant path.
-	applyContent, err := s.substituteAppUserForContent(schemaContent)
-	if err != nil {
-		return nil, fmt.Errorf("invalid app user placeholder: %w", err)
-	}
-	tmpFile, err := writeContentToTemp("app-schema-*.sql", applyContent)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = os.Remove(tmpFile) }()
-
-	planFile, err := writePlanToTempFile(plan)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = os.Remove(planFile) }()
-
-	applyArgs := []string{
-		"apply",
-		"--host", s.dbHost,
-		"--port", fmt.Sprintf("%d", s.dbPort),
-		"--user", s.dbUser,
-		"--db", s.dbName,
-		"--file", tmpFile,
-		"--schema", schemaName,
-		"--plan", planFile,
-		"--auto-approve",
-	}
-	applyCmd := exec.CommandContext(ctx, s.pgschemaPath, applyArgs...)
-	applyCmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.dbPassword))
-
-	start := time.Now()
-	if _, err := applyCmd.Output(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("pgschema apply failed: %w: %s", err, string(exitErr.Stderr))
-		}
-		return nil, fmt.Errorf("pgschema apply failed: %w", err)
-	}
-
 	if err := s.recordApply(ctx, namespace, schemaName, fingerprint); err != nil {
 		log.Warn().Err(err).Msg("Failed to record app schema state")
 	}
-
 	log.Info().
 		Str("namespace", namespace).
 		Str("schema", schemaName).
-		Int("changes", len(plan.Changes)).
-		Str("duration", time.Since(start).String()).
-		Msg("App declarative schema applied successfully")
-
-	return &ApplyResult{Applied: plan.Changes, Duration: time.Since(start)}, nil
+		Int("statements", len(res.Applied)).
+		Msg("App schema applied via direct fallback")
+	return res, nil
 }
 
 // ApplyStored applies the already-stored content for a (namespace, schema).
