@@ -511,7 +511,7 @@ func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace,
 			Str("schema", schemaName).
 			Msg("pgschema plan failed, applying app schema via direct fallback")
 		if ferr := s.applyDirectFallback(ctx, schemaName, schemaContent); ferr != nil {
-			return nil, fmt.Errorf("failed to plan app schema for namespace=%s schema=%s: %w (and direct fallback failed: %v)", namespace, schemaName, err, ferr)
+			return nil, fmt.Errorf("failed to plan app schema for namespace=%s schema=%s: %w (and direct fallback failed: %w)", namespace, schemaName, err, ferr)
 		}
 		if err := s.recordApply(ctx, namespace, schemaName, fingerprint); err != nil {
 			log.Warn().Err(err).Msg("Failed to record app schema state")
