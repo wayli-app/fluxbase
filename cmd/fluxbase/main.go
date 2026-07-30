@@ -271,6 +271,45 @@ func main() {
 		log.Warn().Err(err).Msg("Failed to recreate connection pool, continuing with existing pool")
 	}
 
+	// Apply declarative app schema (opt-in). Lets an application developer manage
+	// their own tables (e.g. the `public` schema) declaratively via synced schema
+	// content, as an alternative to imperative user migrations. Off by default —
+	// no-op unless database.declarative_app_schema.enabled is true.
+	if cfg.Database.DeclarativeAppSchema != nil && cfg.Database.DeclarativeAppSchema.Enabled {
+		log.Info().Msg("Applying declarative app schema...")
+		appDeclarative := migrations.NewAppDeclarativeService(
+			"pgschema",
+			cfg.Database.Host,
+			cfg.Database.Port,
+			adminUser,
+			adminPassword,
+			cfg.Database.Database,
+			cfg.Database.DeclarativeAppSchema.AllowDestructive,
+		)
+		appDeclarative.SetPool(db.Pool())
+		appDeclarative.SetAppUser(cfg.Database.User)
+
+		appNamespaces := cfg.Database.DeclarativeAppSchema.Namespaces
+		if cfg.Database.DeclarativeAppSchema.OnStartup {
+			if err := appDeclarative.ApplyAllPending(context.Background(), appNamespaces); err != nil {
+				log.Error().Err(err).Msg("Failed to apply declarative app schema")
+				os.Exit(1)
+			}
+		}
+
+		// Coexistence guard: warn (do not fail) if the same namespace also has
+		// imperative migrations in platform.migrations. A (namespace, schema) should
+		// be owned by one mode; the developer controls which sync commands run.
+		appDeclarative.WarnIfImperativeCoexists(context.Background(), appNamespaces)
+
+		// Refresh the pool again — app-schema DDL may invalidate cached plans.
+		log.Debug().Msg("Recreating connection pool after app schema...")
+		if err := db.RecreatePool(); err != nil {
+			log.Warn().Err(err).Msg("Failed to recreate connection pool after app schema, continuing")
+		}
+		log.Info().Msg("Declarative app schema applied successfully")
+	}
+
 	// Ensure default tenant and service keys exist
 	log.Info().Msg("Initializing default tenant and service keys...")
 	if err := tenantdb.EnsureDefaultTenantAndKeys(db.Pool(), cfg); err != nil {

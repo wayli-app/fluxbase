@@ -54,6 +54,11 @@ func (m *SchemaModule) Init(ctx context.Context, registry *ServiceRegistry) erro
 	m.Handlers.InternalSchema = internalSchemaHandler
 	log.Info().Msg("Internal schema handler initialized")
 
+	appSchemaHandler := NewAppSchemaHandler()
+	appSchemaHandler.Initialize(cfg, db)
+	m.Handlers.AppSchema = appSchemaHandler
+	log.Info().Msg("App schema handler initialized")
+
 	if m.GraphCache != nil {
 		m.Handlers.Graph = NewSchemaGraphHandlers(db, m.GraphCache)
 	}

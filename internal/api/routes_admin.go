@@ -55,6 +55,12 @@ func (s *Server) buildAdminRouteDeps() *routes.AdminDeps {
 			ValidateInternalSchema:  s.Schema.InternalSchema.ValidateSchema,
 			GetInternalSchemaStatus: s.Schema.InternalSchema.GetSchemaStatus,
 			MigrateInternalSchema:   s.Schema.InternalSchema.MigrateSchema,
+			SyncAppSchema:           s.Schema.AppSchema.SyncSchema,
+			ApplyAppSchema:          s.Schema.AppSchema.ApplySchema,
+			PlanAppSchema:           s.Schema.AppSchema.PlanSchema,
+			ValidateAppSchema:       s.Schema.AppSchema.ValidateSchema,
+			GetAppSchemaStatus:      s.Schema.AppSchema.GetStatus,
+			DeleteAppSchema:         s.Schema.AppSchema.DeleteSchema,
 		},
 		AuthProviders: &routes.AuthProvidersAdminDeps{
 			ListOAuthProviders:  s.Auth.OAuthProvider.ListOAuthProviders,

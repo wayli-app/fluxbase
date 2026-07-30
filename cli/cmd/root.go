@@ -106,6 +106,7 @@ func init() {
 	rootCmd.AddCommand(webhooksCmd)
 	rootCmd.AddCommand(clientkeysCmd)
 	rootCmd.AddCommand(migrationsCmd)
+	rootCmd.AddCommand(schemaCmd)
 	rootCmd.AddCommand(extensionsCmd)
 	rootCmd.AddCommand(realtimeCmd)
 	rootCmd.AddCommand(settingsCmd)

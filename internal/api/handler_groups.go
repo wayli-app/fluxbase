@@ -171,6 +171,7 @@ type SchemaHandlers struct {
 	Cache          *database.SchemaCache
 	Export         *SchemaExportHandler
 	InternalSchema *InternalSchemaHandler
+	AppSchema      *AppSchemaHandler
 	Graph          *SchemaGraphHandlers
 	Policy         *PolicyHandlers
 	Admin          *SchemaAdminHandlers
