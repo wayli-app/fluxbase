@@ -198,7 +198,12 @@ func runSchemaSync(cmd *cobra.Command, args []string) error {
 	if applied {
 		changes, _ := result["changes"].(float64)
 		duration, _ := result["duration"].(string)
-		fmt.Printf("Applied %d change(s) in %s\n", int(changes), duration)
+		isFallback, _ := result["fallback"].(bool)
+		note := ""
+		if isFallback {
+			note = " (via direct fallback; statement count is approximate)"
+		}
+		fmt.Printf("Applied %d change(s) in %s%s\n", int(changes), duration, note)
 	} else if schemaNoApply {
 		fmt.Println("Stored only (--no-apply).")
 	}
@@ -352,7 +357,12 @@ func runSchemaApply(cmd *cobra.Command, args []string) error {
 
 	applied, _ := result["applied"].(float64)
 	duration, _ := result["duration"].(string)
-	fmt.Printf("Applied %d change(s) in %s\n", int(applied), duration)
+	isFallback, _ := result["fallback"].(bool)
+	note := ""
+	if isFallback {
+		note = " (via direct fallback; statement count is approximate)"
+	}
+	fmt.Printf("Applied %d change(s) in %s%s\n", int(applied), duration, note)
 	return nil
 }
 

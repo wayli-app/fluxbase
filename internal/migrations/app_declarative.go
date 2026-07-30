@@ -342,17 +342,37 @@ func (s *AppDeclarativeService) planFromContent(ctx context.Context, schemaName,
 // to extension-provided operators like pgvector's <=>, or cross-schema objects).
 // Mirrors DeclarativeService.applySchemaDirectFallback. The content is made
 // idempotent via MakeSQLIdempotent, so re-applying a matching schema is a no-op.
-func (s *AppDeclarativeService) applyDirectFallback(ctx context.Context, schemaName, schemaContent string) error {
+//
+// Returns an ApplyResult with Fallback=true. When !allowDestructive, destructive
+// statements in the content (DROP TABLE/COLUMN/INDEX, TRUNCATE) are blocked —
+// the plan-path blocking doesn't cover the fallback, so it is enforced here.
+func (s *AppDeclarativeService) applyDirectFallback(ctx context.Context, schemaName, schemaContent string) (*ApplyResult, error) {
 	content, err := s.substituteAppUserForContent(schemaContent)
 	if err != nil {
-		return fmt.Errorf("invalid app user placeholder: %w", err)
+		return nil, fmt.Errorf("invalid app user placeholder: %w", err)
+	}
+
+	// Block destructive changes on the fallback path when not allowed. The
+	// plan-path destructive check (in ApplyFromContent) doesn't run when plan
+	// fails, so enforce it here by scanning the parsed content. Note:
+	// MakeSQLIdempotent's own DROP-prepends (for POLICY/TRIGGER/INDEX/CONSTRAINT)
+	// are safe re-creation aids, not destructive user intent — they are emitted
+	// by the transform, not present in the source content.
+	if !s.allowDestructive {
+		if destructive := countDestructiveStatements(content); destructive > 0 {
+			return &ApplyResult{
+				Applied:  []Change{},
+				Error:    fmt.Errorf("app schema content contains %d destructive statement(s) (DROP TABLE/COLUMN/INDEX, TRUNCATE); blocked (set allow_destructive=true to permit)", destructive),
+				Fallback: true,
+			}, nil
+		}
 	}
 
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		s.dbUser, s.dbPassword, s.dbHost, s.dbPort, s.dbName)
 	pool, err := pgxpool.New(ctx, connStr)
 	if err != nil {
-		return fmt.Errorf("failed to create connection pool: %w", err)
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 	defer pool.Close()
 
@@ -366,12 +386,12 @@ func (s *AppDeclarativeService) applyDirectFallback(ctx context.Context, schemaN
 		searchPath = schemaName + ", public"
 	}
 	if _, err := pool.Exec(ctx, fmt.Sprintf("SET search_path TO %s", searchPath)); err != nil {
-		return fmt.Errorf("failed to set search_path: %w", err)
+		return nil, fmt.Errorf("failed to set search_path: %w", err)
 	}
 
 	idempotentSQL := dbschema.MakeSQLIdempotent(content)
 	if _, err := pool.Exec(ctx, idempotentSQL); err != nil {
-		return fmt.Errorf("failed to execute schema: %w", err)
+		return nil, fmt.Errorf("failed to execute schema: %w", err)
 	}
 
 	// pgschema treats CREATE TABLE IF NOT EXISTS as atomic, so missing columns on
@@ -382,7 +402,14 @@ func (s *AppDeclarativeService) applyDirectFallback(ctx context.Context, schemaN
 	if err := s.ensureMissingColumnsFromContent(ctx, schemaName, content, pool); err != nil {
 		log.Warn().Err(err).Str("schema", schemaName).Msg("Failed to ensure missing columns, continuing")
 	}
-	return nil
+
+	// Report the count of top-level statements executed (best-effort feedback;
+	// the fallback doesn't have per-change visibility like pgschema's plan).
+	appliedCount := countStatements(content)
+	return &ApplyResult{
+		Applied:  make([]Change, appliedCount),
+		Fallback: true,
+	}, nil
 }
 
 // ensureMissingColumnsFromContent scans CREATE TABLE IF NOT EXISTS column
@@ -544,14 +571,23 @@ func (s *AppDeclarativeService) ApplyFromContent(ctx context.Context, namespace,
 			Str("namespace", namespace).
 			Str("schema", schemaName).
 			Msg("pgschema plan failed, applying app schema via direct fallback")
-		if ferr := s.applyDirectFallback(ctx, schemaName, schemaContent); ferr != nil {
+		res, ferr := s.applyDirectFallback(ctx, schemaName, schemaContent)
+		if ferr != nil {
 			return nil, fmt.Errorf("failed to plan app schema for namespace=%s schema=%s: %w (and direct fallback failed: %w)", namespace, schemaName, err, ferr)
+		}
+		// If the fallback blocked destructive changes, surface that result.
+		if res != nil && res.Error != nil {
+			return res, nil
 		}
 		if err := s.recordApply(ctx, namespace, schemaName, fingerprint); err != nil {
 			log.Warn().Err(err).Msg("Failed to record app schema state")
 		}
-		log.Info().Str("namespace", namespace).Str("schema", schemaName).Msg("App schema applied via direct fallback")
-		return &ApplyResult{Applied: []Change{}, Duration: 0}, nil
+		log.Info().
+			Str("namespace", namespace).
+			Str("schema", schemaName).
+			Int("statements", len(res.Applied)).
+			Msg("App schema applied via direct fallback")
+		return res, nil
 	}
 
 	if len(plan.Changes) == 0 {
@@ -803,6 +839,51 @@ func (s *AppDeclarativeService) WarnIfImperativeCoexists(ctx context.Context, na
 				Msg("Namespace is managed declaratively but also has imperative migrations in platform.migrations; a schema should use one mode. Stop running 'fluxbase migrations sync' for this namespace or remove its declarative schema.")
 		}
 	}
+}
+
+// countDestructiveStatements counts top-level destructive SQL statements in
+// content (DROP TABLE, DROP COLUMN, DROP INDEX not part of MakeSQLIdempotent's
+// re-creation aids, DROP TYPE, DROP FUNCTION/PROCEDURE, DROP VIEW, TRUNCATE).
+// Used by the fallback path to enforce allowDestructive=false. Parsing is
+// best-effort; on parse failure it conservatively scans keywords.
+func countDestructiveStatements(content string) int {
+	count := 0
+	upper := strings.ToUpper(content)
+	for _, line := range strings.Split(upper, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Skip MakeSQLIdempotent-generated DROPs (safe re-creation aids) and
+		// comment lines. These prefixes are emitted by MakeSQLIdempotent.
+		if strings.HasPrefix(trimmed, "DROP POLICY IF EXISTS") ||
+			strings.HasPrefix(trimmed, "DROP TRIGGER IF EXISTS") ||
+			strings.HasPrefix(trimmed, "DROP CONSTRAINT IF EXISTS") ||
+			strings.HasPrefix(trimmed, "ALTER TABLE") && strings.Contains(trimmed, "DROP CONSTRAINT IF EXISTS") ||
+			strings.HasPrefix(trimmed, "DROP INDEX IF EXISTS") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "DROP TABLE") ||
+			strings.HasPrefix(trimmed, "DROP COLUMN") ||
+			strings.Contains(trimmed, " DROP COLUMN ") ||
+			strings.HasPrefix(trimmed, "DROP TYPE") ||
+			strings.HasPrefix(trimmed, "DROP FUNCTION") ||
+			strings.HasPrefix(trimmed, "DROP PROCEDURE") ||
+			strings.HasPrefix(trimmed, "DROP VIEW") ||
+			strings.HasPrefix(trimmed, "DROP SCHEMA") ||
+			strings.HasPrefix(trimmed, "TRUNCATE") {
+			count++
+		}
+	}
+	return count
+}
+
+// countStatements returns the number of top-level SQL statements in content,
+// estimated via pgparser. Used for best-effort apply feedback on the fallback
+// path (which lacks pgschema's per-change plan). Returns 0 on parse failure.
+func countStatements(content string) int {
+	stmts, err := parser.Parse(content)
+	if err != nil || stmts == nil {
+		return 0
+	}
+	return len(stmts.Items)
 }
 
 // writeSchemaWorkDir creates a temp directory, writes the schema SQL to

@@ -76,6 +76,10 @@ type ApplyResult struct {
 	Applied  []Change
 	Duration time.Duration
 	Error    error
+	// Fallback is true when the apply used the direct-apply fallback path
+	// (pgschema plan could not validate the schema). In that case Applied
+	// reflects executed statement count, not individual pgschema changes.
+	Fallback bool
 }
 
 // ValidationResult represents the result of schema validation

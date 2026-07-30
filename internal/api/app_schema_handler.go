@@ -118,6 +118,7 @@ func (h *AppSchemaHandler) SyncSchema(c fiber.Ctx) error {
 		resp["applied"] = true
 		resp["changes"] = len(res.Applied)
 		resp["duration"] = res.Duration.String()
+		resp["fallback"] = res.Fallback
 		if res.Error != nil {
 			resp["message"] = res.Error.Error()
 		}
@@ -153,6 +154,7 @@ func (h *AppSchemaHandler) ApplySchema(c fiber.Ctx) error {
 		"message":  "Schema applied successfully",
 		"applied":  len(res.Applied),
 		"duration": res.Duration.String(),
+		"fallback": res.Fallback,
 	}
 	if res.Error != nil {
 		resp["message"] = res.Error.Error()

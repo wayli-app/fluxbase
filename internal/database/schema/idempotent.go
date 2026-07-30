@@ -42,6 +42,35 @@ func MakeSQLIdempotent(sql string) string {
 				drops = append(drops, dropInfo{pattern: patternUnquoted, dropSQL: dropSQL, foundPos: -1})
 			}
 
+		case *nodes.CreateTrigStmt:
+			// CREATE TRIGGER is not idempotent: re-running fails if the trigger
+			// exists. Prepend DROP TRIGGER IF EXISTS so a declarative schema file
+			// can be re-applied (and trigger definitions updated) safely.
+			if stmt.Trigname != "" && stmt.Relation != nil {
+				tableName := formatRangeVar(stmt.Relation)
+				dropSQL := fmt.Sprintf("DROP TRIGGER IF EXISTS %s ON %s CASCADE;\n", quoteIdent(stmt.Trigname), tableName)
+				patternQuoted := "CREATE TRIGGER \"" + stmt.Trigname + "\""
+				patternUnquoted := "CREATE TRIGGER " + stmt.Trigname
+				drops = append(drops, dropInfo{pattern: patternQuoted, dropSQL: dropSQL, foundPos: -1})
+				drops = append(drops, dropInfo{pattern: patternUnquoted, dropSQL: dropSQL, foundPos: -1})
+			}
+
+		case *nodes.IndexStmt:
+			// CREATE INDEX (without IF NOT EXISTS, without CONCURRENTLY) is not
+			// idempotent and can't update an existing index's definition. Prepend
+			// DROP INDEX IF EXISTS so index definition changes propagate on
+			// re-apply. Skip IF NOT EXISTS (already a no-op-safe no-op) and
+			// CONCURRENTLY (cannot run in a transaction / can't be dropped+recreated
+			// atomically). Constraint-backed indexes (Primary/Isconstraint) are
+			// managed via ALTER TABLE, not here.
+			if stmt.Idxname != "" && !stmt.IfNotExists && !stmt.Concurrent && !stmt.Primary && !stmt.Isconstraint {
+				dropSQL := fmt.Sprintf("DROP INDEX IF EXISTS %s;\n", quoteIdent(stmt.Idxname))
+				patternQuoted := "CREATE INDEX \"" + stmt.Idxname + "\""
+				patternUnquoted := "CREATE INDEX " + stmt.Idxname
+				drops = append(drops, dropInfo{pattern: patternQuoted, dropSQL: dropSQL, foundPos: -1})
+				drops = append(drops, dropInfo{pattern: patternUnquoted, dropSQL: dropSQL, foundPos: -1})
+			}
+
 		case *nodes.AlterTableStmt:
 			if stmt.Cmds != nil && stmt.Relation != nil {
 				for _, cmd := range stmt.Cmds.Items {
