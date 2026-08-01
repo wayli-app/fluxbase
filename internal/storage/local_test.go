@@ -1064,6 +1064,42 @@ func TestLocalStorage_UpdateChunkedUploadSession(t *testing.T) {
 	assert.Equal(t, "paused", retrieved.Status)
 }
 
+// TestLocalStorage_ChunkedUpload_OwnerIDDurability covers the root cause of the
+// chunked-upload RLS bug: InitChunkedUpload writes session.json before the
+// caller assigns OwnerID on the returned struct. A re-persist via
+// UpdateChunkedUploadSession must make the owner survive a reload, otherwise
+// storeUploadedObject inserts storage.objects with owner_id = NULL and fails
+// the storage_objects_insert RLS policy for authenticated users.
+func TestLocalStorage_ChunkedUpload_OwnerIDDurability(t *testing.T) {
+	storage, _ := setupLocalStorage(t)
+	ctx := context.Background()
+
+	err := storage.CreateBucket(ctx, "temp-files")
+	require.NoError(t, err)
+
+	// Simulate the init handler: InitChunkedUpload returns a session whose
+	// OwnerID is empty (it's not a parameter and never set inside the provider).
+	session, err := storage.InitChunkedUpload(ctx, "temp-files", "user-123/timestamp-file.geojson", 2048, 1024, nil)
+	require.NoError(t, err)
+	require.Empty(t, session.OwnerID, "InitChunkedUpload must not set OwnerID")
+
+	// Reloading right after init reproduces the bug: owner is lost.
+	reloadedBeforeUpdate, err := storage.GetChunkedUploadSession(session.UploadID)
+	require.NoError(t, err)
+	assert.Empty(t, reloadedBeforeUpdate.OwnerID, "owner is empty until re-persisted")
+
+	// The init handler assigns the owner after init and must re-persist it.
+	session.OwnerID = "user-123"
+	err = storage.UpdateChunkedUploadSession(session)
+	require.NoError(t, err)
+
+	// After re-persist, the owner survives a reload — fixing the RLS failure.
+	reloadedAfterUpdate, err := storage.GetChunkedUploadSession(session.UploadID)
+	require.NoError(t, err)
+	assert.Equal(t, "user-123", reloadedAfterUpdate.OwnerID,
+		"OwnerID must survive a session reload after UpdateChunkedUploadSession")
+}
+
 func TestLocalStorage_GenerateSignedURL_NoSecret(t *testing.T) {
 	tmpDir := t.TempDir()
 

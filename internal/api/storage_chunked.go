@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -132,9 +133,20 @@ func (h *StorageHandler) InitChunkedUpload(c fiber.Ctx) error {
 
 	session.OwnerID = ownerID
 
-	// Store session in database for persistence
-	if err := h.storeChunkedUploadSession(ctx, session); err != nil {
-		log.Warn().Err(err).Str("uploadID", session.UploadID).Msg("Failed to store session in database, session will be ephemeral")
+	// Persist the session so the owner (and, for S3, the whole session) survives
+	// a reload at completion. For LocalStorage, InitChunkedUpload writes
+	// session.json before returning (before OwnerID is set above), so the owner
+	// is lost unless re-persisted here — and storeUploadedObject then inserts
+	// owner_id = NULL, failing the storage_objects_insert RLS policy. For S3,
+	// there is no on-disk store at all, so the session must be created in the
+	// storage.chunked_upload_sessions table here.
+	if isS3Provider(svc.Provider) {
+		if err := h.createChunkedSessionDB(ctx, c, session); err != nil {
+			log.Error().Err(err).Str("uploadID", session.UploadID).Msg("Failed to persist S3 chunked upload session")
+			return SendInternalError(c, "Failed to initialize chunked upload session")
+		}
+	} else if err := h.updateChunkedUploadSessionInProvider(ctx, c, svc.Provider, session); err != nil {
+		log.Warn().Err(err).Str("uploadID", session.UploadID).Msg("Failed to persist session owner, will fall back to request user at completion")
 	}
 
 	log.Info().
@@ -190,7 +202,7 @@ func (h *StorageHandler) UploadChunk(c fiber.Ctx) error {
 	ctx := c.RequestCtx()
 
 	// Retrieve session
-	session, err := h.getChunkedUploadSessionFromProvider(svc.Provider, uploadID)
+	session, err := h.getChunkedUploadSessionFromProvider(ctx, c, svc.Provider, uploadID)
 	if err != nil {
 		return SendNotFound(c, "Upload session not found")
 	}
@@ -249,7 +261,7 @@ func (h *StorageHandler) UploadChunk(c fiber.Ctx) error {
 	session.S3PartETags[chunkIndex] = result.ETag
 
 	// Store updated session
-	if err := h.updateChunkedUploadSessionInProvider(svc.Provider, session); err != nil {
+	if err := h.updateChunkedUploadSessionInProvider(ctx, c, svc.Provider, session); err != nil {
 		log.Warn().Err(err).Str("uploadID", uploadID).Msg("Failed to update session in database")
 	}
 
@@ -297,7 +309,7 @@ func (h *StorageHandler) CompleteChunkedUpload(c fiber.Ctx) error {
 	ctx := c.RequestCtx()
 
 	// Retrieve session
-	session, err := h.getChunkedUploadSessionFromProvider(svc.Provider, uploadID)
+	session, err := h.getChunkedUploadSessionFromProvider(ctx, c, svc.Provider, uploadID)
 	if err != nil {
 		return SendNotFound(c, "Upload session not found")
 	}
@@ -330,7 +342,7 @@ func (h *StorageHandler) CompleteChunkedUpload(c fiber.Ctx) error {
 
 	// Mark session as completing
 	session.Status = "completing"
-	_ = h.updateChunkedUploadSessionInProvider(svc.Provider, session)
+	_ = h.updateChunkedUploadSessionInProvider(ctx, c, svc.Provider, session)
 
 	// Complete the upload
 	var object *storage.Object
@@ -346,7 +358,7 @@ func (h *StorageHandler) CompleteChunkedUpload(c fiber.Ctx) error {
 
 	if err != nil {
 		session.Status = "active" // Revert status on failure
-		_ = h.updateChunkedUploadSessionInProvider(svc.Provider, session)
+		_ = h.updateChunkedUploadSessionInProvider(ctx, c, svc.Provider, session)
 		log.Error().Err(err).Str("uploadID", uploadID).Msg("Failed to complete chunked upload")
 		return SendInternalError(c, "Failed to complete chunked upload")
 	}
@@ -358,7 +370,7 @@ func (h *StorageHandler) CompleteChunkedUpload(c fiber.Ctx) error {
 
 	// Mark session as completed and clean up
 	session.Status = "completed"
-	_ = h.deleteChunkedUploadSession(ctx, uploadID)
+	_ = h.deleteChunkedUploadSession(ctx, c, svc.Provider, uploadID)
 
 	log.Info().
 		Str("uploadID", uploadID).
@@ -393,7 +405,7 @@ func (h *StorageHandler) GetChunkedUploadStatus(c fiber.Ctx) error {
 	}
 
 	// Retrieve session
-	session, err := h.getChunkedUploadSessionFromProvider(svc.Provider, uploadID)
+	session, err := h.getChunkedUploadSessionFromProvider(c.RequestCtx(), c, svc.Provider, uploadID)
 	if err != nil {
 		return SendNotFound(c, "Upload session not found")
 	}
@@ -451,7 +463,7 @@ func (h *StorageHandler) AbortChunkedUpload(c fiber.Ctx) error {
 	ctx := c.RequestCtx()
 
 	// Retrieve session
-	session, err := h.getChunkedUploadSessionFromProvider(svc.Provider, uploadID)
+	session, err := h.getChunkedUploadSessionFromProvider(ctx, c, svc.Provider, uploadID)
 	if err != nil {
 		return SendNotFound(c, "Upload session not found")
 	}
@@ -477,7 +489,7 @@ func (h *StorageHandler) AbortChunkedUpload(c fiber.Ctx) error {
 	}
 
 	// Delete session from database
-	_ = h.deleteChunkedUploadSession(ctx, uploadID)
+	_ = h.deleteChunkedUploadSession(ctx, c, svc.Provider, uploadID)
 
 	log.Info().
 		Str("uploadID", uploadID).
@@ -489,41 +501,42 @@ func (h *StorageHandler) AbortChunkedUpload(c fiber.Ctx) error {
 
 // Helper functions for session management
 
-func (h *StorageHandler) storeChunkedUploadSession(ctx interface{}, session *storage.ChunkedUploadSession) error {
-	// For now, sessions are stored by the storage provider (local storage stores in files)
-	// Database storage can be added later for cross-server session sharing
-	return nil
-}
-
-func (h *StorageHandler) getChunkedUploadSessionFromProvider(provider storage.Provider, uploadID string) (*storage.ChunkedUploadSession, error) {
+func (h *StorageHandler) getChunkedUploadSessionFromProvider(ctx context.Context, c fiber.Ctx, provider storage.Provider, uploadID string) (*storage.ChunkedUploadSession, error) {
 	// Try to get session from storage provider
 	switch p := provider.(type) {
 	case *storage.LocalStorage:
 		return p.GetChunkedUploadSession(uploadID)
 	case *storage.S3Storage:
-		// S3 doesn't have local session storage, we need to query the database
-		// For now, return an error - this would need database session storage
-		return nil, fmt.Errorf("session not found (S3 sessions require database storage)")
+		// S3 has no on-disk session store; sessions live in the
+		// storage.chunked_upload_sessions table (under RLS).
+		return h.getChunkedSessionDB(ctx, c, uploadID)
 	default:
 		return nil, fmt.Errorf("storage provider does not support chunked upload sessions")
 	}
 }
 
-func (h *StorageHandler) updateChunkedUploadSessionInProvider(provider storage.Provider, session *storage.ChunkedUploadSession) error {
+func (h *StorageHandler) updateChunkedUploadSessionInProvider(ctx context.Context, c fiber.Ctx, provider storage.Provider, session *storage.ChunkedUploadSession) error {
 	switch p := provider.(type) {
 	case *storage.LocalStorage:
 		return p.UpdateChunkedUploadSession(session)
 	case *storage.S3Storage:
-		// S3 sessions would be stored in database
-		return nil
+		return h.updateChunkedSessionDB(ctx, c, session)
 	default:
 		return nil
 	}
 }
 
-func (h *StorageHandler) deleteChunkedUploadSession(ctx interface{}, uploadID string) error {
-	// Session cleanup is handled by the provider when completing/aborting
-	return nil
+func (h *StorageHandler) deleteChunkedUploadSession(ctx context.Context, c fiber.Ctx, provider storage.Provider, uploadID string) error {
+	switch provider.(type) {
+	case *storage.LocalStorage:
+		// LocalStorage cleans up the on-disk session dir itself on
+		// complete/abort (see LocalStorage.CompleteChunkedUpload).
+		return nil
+	case *storage.S3Storage:
+		return h.deleteChunkedSessionDB(ctx, c, uploadID)
+	default:
+		return nil
+	}
 }
 
 func (h *StorageHandler) storeUploadedObject(fiberCtx interface{}, session *storage.ChunkedUploadSession, object *storage.Object) error {
@@ -569,6 +582,20 @@ func (h *StorageHandler) storeUploadedObject(fiberCtx interface{}, session *stor
 	var ownerID interface{} = nil
 	if session.OwnerID != "" && session.OwnerID != "anonymous" {
 		ownerID = session.OwnerID
+	}
+	// Fall back to the authenticated user from the live request when the
+	// session has no owner. Chunked sessions persist session.json inside
+	// InitChunkedUpload — before OwnerID is assigned on the returned struct —
+	// so the owner can be lost if the session is reloaded from disk before the
+	// init handler re-persists it (see InitChunkedUpload call site). A NULL
+	// owner_id fails the storage_objects_insert RLS policy for authenticated
+	// users (requires auth.current_user_id() = owner_id). This mirrors the
+	// regular upload path in storage_files.go, which reads the user from the
+	// live request at insert time.
+	if ownerID == nil {
+		if liveOwnerID := getUserID(c); liveOwnerID != "" && liveOwnerID != "anonymous" {
+			ownerID = liveOwnerID
+		}
 	}
 
 	_, err = tx.Exec(

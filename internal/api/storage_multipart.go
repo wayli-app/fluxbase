@@ -118,7 +118,7 @@ func (h *StorageHandler) MultipartUpload(c fiber.Ctx) error {
 		}
 
 		// Upload file
-		if err := uploadMultipartFile(c, svc, bucket, key, file, contentType); err != nil {
+		if err := h.uploadMultipartFile(c, svc, bucket, key, file, contentType); err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %s", file.Filename, err.Error()))
 			continue
 		}
@@ -142,8 +142,12 @@ func (h *StorageHandler) MultipartUpload(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(response)
 }
 
-// uploadMultipartFile uploads a single file from multipart form
-func uploadMultipartFile(c fiber.Ctx, svc *storage.Service, bucket, key string, file *multipart.FileHeader, contentType string) error {
+// uploadMultipartFile uploads a single file from multipart form and records its
+// metadata row in storage.objects. This mirrors StorageHandler.UploadFile in
+// storage_files.go — without the metadata insert, the uploaded bytes would be
+// invisible to the API (download/list/share/delete key off the objects row) and
+// the file would have no owner_id, failing the storage_objects_insert RLS policy.
+func (h *StorageHandler) uploadMultipartFile(c fiber.Ctx, svc *storage.Service, bucket, key string, file *multipart.FileHeader, contentType string) error {
 	src, err := file.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -154,8 +158,72 @@ func uploadMultipartFile(c fiber.Ctx, svc *storage.Service, bucket, key string, 
 		ContentType: contentType,
 	}
 
-	_, err = svc.Provider.Upload(c.RequestCtx(), bucket, key, src, file.Size, opts)
-	return err
+	ctx := c.RequestCtx()
+
+	// Upload the file to the storage provider first
+	object, err := svc.Provider.Upload(ctx, bucket, key, src, file.Size, opts)
+	if err != nil {
+		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to upload multipart file")
+		return fmt.Errorf("failed to upload file")
+	}
+
+	// Get owner ID from authenticated user (same source as the regular upload path)
+	ownerID := getUserID(c)
+	var ownerUUID *string
+	if ownerID != "" && ownerID != "anonymous" {
+		ownerUUID = &ownerID
+	}
+
+	// Store object metadata in the database under RLS
+	tx, err := h.getPool(c).Begin(ctx)
+	if err != nil {
+		_ = svc.Provider.Delete(ctx, bucket, key)
+		log.Error().Err(err).Msg("Failed to start transaction for multipart file upload")
+		return fmt.Errorf("failed to save file metadata")
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := h.setRLSContext(ctx, tx, c); err != nil {
+		_ = svc.Provider.Delete(ctx, bucket, key)
+		log.Error().Err(err).Msg("Failed to set RLS context for multipart file upload")
+		return fmt.Errorf("failed to save file metadata")
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO storage.objects (bucket_id, path, mime_type, size, metadata, owner_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (bucket_id, path)
+		DO UPDATE SET mime_type = $3, size = $4, owner_id = $6, updated_at = NOW()
+	`, bucket, key, contentType, object.Size, nil, ownerUUID)
+	if err != nil {
+		_ = svc.Provider.Delete(ctx, bucket, key)
+		errMsg := err.Error()
+		log.Error().
+			Err(err).
+			Str("bucket", bucket).
+			Str("key", key).
+			Str("error_message", errMsg).
+			Msg("Failed to insert multipart file metadata into database")
+		if strings.Contains(errMsg, "permission denied") || strings.Contains(errMsg, "policy") {
+			return fmt.Errorf("insufficient permissions to upload file")
+		}
+		return fmt.Errorf("failed to save file metadata")
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		_ = svc.Provider.Delete(ctx, bucket, key)
+		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to commit multipart file upload")
+		return fmt.Errorf("failed to save file metadata")
+	}
+
+	log.Info().
+		Str("bucket", bucket).
+		Str("key", key).
+		Int64("size", object.Size).
+		Str("user_id", ownerID).
+		Msg("Multipart file uploaded")
+
+	return nil
 }
 
 // fiber:context-methods migrated
