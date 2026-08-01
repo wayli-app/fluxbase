@@ -263,6 +263,17 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 	}
 }
 
+// isExpiredToken reports whether token validation failed specifically due to
+// expiry. ErrExpiredToken is only ever returned after the JWT signature and
+// claims have validated successfully against the platform secret and only the
+// `exp` claim is past (see internal/auth/jwt.go) — so it cannot be produced by
+// an attacker without the secret. Optional-auth routes use this to degrade to
+// the anonymous role instead of hard-failing, since anonymous access (RLS
+// enforced) is already the baseline for those routes.
+func isExpiredToken(err error) bool {
+	return err != nil && errors.Is(err, auth.ErrExpiredToken)
+}
+
 // RequireAuthOrServiceKey requires either JWT, client key, OR service key authentication
 // This is the most comprehensive auth middleware that accepts all authentication methods
 func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, securityCfg *config.SecurityConfig, jwtManager ...*auth.JWTManager) fiber.Handler {
@@ -272,6 +283,12 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 // OptionalAuthOrServiceKey allows either JWT, client key, OR service key authentication
 // If no authentication is provided, the request continues (for anonymous access with RLS)
 // IMPORTANT: If invalid credentials are provided, returns 401 (does not fall back to anonymous)
+//
+// Exception: a token whose signature/claims are valid but whose `exp` has passed
+// (auth.ErrExpiredToken) degrades to the anonymous role instead of 401-ing, since
+// anonymous access — still fully gated by RLS — is already the baseline for these
+// routes. This keeps public reads working when a client (e.g. the SDK) re-sends a
+// stale token. Tampered, wrong-secret, or malformed tokens still return 401.
 //
 // Supports authentication via:
 // - clientkey header containing a JWT with role claim (anon, service_role, authenticated)
@@ -346,9 +363,17 @@ func authOrServiceKey(
 		}
 
 		if token != "" {
+			// Track whether the Bearer token failed specifically due to expiry
+			// across all validation attempts. Optional-auth routes degrade to
+			// anonymous in that case; see OptionalAuthOrServiceKey doc comment.
+			bearerExpired := false
+
 			// First, try to validate as auth.users token (app users)
 			claims, err := authService.JWTManager().ValidateToken(token)
 			if err != nil {
+				if isExpiredToken(err) {
+					bearerExpired = true
+				}
 				log.Debug().
 					Err(err).
 					Msg("authOrServiceKey: authService.JWTManager().ValidateToken failed")
@@ -426,6 +451,11 @@ func authOrServiceKey(
 			// If auth.users validation failed and jwtManager is provided, try platform.users token
 			if len(jwtManager) > 0 && jwtManager[0] != nil {
 				dashboardClaims, err := jwtManager[0].ValidateAccessToken(token)
+				if err != nil {
+					if isExpiredToken(err) {
+						bearerExpired = true
+					}
+				}
 				if err == nil {
 					c.Locals("user_id", dashboardClaims.Subject)
 					c.Locals("user_email", dashboardClaims.Email)
@@ -483,10 +513,25 @@ func authOrServiceKey(
 						return c.Next()
 					}
 				} else {
+					if isExpiredToken(err) {
+						bearerExpired = true
+					}
 					log.Debug().
 						Err(err).
 						Msg("Bearer token validation failed (tried user JWT then service role JWT)")
 				}
+			}
+
+			// Optional-auth routes degrade to the anonymous role when the provided
+			// Bearer token failed only due to expiry — anonymous access (still RLS
+			// enforced) is already the baseline for these routes, so this grants no
+			// extra privilege over a tokenless request. Required routes and all
+			// non-expiry failures (tampered/wrong-secret/malformed) still 401.
+			if !required && bearerExpired {
+				log.Debug().
+					Str("path", c.Path()).
+					Msg("OptionalAuth: provided Bearer token expired, continuing as anonymous")
+				return c.Next()
 			}
 
 			// Bearer token was provided but invalid - return specific error
@@ -497,8 +542,18 @@ func authOrServiceKey(
 		// This header may contain a JWT with role claim (anon, service_role, authenticated)
 		fluxbaseClientKey := c.Get("clientkey")
 		if fluxbaseClientKey != "" && strings.HasPrefix(fluxbaseClientKey, "eyJ") {
+			// Track whether the clientkey JWT failed specifically due to expiry;
+			// optional-auth routes degrade to anonymous in that case (same as
+			// the Bearer path above).
+			clientKeyExpired := false
+
 			// Looks like a JWT - first try user JWT (most common), then service role
 			claims, err := authService.JWTManager().ValidateToken(fluxbaseClientKey)
+			if err != nil {
+				if isExpiredToken(err) {
+					clientKeyExpired = true
+				}
+			}
 			if err == nil {
 				// Check if token has been revoked
 				// SECURITY: Fail-closed behavior - reject if we can't verify revocation status
@@ -528,6 +583,11 @@ func authOrServiceKey(
 
 			// User JWT failed, try service role JWT
 			srClaims, err := authService.JWTManager().ValidateServiceRoleToken(fluxbaseClientKey)
+			if err != nil {
+				if isExpiredToken(err) {
+					clientKeyExpired = true
+				}
+			}
 			if err == nil {
 				// SECURITY: Check emergency revocation for service_role tokens
 				// This provides a mechanism to revoke compromised service_role tokens immediately
@@ -562,6 +622,15 @@ func authOrServiceKey(
 					Str("issuer", srClaims.Issuer).
 					Msg("Authenticated with service role JWT via clientkey header")
 
+				return c.Next()
+			}
+			// Optional-auth routes degrade to the anonymous role when the provided
+			// clientkey JWT failed only due to expiry; see the Bearer-path block for
+			// rationale. Otherwise fall through to try non-JWT client key auth.
+			if !required && clientKeyExpired {
+				log.Debug().
+					Str("path", c.Path()).
+					Msg("OptionalAuth: provided clientkey token expired, continuing as anonymous")
 				return c.Next()
 			}
 			// If clientkey JWT was provided but invalid, log and fall through to try client key auth
