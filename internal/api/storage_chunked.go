@@ -132,9 +132,15 @@ func (h *StorageHandler) InitChunkedUpload(c fiber.Ctx) error {
 
 	session.OwnerID = ownerID
 
-	// Store session in database for persistence
-	if err := h.storeChunkedUploadSession(ctx, session); err != nil {
-		log.Warn().Err(err).Str("uploadID", session.UploadID).Msg("Failed to store session in database, session will be ephemeral")
+	// Persist the owner onto the session file. InitChunkedUpload writes
+	// session.json before returning (before OwnerID is set above), so without
+	// this re-persist the owner is lost when CompleteChunkedUpload reloads the
+	// session from disk — and storeUploadedObject then inserts owner_id = NULL,
+	// failing the storage_objects_insert RLS policy for authenticated users.
+	// storeUploadedObject also falls back to the live request user as a safety
+	// net, but keeping the session correct is the durable fix.
+	if err := h.updateChunkedUploadSessionInProvider(svc.Provider, session); err != nil {
+		log.Warn().Err(err).Str("uploadID", session.UploadID).Msg("Failed to persist session owner, will fall back to request user at completion")
 	}
 
 	log.Info().
@@ -489,12 +495,6 @@ func (h *StorageHandler) AbortChunkedUpload(c fiber.Ctx) error {
 
 // Helper functions for session management
 
-func (h *StorageHandler) storeChunkedUploadSession(ctx interface{}, session *storage.ChunkedUploadSession) error {
-	// For now, sessions are stored by the storage provider (local storage stores in files)
-	// Database storage can be added later for cross-server session sharing
-	return nil
-}
-
 func (h *StorageHandler) getChunkedUploadSessionFromProvider(provider storage.Provider, uploadID string) (*storage.ChunkedUploadSession, error) {
 	// Try to get session from storage provider
 	switch p := provider.(type) {
@@ -569,6 +569,20 @@ func (h *StorageHandler) storeUploadedObject(fiberCtx interface{}, session *stor
 	var ownerID interface{} = nil
 	if session.OwnerID != "" && session.OwnerID != "anonymous" {
 		ownerID = session.OwnerID
+	}
+	// Fall back to the authenticated user from the live request when the
+	// session has no owner. Chunked sessions persist session.json inside
+	// InitChunkedUpload — before OwnerID is assigned on the returned struct —
+	// so the owner can be lost if the session is reloaded from disk before the
+	// init handler re-persists it (see InitChunkedUpload call site). A NULL
+	// owner_id fails the storage_objects_insert RLS policy for authenticated
+	// users (requires auth.current_user_id() = owner_id). This mirrors the
+	// regular upload path in storage_files.go, which reads the user from the
+	// live request at insert time.
+	if ownerID == nil {
+		if liveOwnerID := getUserID(c); liveOwnerID != "" && liveOwnerID != "anonymous" {
+			ownerID = liveOwnerID
+		}
 	}
 
 	_, err = tx.Exec(
