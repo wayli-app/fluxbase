@@ -138,8 +138,21 @@ export class FluxbaseAuth {
 
     // Register refresh callback for automatic 401 handling
     this.fetch.setRefreshTokenCallback(async () => {
+      const hadSession = this.session !== null;
       const result = await this.refreshSession();
-      return !result.error;
+      if (result.error) {
+        // Refresh failed (refresh token expired/revoked/absent). If we were
+        // holding a session, drop it: clearSession() restores the anon key via
+        // setAuthToken(null), so subsequent requests stop re-sending the dead
+        // access token that will keep 401-ing. Skipped when there was no
+        // session to avoid emitting a spurious SIGNED_OUT event (in that case
+        // the header is already the anon key).
+        if (hadSession) {
+          this.clearSession();
+        }
+        return false;
+      }
+      return true;
     });
 
     // Initialize storage: an explicit adapter wins; otherwise fall back to the

@@ -463,6 +463,126 @@ describe("FluxbaseAuth", () => {
     });
   });
 
+  describe("401 refresh callback", () => {
+    // The SDK registers a refresh callback with FluxbaseFetch that runs on 401.
+    // When refresh fails (refresh token expired/revoked), it must clear the stale
+    // session so the access token is dropped and subsequent requests fall back to
+    // the anon key instead of re-sending a dead token that keeps 401-ing.
+
+    /** Captures the refresh callback registered with the (mocked) fetch client. */
+    const buildAuthWithCapturedCallback = () => {
+      let captured: (() => Promise<boolean>) | null = null;
+      const fetchWithCapture = {
+        ...mockFetch,
+        setRefreshTokenCallback: vi.fn((cb: () => Promise<boolean>) => {
+          captured = cb;
+        }),
+      } as unknown as FluxbaseFetch;
+      const a = new FluxbaseAuth(fetchWithCapture, true, true);
+      return {
+        a,
+        getCallback: () => captured as unknown as () => Promise<boolean>,
+      };
+    };
+
+    /** Establishes a signed-in session on `a` (so a stale token exists). */
+    const signInSession = async (a: FluxbaseAuth) => {
+      const authResponse: AuthResponse = {
+        access_token: "stale-access-token",
+        refresh_token: "stale-refresh-token",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: { id: "1", email: "user@example.com", created_at: "" },
+      };
+      vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
+      await a.signIn({ email: "user@example.com", password: "password" });
+    };
+
+    it("clears the stale session when refresh fails", async () => {
+      const { a, getCallback } = buildAuthWithCapturedCallback();
+      const callback = getCallback();
+      expect(callback).toBeDefined();
+      await signInSession(a);
+
+      // Sanity: we hold a session and the access token was applied.
+      expect(a.getAccessToken()).toBe("stale-access-token");
+
+      // Make refresh fail (refresh endpoint rejects / errors).
+      vi.mocked(mockFetch.post).mockRejectedValueOnce(
+        new Error("Invalid or expired token"),
+      );
+
+      const ok = await callback();
+
+      // Refresh failed -> callback returns false (fetch layer will surface 401).
+      expect(ok).toBe(false);
+      // Stale session dropped: token cleared and no session held.
+      expect(a.getAccessToken()).toBeNull();
+      const { data } = await a.getSession();
+      expect(data.session).toBeNull();
+      expect(mockFetch.setAuthToken).toHaveBeenLastCalledWith(null);
+    });
+
+    it("does not clear and returns true when refresh succeeds", async () => {
+      const { a, getCallback } = buildAuthWithCapturedCallback();
+      const callback = getCallback();
+      await signInSession(a);
+
+      const refreshed: AuthResponse = {
+        access_token: "fresh-access-token",
+        refresh_token: "fresh-refresh-token",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: { id: "1", email: "user@example.com", created_at: "" },
+      };
+      vi.mocked(mockFetch.post).mockResolvedValueOnce(refreshed);
+
+      const ok = await callback();
+
+      expect(ok).toBe(true);
+      expect(a.getAccessToken()).toBe("fresh-access-token");
+      expect(mockFetch.setAuthToken).toHaveBeenLastCalledWith("fresh-access-token");
+    });
+
+    it("does not emit SIGNED_OUT when there was no session to clear", async () => {
+      // No session established. Even if the refresh callback is invoked with a
+      // failing refresh, we must not emit a spurious SIGNED_OUT (the header is
+      // already the anon key).
+      const { a, getCallback } = buildAuthWithCapturedCallback();
+      const callback = getCallback();
+
+      const events: string[] = [];
+      a.onAuthStateChange((event) => events.push(event));
+
+      vi.mocked(mockFetch.post).mockRejectedValueOnce(
+        new Error("Invalid or expired token"),
+      );
+
+      const ok = await callback();
+
+      expect(ok).toBe(false);
+      expect(events).not.toContain("SIGNED_OUT");
+    });
+
+    it("emits SIGNED_OUT when an existing session is cleared", async () => {
+      const { a, getCallback } = buildAuthWithCapturedCallback();
+      const callback = getCallback();
+      await signInSession(a);
+
+      const events: string[] = [];
+      a.onAuthStateChange((event) => events.push(event));
+
+      vi.mocked(mockFetch.post).mockRejectedValueOnce(
+        new Error("Invalid or expired token"),
+      );
+
+      await callback();
+
+      // A genuine session was dropped -> consumers are notified.
+      expect(events).toContain("SIGNED_OUT");
+    });
+  });
+
   describe("getCurrentUser()", () => {
     it("should fetch current user", async () => {
       // Set up session
