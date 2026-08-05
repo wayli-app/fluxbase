@@ -218,6 +218,7 @@ func (h *CustomSettingsHandler) UpdateSetting(c fiber.Ctx) error {
 				Description: desc,
 				EditableBy:  req.EditableBy,
 				Metadata:    req.Metadata,
+				IsPublic:    req.IsPublic != nil && *req.IsPublic,
 			}
 			// Infer value_type from the value
 			createReq.ValueType = "json"

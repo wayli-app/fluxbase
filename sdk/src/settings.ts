@@ -630,30 +630,41 @@ export class AppSettingsManager {
   }
 
   /**
-   * Get multiple custom settings' values by keys
+   * Get multiple custom settings' values by keys, or all under a namespace.
    *
    * Fetches multiple settings in a single request and returns only their values.
+   * Use `prefix` to fetch every visible key in a namespace (e.g. `'wayli.'`)
+   * without listing each key. Inaccessible/unset keys are omitted (no error).
    *
-   * @param keys - Array of setting keys to fetch
+   * @param keys - Array of setting keys to fetch (omit/empty to use prefix only)
+   * @param options - Optional. `prefix` fetches every visible key under a
+   *   namespace; the prefix must end with a `.`. When both `keys` and `prefix`
+   *   are given, returns the intersection.
    * @returns Promise resolving to object mapping keys to values
    *
    * @example
    * ```typescript
+   * // Fetch specific keys
    * const values = await client.admin.settings.app.getSettings([
    *   'billing.tiers',
    *   'features.beta_enabled'
    * ])
-   * console.log(values)
-   * // {
-   * //   'billing.tiers': { free: 1000, pro: 10000 },
-   * //   'features.beta_enabled': { enabled: true }
-   * // }
+   *
+   * // Fetch an entire namespace in one call
+   * const wayli = await client.admin.settings.app.getSettings([], { prefix: 'wayli.' })
    * ```
    */
-  async getSettings(keys: string[]): Promise<Record<string, any>> {
+  async getSettings(
+    keys: string[] = [],
+    options?: { prefix?: string },
+  ): Promise<Record<string, any>> {
+    const body: Record<string, unknown> = { keys };
+    if (options?.prefix) {
+      body.prefix = options.prefix;
+    }
     const response = await this.fetch.post<CustomSetting[]>(
       "/api/v1/settings/batch",
-      { keys },
+      body,
     );
     return response.reduce(
       (acc, setting) => {
@@ -1409,34 +1420,44 @@ export class SettingsClient {
   }
 
   /**
-   * Get multiple settings' values by keys
+   * Get multiple settings' values by keys, or all settings under a namespace.
    *
-   * Fetches multiple settings in a single request.
+   * Fetches multiple settings in a single request, avoiding a separate
+   * per-key request (each of which would 404 when the key is unset).
    * Only returns settings the user has permission to read based on RLS policies.
-   * Settings the user can't access will be omitted from the result (no error thrown).
+   * Settings the user can't access — or that don't exist — are omitted from the
+   * result (no error thrown, no existence leak).
    *
-   * @param keys - Array of setting keys to fetch
+   * @param keys - Array of setting keys to fetch (omit/empty to use prefix only)
+   * @param options - Optional. `prefix` fetches every visible key under a
+   *   namespace (e.g. `'wayli.'`). The prefix must end with a `.`. When both
+   *   `keys` and `prefix` are given, returns the intersection.
    * @returns Promise resolving to object mapping keys to values
    *
    * @example
    * ```typescript
+   * // Fetch specific keys
    * const values = await client.settings.getMany([
    *   'features.beta_enabled',  // public - will be returned
    *   'features.dark_mode',      // public - will be returned
    *   'internal.api_key'         // secret - will be omitted
    * ])
-   * console.log(values)
-   * // {
-   * //   'features.beta_enabled': { enabled: true },
-   * //   'features.dark_mode': { enabled: false }
-   * //   // 'internal.api_key' is omitted (no error)
-   * // }
+   *
+   * // Fetch an entire namespace in one call
+   * const wayli = await client.settings.getMany([], { prefix: 'wayli.' })
    * ```
    */
-  async getMany(keys: string[]): Promise<Record<string, any>> {
+  async getMany(
+    keys: string[] = [],
+    options?: { prefix?: string },
+  ): Promise<Record<string, any>> {
+    const body: Record<string, unknown> = { keys };
+    if (options?.prefix) {
+      body.prefix = options.prefix;
+    }
     const response = await this.fetch.post<Array<{ key: string; value: any }>>(
       "/api/v1/settings/batch",
-      { keys },
+      body,
     );
     return response.reduce(
       (acc, setting) => {

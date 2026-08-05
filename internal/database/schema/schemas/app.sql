@@ -138,13 +138,20 @@ ALTER TABLE settings FORCE ROW LEVEL SECURITY;
 -- Name: Authenticated users can read non-secret settings; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY "Authenticated users can read non-secret settings" ON settings FOR SELECT TO authenticated USING (is_secret = false);
+-- ponytail: these two SELECT policies include auth.has_tenant_access(tenant_id)
+-- so they cannot OR-override the tenant-aware settings_tenant policy. Without
+-- the predicate, Postgres ORs permissive policies and an authenticated/anon
+-- caller could read non-secret/public rows from ANY tenant. Combined with the
+-- TenantContext middleware on the public settings route (which sets
+-- app.current_tenant_id), reads are now scoped to the caller's tenant, with
+-- tenant_id IS NULL treated as the shared instance default.
+CREATE POLICY "Authenticated users can read non-secret settings" ON settings FOR SELECT TO authenticated USING ((is_secret = false) AND auth.has_tenant_access(tenant_id));
 
 --
 -- Name: Public settings are readable by anyone; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY "Public settings are readable by anyone" ON settings FOR SELECT TO anon, authenticated USING ((is_public = true) AND (is_secret = false));
+CREATE POLICY "Public settings are readable by anyone" ON settings FOR SELECT TO anon, authenticated USING ((is_public = true) AND (is_secret = false) AND auth.has_tenant_access(tenant_id));
 
 --
 -- Name: Settings can be created by authorized roles; Type: POLICY; Schema: -; Owner: -

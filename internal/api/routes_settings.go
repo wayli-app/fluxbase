@@ -6,10 +6,11 @@ import (
 
 func (s *Server) buildSettingsRouteDeps() *routes.SettingsDeps {
 	return &routes.SettingsDeps{
-		OptionalAuth: s.optionalAuth,
-		GetSetting:   s.Settings.Handler.GetSetting,
-		GetSettings:  s.Settings.Handler.GetSettings,
-		BatchGet:     s.Settings.Handler.GetSettings,
+		OptionalAuth:     s.optionalAuth,
+		TenantMiddleware: s.Middleware.Tenant,
+		GetSetting:       s.Settings.Handler.GetSetting,
+		GetSettings:      s.Settings.Handler.GetSettings,
+		BatchGet:         s.Settings.Handler.GetSettings,
 	}
 }
 

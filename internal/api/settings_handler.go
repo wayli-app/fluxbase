@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5"
@@ -35,7 +36,8 @@ type SettingResponse struct {
 }
 
 type BatchSettingsRequest struct {
-	Keys []string `json:"keys"`
+	Keys   []string `json:"keys"`
+	Prefix string   `json:"prefix,omitempty"`
 }
 
 type BatchSettingsResponse struct {
@@ -62,10 +64,14 @@ func (h *SettingsHandler) GetSetting(c fiber.Ctx) error {
 
 	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
 		var valueJSON []byte
+		// Prefer a tenant-specific row over the instance default (tenant_id IS
+		// NULL) for this key, mirroring the batch endpoint's resolution.
 		queryErr = tx.QueryRow(ctx, `
 			SELECT value
 			FROM app.settings
 			WHERE key = $1
+			ORDER BY (tenant_id IS NOT NULL) DESC
+			LIMIT 1
 		`, key).Scan(&valueJSON)
 
 		if queryErr != nil {
@@ -104,12 +110,23 @@ func (h *SettingsHandler) GetSettings(c fiber.Ctx) error {
 		return err
 	}
 
-	if len(req.Keys) == 0 {
-		return SendMissingField(c, "keys")
+	// At least one of keys or prefix is required. A prefix fetch returns all
+	// keys under a namespace (e.g. "wayli.*") in a single call, so clients don't
+	// need to know every key up front — and don't trigger a 404 per missing key.
+	if len(req.Keys) == 0 && req.Prefix == "" {
+		return SendMissingField(c, "keys or prefix")
 	}
 
 	if len(req.Keys) > 100 {
 		return SendBadRequest(c, "Maximum 100 keys allowed per request", ErrCodeInvalidInput)
+	}
+
+	// A prefix must be a namespace: it must end with '.' (e.g. "wayli."). This
+	// prevents targeted key-existence probing (prefix "wayli.secret") and
+	// accidental cross-namespace over-matching. Visibility is still enforced by
+	// RLS regardless — this guard is about namespace hygiene, not access control.
+	if req.Prefix != "" && !strings.HasSuffix(req.Prefix, ".") {
+		return SendBadRequest(c, "prefix must end with a '.' (e.g. 'wayli.')", ErrCodeInvalidInput)
 	}
 
 	if err := h.requireService(c); err != nil {
@@ -121,13 +138,59 @@ func (h *SettingsHandler) GetSettings(c fiber.Ctx) error {
 	middleware.SetTargetSchema(c, "app")
 
 	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `
-			SELECT key, value
-			FROM app.settings
-			WHERE key = ANY($1)
-		`, req.Keys)
-		if err != nil {
-			return err
+		var rows pgx.Rows
+		var queryErr error
+
+		// Tenant resolution: instance-level (tenant_id IS NULL) settings are the
+		// leading baseline everyone inherits; a tenant-specific row overrides the
+		// instance default for that key (mirrors the per-user user→system
+		// fallback). DISTINCT ON (key) keeps one row per key, preferring the
+		// tenant row (tenant_id IS NOT NULL sorts first under DESC), so when both
+		// a tenant and an instance-default row exist for a key, the tenant value
+		// wins. RLS still gates which rows are visible (the TenantContext
+		// middleware sets app.current_tenant_id), so a caller only ever sees rows
+		// in their own tenant + the shared instance defaults.
+		switch {
+		case req.Prefix != "" && len(req.Keys) > 0:
+			// Both: keys within the namespace.
+			rows, queryErr = tx.Query(ctx, `
+				SELECT key, value FROM (
+					SELECT DISTINCT ON (key) key, value
+					FROM app.settings
+					WHERE key LIKE $1 AND key = ANY($2)
+					ORDER BY key, (tenant_id IS NOT NULL) DESC
+				) d
+				ORDER BY key
+				LIMIT 200
+			`, req.Prefix+"%", req.Keys)
+		case req.Prefix != "":
+			// Prefix only: all visible keys in the namespace. LIMIT bounds the
+			// result; RLS already hides anything the caller can't see, so missing
+			// vs hidden are indistinguishable to the caller (no existence leak).
+			rows, queryErr = tx.Query(ctx, `
+				SELECT key, value FROM (
+					SELECT DISTINCT ON (key) key, value
+					FROM app.settings
+					WHERE key LIKE $1
+					ORDER BY key, (tenant_id IS NOT NULL) DESC
+				) d
+				ORDER BY key
+				LIMIT 200
+			`, req.Prefix+"%")
+		default:
+			// Explicit keys only (original behavior) with the same per-key
+			// tenant→instance-default resolution.
+			rows, queryErr = tx.Query(ctx, `
+				SELECT key, value FROM (
+					SELECT DISTINCT ON (key) key, value
+					FROM app.settings
+					WHERE key = ANY($1)
+					ORDER BY key, (tenant_id IS NOT NULL) DESC
+				) d
+			`, req.Keys)
+		}
+		if queryErr != nil {
+			return queryErr
 		}
 		defer rows.Close()
 

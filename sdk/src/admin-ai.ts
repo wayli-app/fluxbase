@@ -122,6 +122,54 @@ export class FluxbaseAdminAI {
   }
 
   /**
+   * Update a chatbot's configuration (partial update).
+   *
+   * Only the provided fields are changed; omitted fields are left untouched.
+   * For limit/budget fields, 0 means "unlimited". Changes take effect on the
+   * next request (limits are read fresh from the database per message).
+   *
+   * @param id - Chatbot ID
+   * @param updates - Fields to update (all optional)
+   * @returns Promise resolving to { data, error } tuple with the updated chatbot
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.updateChatbot('uuid', {
+   *   daily_request_limit: 500,   // 0 = unlimited
+   *   daily_token_budget: 200000, // 0 = unlimited
+   * })
+   * ```
+   */
+  async updateChatbot(
+    id: string,
+    updates: {
+      description?: string;
+      enabled?: boolean;
+      max_tokens?: number;
+      temperature?: number;
+      provider_id?: string | null;
+      persist_conversations?: boolean;
+      conversation_ttl_hours?: number;
+      max_conversation_turns?: number;
+      rate_limit_per_minute?: number;
+      daily_request_limit?: number;
+      daily_token_budget?: number;
+      allow_unauthenticated?: boolean;
+      is_public?: boolean;
+    },
+  ): Promise<{ data: AIChatbot | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.put<AIChatbot>(
+        `/api/v1/admin/ai/chatbots/${id}`,
+        updates,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
    * Delete a chatbot
    *
    * @param id - Chatbot ID
