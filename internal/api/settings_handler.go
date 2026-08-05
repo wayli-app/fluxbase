@@ -64,10 +64,14 @@ func (h *SettingsHandler) GetSetting(c fiber.Ctx) error {
 
 	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
 		var valueJSON []byte
+		// Prefer a tenant-specific row over the instance default (tenant_id IS
+		// NULL) for this key, mirroring the batch endpoint's resolution.
 		queryErr = tx.QueryRow(ctx, `
 			SELECT value
 			FROM app.settings
 			WHERE key = $1
+			ORDER BY (tenant_id IS NOT NULL) DESC
+			LIMIT 1
 		`, key).Scan(&valueJSON)
 
 		if queryErr != nil {
@@ -137,13 +141,25 @@ func (h *SettingsHandler) GetSettings(c fiber.Ctx) error {
 		var rows pgx.Rows
 		var queryErr error
 
+		// Tenant resolution: instance-level (tenant_id IS NULL) settings are the
+		// leading baseline everyone inherits; a tenant-specific row overrides the
+		// instance default for that key (mirrors the per-user user→system
+		// fallback). DISTINCT ON (key) keeps one row per key, preferring the
+		// tenant row (tenant_id IS NOT NULL sorts first under DESC), so when both
+		// a tenant and an instance-default row exist for a key, the tenant value
+		// wins. RLS still gates which rows are visible (the TenantContext
+		// middleware sets app.current_tenant_id), so a caller only ever sees rows
+		// in their own tenant + the shared instance defaults.
 		switch {
 		case req.Prefix != "" && len(req.Keys) > 0:
 			// Both: keys within the namespace.
 			rows, queryErr = tx.Query(ctx, `
-				SELECT key, value
-				FROM app.settings
-				WHERE key LIKE $1 AND key = ANY($2)
+				SELECT key, value FROM (
+					SELECT DISTINCT ON (key) key, value
+					FROM app.settings
+					WHERE key LIKE $1 AND key = ANY($2)
+					ORDER BY key, (tenant_id IS NOT NULL) DESC
+				) d
 				ORDER BY key
 				LIMIT 200
 			`, req.Prefix+"%", req.Keys)
@@ -152,18 +168,25 @@ func (h *SettingsHandler) GetSettings(c fiber.Ctx) error {
 			// result; RLS already hides anything the caller can't see, so missing
 			// vs hidden are indistinguishable to the caller (no existence leak).
 			rows, queryErr = tx.Query(ctx, `
-				SELECT key, value
-				FROM app.settings
-				WHERE key LIKE $1
+				SELECT key, value FROM (
+					SELECT DISTINCT ON (key) key, value
+					FROM app.settings
+					WHERE key LIKE $1
+					ORDER BY key, (tenant_id IS NOT NULL) DESC
+				) d
 				ORDER BY key
 				LIMIT 200
 			`, req.Prefix+"%")
 		default:
-			// Explicit keys only (original behavior).
+			// Explicit keys only (original behavior) with the same per-key
+			// tenant→instance-default resolution.
 			rows, queryErr = tx.Query(ctx, `
-				SELECT key, value
-				FROM app.settings
-				WHERE key = ANY($1)
+				SELECT key, value FROM (
+					SELECT DISTINCT ON (key) key, value
+					FROM app.settings
+					WHERE key = ANY($1)
+					ORDER BY key, (tenant_id IS NOT NULL) DESC
+				) d
 			`, req.Keys)
 		}
 		if queryErr != nil {

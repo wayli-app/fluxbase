@@ -92,6 +92,16 @@ func CanEditSetting(editableBy []string, userRole string) bool {
 	return false
 }
 
+// tenantIDValue returns a *uuid.UUID for use in SQL, mapping the zero UUID
+// (no tenant context) to nil so the column stores NULL (instance-level),
+// which the read-side tenant→default resolution treats as the shared default.
+func tenantIDValue(id uuid.UUID) interface{} {
+	if id == uuid.Nil {
+		return nil
+	}
+	return &id
+}
+
 // ValidateKey validates the custom setting key format
 // Keys should follow a pattern like "custom.*" to avoid conflicts
 func ValidateKey(key string) error {
@@ -149,13 +159,24 @@ func (s *CustomSettingsService) CreateSetting(ctx context.Context, req CreateCus
 	var valueJSONResult, metadataJSONResult []byte
 	var editableByResult []string
 
+	// Resolve the caller's tenant so the setting is written to the right scope:
+	// a non-empty tenant context → tenant-specific row; no tenant context →
+	// instance-level row (tenant_id IS NULL), the shared default. Reads resolve
+	// tenant overrides over the instance default; see GetSettings.
+	var tenantID uuid.UUID
+	if tid := database.TenantFromContext(ctx); tid != "" {
+		if parsed, err := uuid.Parse(tid); err == nil {
+			tenantID = parsed
+		}
+	}
+
 	err = s.WithTenant(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			INSERT INTO app.settings
-			(key, value, value_type, description, editable_by, metadata, created_by, updated_by, category, is_public)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, 'custom', $8)
+			(key, value, value_type, description, editable_by, metadata, created_by, updated_by, category, is_public, tenant_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, 'custom', $8, $9)
 			RETURNING id, key, value, value_type, description, editable_by, metadata, is_public, is_secret, created_by, updated_by, created_at, updated_at
-		`, req.Key, valueJSON, req.ValueType, req.Description, req.EditableBy, metadataJSON, createdBy, req.IsPublic).Scan(
+		`, req.Key, valueJSON, req.ValueType, req.Description, req.EditableBy, metadataJSON, createdBy, req.IsPublic, tenantIDValue(tenantID)).Scan(
 			&setting.ID,
 			&setting.Key,
 			&valueJSONResult,

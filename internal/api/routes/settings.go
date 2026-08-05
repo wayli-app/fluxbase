@@ -5,11 +5,12 @@ import (
 )
 
 type SettingsDeps struct {
-	OptionalAuth fiber.Handler
-	RequireAuth  fiber.Handler
-	GetSetting   fiber.Handler
-	GetSettings  fiber.Handler
-	BatchGet     fiber.Handler
+	OptionalAuth    fiber.Handler
+	RequireAuth     fiber.Handler
+	TenantMiddleware fiber.Handler
+	GetSetting      fiber.Handler
+	GetSettings     fiber.Handler
+	BatchGet        fiber.Handler
 }
 
 type UserSettingsDeps struct {
@@ -29,9 +30,23 @@ type UserSettingsDeps struct {
 }
 
 func BuildSettingsRoutes(deps *SettingsDeps) *RouteGroup {
+	// Apply TenantContext so reads are tenant-scoped: it resolves the caller's
+	// tenant (X-FB-Tenant header / JWT claim / default tenant) and sets the
+	// app.current_tenant_id GUC that the settings_tenant RLS policy filters on.
+	// Without this, the public read paths (single-key GET, batch, prefix) are
+	// not tenant-isolated — matching the user-settings and admin-settings groups,
+	// which already apply it. Anonymous callers resolve to the default tenant.
+	var middlewares []Middleware
+	if deps.TenantMiddleware != nil {
+		middlewares = append(middlewares, Middleware{
+			Name: "TenantContext", Handler: deps.TenantMiddleware,
+		})
+	}
+
 	return &RouteGroup{
-		Name:   "settings",
-		Prefix: "/api/v1/settings",
+		Name:        "settings",
+		Prefix:      "/api/v1/settings",
+		Middlewares: middlewares,
 		Routes: []Route{
 			{
 				Method:  "GET",
