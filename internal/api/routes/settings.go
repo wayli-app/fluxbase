@@ -5,12 +5,12 @@ import (
 )
 
 type SettingsDeps struct {
-	OptionalAuth    fiber.Handler
-	RequireAuth     fiber.Handler
+	OptionalAuth     fiber.Handler
+	RequireAuth      fiber.Handler
 	TenantMiddleware fiber.Handler
-	GetSetting      fiber.Handler
-	GetSettings     fiber.Handler
-	BatchGet        fiber.Handler
+	GetSetting       fiber.Handler
+	GetSettings      fiber.Handler
+	BatchGet         fiber.Handler
 }
 
 type UserSettingsDeps struct {
