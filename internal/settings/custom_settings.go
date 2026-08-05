@@ -34,6 +34,8 @@ type CustomSetting struct {
 	Description string                 `json:"description,omitempty"`
 	EditableBy  []string               `json:"editable_by"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	IsPublic    bool                   `json:"is_public"`
+	IsSecret    bool                   `json:"is_secret"`
 	CreatedBy   *uuid.UUID             `json:"created_by,omitempty"`
 	UpdatedBy   *uuid.UUID             `json:"updated_by,omitempty"`
 	CreatedAt   time.Time              `json:"created_at"`
@@ -49,6 +51,11 @@ type CreateCustomSettingRequest struct {
 	EditableBy  []string               `json:"editable_by,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	IsSecret    bool                   `json:"is_secret,omitempty"`
+	// IsPublic makes the setting readable by anonymous/unauthenticated callers
+	// via the public read endpoints. Only meaningful for non-secret settings.
+	// Admin-only (these requests run under RequireRole), so a regular user can't
+	// make a private setting public. Defaults to false when omitted.
+	IsPublic bool `json:"is_public,omitempty"`
 }
 
 // UpdateCustomSettingRequest represents the request to update a custom setting
@@ -57,6 +64,8 @@ type UpdateCustomSettingRequest struct {
 	Description *string                `json:"description,omitempty"`
 	EditableBy  []string               `json:"editable_by,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	// IsPublic toggles anonymous readability. Pointer so nil = leave unchanged.
+	IsPublic *bool `json:"is_public,omitempty"`
 }
 
 // CustomSettingsService handles custom admin-managed settings
@@ -143,10 +152,10 @@ func (s *CustomSettingsService) CreateSetting(ctx context.Context, req CreateCus
 	err = s.WithTenant(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			INSERT INTO app.settings
-			(key, value, value_type, description, editable_by, metadata, created_by, updated_by, category)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, 'custom')
-			RETURNING id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
-		`, req.Key, valueJSON, req.ValueType, req.Description, req.EditableBy, metadataJSON, createdBy).Scan(
+			(key, value, value_type, description, editable_by, metadata, created_by, updated_by, category, is_public)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, 'custom', $8)
+			RETURNING id, key, value, value_type, description, editable_by, metadata, is_public, is_secret, created_by, updated_by, created_at, updated_at
+		`, req.Key, valueJSON, req.ValueType, req.Description, req.EditableBy, metadataJSON, createdBy, req.IsPublic).Scan(
 			&setting.ID,
 			&setting.Key,
 			&valueJSONResult,
@@ -154,6 +163,8 @@ func (s *CustomSettingsService) CreateSetting(ctx context.Context, req CreateCus
 			&setting.Description,
 			&editableByResult,
 			&metadataJSONResult,
+			&setting.IsPublic,
+			&setting.IsSecret,
 			&setting.CreatedBy,
 			&setting.UpdatedBy,
 			&setting.CreatedAt,
@@ -187,7 +198,7 @@ func (s *CustomSettingsService) GetSetting(ctx context.Context, key string) (*Cu
 
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
+			SELECT id, key, value, value_type, description, editable_by, metadata, is_public, is_secret, created_by, updated_by, created_at, updated_at
 			FROM app.settings
 			WHERE key = $1
 		`, key).Scan(
@@ -198,6 +209,8 @@ func (s *CustomSettingsService) GetSetting(ctx context.Context, key string) (*Cu
 			&setting.Description,
 			&editableBy,
 			&metadataJSON,
+			&setting.IsPublic,
+			&setting.IsSecret,
 			&setting.CreatedBy,
 			&setting.UpdatedBy,
 			&setting.CreatedAt,
@@ -256,6 +269,17 @@ func (s *CustomSettingsService) UpdateSetting(ctx context.Context, key string, r
 		metadata = req.Metadata
 	}
 
+	// is_public: only change when explicitly provided (pointer non-nil). This is
+	// an admin-only operation, so there's no privilege escalation — but a secret
+	// setting must never become public-readable, so guard against that combo.
+	isPublic := existing.IsPublic
+	if req.IsPublic != nil {
+		if *req.IsPublic && existing.IsSecret {
+			return nil, fmt.Errorf("cannot make a secret setting public")
+		}
+		isPublic = *req.IsPublic
+	}
+
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return nil, err
@@ -272,11 +296,12 @@ func (s *CustomSettingsService) UpdateSetting(ctx context.Context, key string, r
 			    description = $2,
 			    editable_by = $3,
 			    metadata = $4,
-			    updated_by = $5,
+			    is_public = $5,
+			    updated_by = $6,
 			    updated_at = NOW()
-			WHERE key = $6
-			RETURNING id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
-		`, valueJSON, description, editableBy, metadataJSON, updatedBy, key).Scan(
+			WHERE key = $7
+			RETURNING id, key, value, value_type, description, editable_by, metadata, is_public, is_secret, created_by, updated_by, created_at, updated_at
+		`, valueJSON, description, editableBy, metadataJSON, isPublic, updatedBy, key).Scan(
 			&setting.ID,
 			&setting.Key,
 			&valueJSONResult,
@@ -284,6 +309,8 @@ func (s *CustomSettingsService) UpdateSetting(ctx context.Context, key string, r
 			&setting.Description,
 			&editableByResult,
 			&metadataJSONResult,
+			&setting.IsPublic,
+			&setting.IsSecret,
 			&setting.CreatedBy,
 			&setting.UpdatedBy,
 			&setting.CreatedAt,

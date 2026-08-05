@@ -257,15 +257,17 @@ func (h *Handler) UpdateChatbot(c fiber.Ctx) error {
 		})
 	}
 
-	// Validate inputs
+	// Validate inputs. For limit/budget fields, 0 means "unlimited" (the
+	// limiter treats <= 0 as no cap, and the @fluxbase directive parser
+	// accepts 0), so only negative values are rejected here.
 	if req.Temperature != nil && (*req.Temperature < 0 || *req.Temperature > 2) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Temperature must be between 0 and 2",
 		})
 	}
-	if req.MaxTokens != nil && *req.MaxTokens <= 0 {
+	if req.MaxTokens != nil && *req.MaxTokens < 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Max tokens must be positive",
+			"error": "Max tokens must be non-negative (0 = unlimited)",
 		})
 	}
 	if req.ConversationTTLHours != nil && *req.ConversationTTLHours <= 0 {
@@ -273,24 +275,24 @@ func (h *Handler) UpdateChatbot(c fiber.Ctx) error {
 			"error": "Conversation TTL hours must be positive",
 		})
 	}
-	if req.MaxConversationTurns != nil && *req.MaxConversationTurns <= 0 {
+	if req.MaxConversationTurns != nil && *req.MaxConversationTurns < 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Max conversation turns must be positive",
+			"error": "Max conversation turns must be non-negative (0 = unlimited)",
 		})
 	}
-	if req.RateLimitPerMinute != nil && *req.RateLimitPerMinute <= 0 {
+	if req.RateLimitPerMinute != nil && *req.RateLimitPerMinute < 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Rate limit per minute must be positive",
+			"error": "Rate limit per minute must be non-negative (0 = unlimited)",
 		})
 	}
-	if req.DailyRequestLimit != nil && *req.DailyRequestLimit <= 0 {
+	if req.DailyRequestLimit != nil && *req.DailyRequestLimit < 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Daily request limit must be positive",
+			"error": "Daily request limit must be non-negative (0 = unlimited)",
 		})
 	}
-	if req.DailyTokenBudget != nil && *req.DailyTokenBudget <= 0 {
+	if req.DailyTokenBudget != nil && *req.DailyTokenBudget < 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Daily token budget must be positive",
+			"error": "Daily token budget must be non-negative (0 = unlimited)",
 		})
 	}
 

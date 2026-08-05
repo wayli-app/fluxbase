@@ -360,7 +360,7 @@ func TestGetSettings_Validation(t *testing.T) {
 		assert.Contains(t, result["error"], "Invalid request body")
 	})
 
-	t.Run("empty keys array", func(t *testing.T) {
+	t.Run("empty keys array and no prefix", func(t *testing.T) {
 		app := newTestApp(t)
 		handler := NewSettingsHandler(nil)
 
@@ -383,10 +383,10 @@ func TestGetSettings_Validation(t *testing.T) {
 		err = json.Unmarshal(respBody, &result)
 		require.NoError(t, err)
 
-		assert.Contains(t, result["error"], "keys is required")
+		assert.Contains(t, result["error"], "keys or prefix")
 	})
 
-	t.Run("missing keys field", func(t *testing.T) {
+	t.Run("missing keys and prefix fields", func(t *testing.T) {
 		app := newTestApp(t)
 		handler := NewSettingsHandler(nil)
 
@@ -409,7 +409,54 @@ func TestGetSettings_Validation(t *testing.T) {
 		err = json.Unmarshal(respBody, &result)
 		require.NoError(t, err)
 
-		assert.Contains(t, result["error"], "keys is required")
+		assert.Contains(t, result["error"], "keys or prefix")
+	})
+
+	t.Run("prefix without trailing dot is rejected", func(t *testing.T) {
+		// Namespace hygiene: a prefix must end with '.' so callers can't probe
+		// for a specific key's existence (e.g. prefix "wayli.secret") and can't
+		// accidentally over-match across namespaces.
+		app := newTestApp(t)
+		handler := NewSettingsHandler(nil)
+
+		app.Post("/settings/batch", handler.GetSettings)
+
+		body := `{"prefix":"wayli.secret"}`
+		req := httptest.NewRequest(http.MethodPost, "/settings/batch", bytes.NewReader([]byte(body)))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var result map[string]interface{}
+		err = json.Unmarshal(respBody, &result)
+		require.NoError(t, err)
+
+		assert.Contains(t, result["error"], "prefix must end with a '.'")
+	})
+
+	t.Run("valid prefix passes validation", func(t *testing.T) {
+		app := newTestApp(t)
+		handler := NewSettingsHandler(nil)
+
+		app.Post("/settings/batch", handler.GetSettings)
+
+		body := `{"prefix":"wayli."}`
+		req := httptest.NewRequest(http.MethodPost, "/settings/batch", bytes.NewReader([]byte(body)))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+
+		// Validation passes (fails later at the nil-DB operation, not at 400).
+		assert.NotEqual(t, fiber.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("too many keys", func(t *testing.T) {
