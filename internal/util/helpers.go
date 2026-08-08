@@ -30,6 +30,12 @@ func ToString(v interface{}) string {
 }
 
 func TruncateString(s string, maxLen int) string {
+	// Clamp nonsensical (negative) maxLen to 0 so a caller passing a computed
+	// length can't trigger a slice-bounds panic. With maxLen 0 an empty string
+	// returns "" and a non-empty string returns "...".
+	if maxLen < 0 {
+		maxLen = 0
+	}
 	if len(s) <= maxLen {
 		return s
 	}

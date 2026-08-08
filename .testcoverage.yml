@@ -14,6 +14,11 @@ override:
     threshold: 75
   - path: ^internal/logging/
     threshold: 70
+  # Pure logic packages at ~100% — set below measured to leave headroom
+  - path: ^internal/loader/
+    threshold: 90
+  - path: ^internal/util/
+    threshold: 90
   - path: ^internal/observability/
     threshold: 50
   - path: ^internal/ratelimit/
@@ -58,6 +63,11 @@ override:
     threshold: 1
   - path: ^internal/extensions/
     threshold: 1
+  # Declarative migration engine is integration-tested; unit coverage is ~3%.
+  # Explicit floor prevents silent regressions and documents the current state.
+  # TODO: raise toward 10-15% once the plan/transition logic is unit-tested.
+  - path: ^internal/migrations/
+    threshold: 3
 
   # Test utilities don't need coverage themselves
   - path: ^internal/testutil

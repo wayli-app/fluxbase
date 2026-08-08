@@ -11,12 +11,17 @@ coverage:
   status:
     project:
       default:
+        # Project-wide target. Informational because the codebase mixes
+        # heavily-tested packages (crypto, logging) with infrastructure
+        # packages that are largely E2E-tested (migrations, database) and
+        # shouldn't gate PRs on a single global number. Per-flag targets
+        # below are the real gates.
         target: 80%
         threshold: 2%
-        informational: false
+        informational: true
       go:
         flags: [unittests]
-        target: 30%
+        target: 35%
         threshold: 5%
         informational: false
       sdk:
