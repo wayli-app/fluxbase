@@ -14,6 +14,11 @@ override:
     threshold: 75
   - path: ^internal/logging/
     threshold: 70
+  # Pure logic packages at ~100% — set below measured to leave headroom
+  - path: ^internal/loader/
+    threshold: 90
+  - path: ^internal/util/
+    threshold: 90
   - path: ^internal/observability/
     threshold: 50
   - path: ^internal/ratelimit/
@@ -58,6 +63,14 @@ override:
     threshold: 1
   - path: ^internal/extensions/
     threshold: 1
+  # Declarative migration engine: core planning/transform/diff helpers are now
+  # unit-tested (extractChangesFromGroups, changePriority, table-name
+  # extractors, column-def extraction, countStatements, etc.). The remaining
+  # surface is pgschema shell-out + DB execution, covered by integration tests.
+  # TODO: raise toward 20%+ once the partition/FK filters and plan validation
+  # are factored out of applyPlanDirectly.
+  - path: ^internal/migrations/
+    threshold: 10
 
   # Test utilities don't need coverage themselves
   - path: ^internal/testutil

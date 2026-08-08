@@ -245,8 +245,12 @@ func (s *Service) createOIDCUser(ctx context.Context, provider string, claims *I
 	return user, nil
 }
 
-// updateUserFromOIDCClaims updates user info from OIDC claims if changed
-func (s *Service) updateUserFromOIDCClaims(ctx context.Context, user *User, claims *IDTokenClaims) error {
+// computeOIDCUserUpdate is the pure decision core of updateUserFromOIDCClaims:
+// it computes what (if anything) should change given the current user and the
+// fresh OIDC claims. Returns the update request and whether any field changed;
+// the caller persists it via the repository. Extracted so the policy
+// (verified-email promotion, name/picture sync) is unit-testable without a DB.
+func computeOIDCUserUpdate(user *User, claims *IDTokenClaims) (UpdateUserRequest, bool) {
 	updateReq := UpdateUserRequest{}
 	needsUpdate := false
 
@@ -284,11 +288,18 @@ func (s *Service) updateUserFromOIDCClaims(ctx context.Context, user *User, clai
 
 	if needsUpdate {
 		updateReq.UserMetadata = newMetadata
-		_, err := s.userRepo.Update(ctx, user.ID, updateReq)
-		return err
 	}
+	return updateReq, needsUpdate
+}
 
-	return nil
+// updateUserFromOIDCClaims updates user info from OIDC claims if changed
+func (s *Service) updateUserFromOIDCClaims(ctx context.Context, user *User, claims *IDTokenClaims) error {
+	updateReq, needsUpdate := computeOIDCUserUpdate(user, claims)
+	if !needsUpdate {
+		return nil
+	}
+	_, err := s.userRepo.Update(ctx, user.ID, updateReq)
+	return err
 }
 
 // =============================================================================

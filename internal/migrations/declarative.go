@@ -1020,18 +1020,7 @@ func extractAlterTableName(sql string) string {
 	if strings.HasPrefix(strings.ToUpper(rest), "IF EXISTS") {
 		rest = strings.TrimSpace(rest[len("IF EXISTS"):])
 	}
-	// Handle schema-qualified names: "schema.name"
-	rest = strings.TrimSpace(rest)
-	fields := strings.Fields(rest)
-	if len(fields) == 0 {
-		return ""
-	}
-	name := fields[0]
-	// Strip schema prefix if present
-	if idx := strings.LastIndex(name, "."); idx >= 0 {
-		name = name[idx+1:]
-	}
-	return strings.Trim(name, `"`)
+	return firstSQLIdentifier(rest)
 }
 
 // listPartitionedTables returns a set of table names that are partitioned parents
@@ -1068,16 +1057,7 @@ func extractIndexTableName(sql string) string {
 		return ""
 	}
 	rest := strings.TrimSpace(sql[onIdx+len(" ON "):])
-	fields := strings.Fields(rest)
-	if len(fields) == 0 {
-		return ""
-	}
-	name := fields[0]
-	// Strip schema prefix
-	if idx := strings.LastIndex(name, "."); idx >= 0 {
-		name = name[idx+1:]
-	}
-	return strings.TrimRight(strings.Trim(name, `"`), ";")
+	return firstSQLIdentifier(rest)
 }
 
 // extractTriggerTableName extracts the table name from a CREATE TRIGGER statement.
@@ -1089,15 +1069,7 @@ func extractTriggerTableName(sql string) string {
 		return ""
 	}
 	rest := strings.TrimSpace(sql[onIdx+len(" ON "):])
-	fields := strings.Fields(rest)
-	if len(fields) == 0 {
-		return ""
-	}
-	name := fields[0]
-	if idx := strings.LastIndex(name, "."); idx >= 0 {
-		name = name[idx+1:]
-	}
-	return strings.Trim(name, `"`)
+	return firstSQLIdentifier(rest)
 }
 
 // extractDropTriggerTableName extracts the table name from a DROP TRIGGER statement.
@@ -1108,17 +1080,71 @@ func extractDropTriggerTableName(sql string) string {
 	if onIdx < 0 {
 		return ""
 	}
-	rest := strings.TrimSpace(sql[onIdx+len(" ON "):])
-	rest = strings.TrimRight(rest, ";")
-	fields := strings.Fields(rest)
-	if len(fields) == 0 {
+	rest := strings.TrimRight(strings.TrimSpace(sql[onIdx+len(" ON "):]), ";")
+	return firstSQLIdentifier(rest)
+}
+
+// firstSQLIdentifier reads the first SQL identifier token from the start of s
+// (after skipping leading whitespace) and returns it unquoted, with any
+// schema-qualified prefix (schema.name) stripped to just the object name.
+//
+// It honors SQL double-quote escaping so a quoted identifier that contains
+// whitespace or punctuation — e.g. "User Table" or "order" — is treated as a
+// single token rather than being split on the inner whitespace. Inside quotes,
+// a doubled "" is an escaped literal quote. Trailing ';' is stripped.
+//
+// Returns "" if there is no identifier token at the start of s.
+func firstSQLIdentifier(s string) string {
+	// Skip leading whitespace.
+	i := 0
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t') {
+		i++
+	}
+	if i >= len(s) {
 		return ""
 	}
-	name := fields[0]
+
+	var name string
+	if s[i] == '"' {
+		// Quoted identifier: read until the closing quote, honoring "" escapes.
+		i++ // consume opening quote
+		var b strings.Builder
+		closed := false
+		for i < len(s) {
+			if s[i] == '"' {
+				if i+1 < len(s) && s[i+1] == '"' {
+					b.WriteByte('"') // escaped literal quote
+					i += 2
+					continue
+				}
+				closed = true
+				i++ // consume closing quote
+				break
+			}
+			b.WriteByte(s[i])
+			i++
+		}
+		// An unterminated quote is malformed; return what we have only if closed.
+		if !closed {
+			return ""
+		}
+		name = b.String()
+	} else {
+		// Unquoted identifier: read until whitespace or end.
+		start := i
+		for i < len(s) && s[i] != ' ' && s[i] != '\t' && s[i] != '\n' && s[i] != ';' {
+			i++
+		}
+		name = s[start:i]
+	}
+
+	// Strip a schema-qualified prefix if present (schema.name → name). Only the
+	// unquoted form supports dots meaningfully here, but handle a dot in a
+	// quoted name too by taking the last segment (matches prior behavior).
 	if idx := strings.LastIndex(name, "."); idx >= 0 {
 		name = name[idx+1:]
 	}
-	return strings.Trim(name, `"`)
+	return name
 }
 
 func extractColumnSQL(sql string, loc nodes.ParseLoc) string {

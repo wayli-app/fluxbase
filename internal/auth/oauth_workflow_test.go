@@ -10,7 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// This file contains comprehensive tests for OAuth authentication flows
+// This file contains comprehensive tests for OAuth authentication flows.
+//
+// NOTE: This file previously contained three `t.Skip` stub functions
+// (TestUnlinkOAuthIdentity_*) that asserted nothing — each was an empty body
+// with a "Requires database integration" skip. They have been removed to avoid
+// implying coverage that doesn't exist. The real DB-coupled
+// Service.UnlinkOAuthIdentity method still lacks test coverage; see the linked
+// issue for the plan to cover it via repository mocks or a CI-run integration
+// job. The pure-logic helpers in this file (MockOAuthManager, in-memory
+// StateStore, GenerateState) are exercised by the tests below.
 
 // TestGetOAuthURL_Success tests successful OAuth URL generation
 func TestGetOAuthURL_Success(t *testing.T) {
@@ -249,29 +258,8 @@ func TestLinkOAuthIdentity_AlreadyLinked(t *testing.T) {
 	_ = manager
 }
 
-// TestUnlinkOAuthIdentity_Success tests successful OAuth identity unlinking
-func TestUnlinkOAuthIdentity_Success(t *testing.T) {
-	// This would require database integration
-	// The service should:
-	// 1. Verify the identity exists
-	// 2. Verify it belongs to the user
-	// 3. Delete the identity link
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
-
-// TestUnlinkOAuthIdentity_LastIdentity tests that last identity cannot be unlinked
-func TestUnlinkOAuthIdentity_LastIdentity(t *testing.T) {
-	// This would require database integration
-	// The service should prevent unlinking the last identity if user has no password
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
-
-// TestUnlinkOAuthIdentity_NotFound tests unlinking non-existent identity
-func TestUnlinkOAuthIdentity_NotFound(t *testing.T) {
-	// This would require database integration
-	// Should return ErrIdentityNotFound
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
+// TestUnlinkOAuthIdentity_*: removed (empty t.Skip stubs).
+// See file note above re: DB-coupled OAuth coverage.
 
 // TestOAuthState_StoreAndValidate tests OAuth state storage and validation
 func TestOAuthState_StoreAndValidate(t *testing.T) {

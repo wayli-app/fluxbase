@@ -727,3 +727,149 @@ func TestEncryptWithBytesKey_BackwardCompatibility(t *testing.T) {
 		t.Error("Both decryption methods should recover original plaintext")
 	}
 }
+
+// =============================================================================
+// WithBytesKey / WithBytes Convenience Wrapper Tests
+// =============================================================================
+//
+// These wrappers previously had 0% coverage, dragging the package below its
+// 75% threshold. Each is a thin guard around the primary []byte API; tests
+// cover both the guard branch (empty input / invalid key) and the happy path
+// (delegated call).
+
+func TestEncryptIfNotEmptyWithBytesKey(t *testing.T) {
+	key := []byte("12345678901234567890123456789012") // 32 bytes
+
+	t.Run("empty plaintext returns empty no error", func(t *testing.T) {
+		t.Parallel()
+		got, err := EncryptIfNotEmptyWithBytesKey("", key)
+		if err != nil || got != "" {
+			t.Errorf("empty input: got (%q, %v), want (\"\", nil)", got, err)
+		}
+	})
+
+	t.Run("non-empty delegates to EncryptWithBytesKey", func(t *testing.T) {
+		t.Parallel()
+		enc, err := EncryptIfNotEmptyWithBytesKey("secret", key)
+		if err != nil {
+			t.Fatalf("non-empty: %v", err)
+		}
+		if enc == "" || enc == "secret" {
+			t.Errorf("expected non-trivial ciphertext, got %q", enc)
+		}
+		// Round trip back through the matching decrypt wrapper.
+		dec, err := DecryptIfNotEmptyWithBytesKey(enc, key)
+		if err != nil {
+			t.Fatalf("round-trip decrypt: %v", err)
+		}
+		if dec != "secret" {
+			t.Errorf("round-trip: got %q, want %q", dec, "secret")
+		}
+	})
+}
+
+func TestDecryptIfNotEmptyWithBytesKey_EmptyReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	key := []byte("12345678901234567890123456789012")
+	got, err := DecryptIfNotEmptyWithBytesKey("", key)
+	if err != nil || got != "" {
+		t.Errorf("empty input: got (%q, %v), want (\"\", nil)", got, err)
+	}
+}
+
+func TestDeriveUserKeyWithBytesKey(t *testing.T) {
+	t.Run("invalid master key length", func(t *testing.T) {
+		t.Parallel()
+		_, err := DeriveUserKeyWithBytesKey([]byte("too-short"), "user-1", "purpose")
+		if !errors.Is(err, ErrInvalidKey) {
+			t.Errorf("expected ErrInvalidKey, got %v", err)
+		}
+	})
+
+	t.Run("valid master key returns 32 bytes", func(t *testing.T) {
+		t.Parallel()
+		key := []byte("12345678901234567890123456789012")
+		derived, err := DeriveUserKeyWithBytesKey(key, "user-1", "purpose")
+		if err != nil {
+			t.Fatalf("derive: %v", err)
+		}
+		if len(derived) != 32 {
+			t.Errorf("derived key length: got %d, want 32", len(derived))
+		}
+	})
+
+	t.Run("deterministic for same inputs", func(t *testing.T) {
+		t.Parallel()
+		key := []byte("12345678901234567890123456789012")
+		a, _ := DeriveUserKeyWithBytesKey(key, "user-1", "purpose")
+		b, _ := DeriveUserKeyWithBytesKey(key, "user-1", "purpose")
+		if string(a) != string(b) {
+			t.Error("expected deterministic derivation for identical inputs")
+		}
+	})
+
+	t.Run("differs across users", func(t *testing.T) {
+		t.Parallel()
+		key := []byte("12345678901234567890123456789012")
+		a, _ := DeriveUserKeyWithBytesKey(key, "user-1", "purpose")
+		b, _ := DeriveUserKeyWithBytesKey(key, "user-2", "purpose")
+		if string(a) == string(b) {
+			t.Error("expected different derived keys for different users")
+		}
+	})
+}
+
+func TestValidateKeyWithBytes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		key     []byte
+		wantErr bool
+	}{
+		{"empty slice", []byte{}, true},
+		{"nil slice", nil, true},
+		{"too short", []byte("short"), true},
+		{"too long", []byte("123456789012345678901234567890123"), true},
+		{"valid 32 bytes", []byte("12345678901234567890123456789012"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateKeyWithBytes(tt.key)
+			// Empty/nil produces a distinct "not set" error; others ErrInvalidKey.
+			// Either way we only assert the wantErr boolean here.
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateKeyWithBytes(%v) error = %v, wantErr %v", tt.key, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestZeroBytes(t *testing.T) {
+	t.Parallel()
+	t.Run("zeros populated slice", func(t *testing.T) {
+		t.Parallel()
+		b := []byte{0x01, 0x02, 0x03, 0xFF}
+		ZeroBytes(b)
+		for i, v := range b {
+			if v != 0 {
+				t.Errorf("byte %d not zeroed: got %x", i, v)
+			}
+		}
+	})
+
+	t.Run("nil slice does not panic", func(t *testing.T) {
+		t.Parallel()
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("ZeroBytes(nil) panicked: %v", r)
+			}
+		}()
+		ZeroBytes(nil)
+	})
+
+	t.Run("empty slice does not panic", func(t *testing.T) {
+		t.Parallel()
+		ZeroBytes([]byte{})
+	})
+}

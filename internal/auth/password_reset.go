@@ -16,8 +16,16 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/database"
 )
 
-// hashPasswordResetToken creates a SHA-256 hash of a token and returns it as base64.
-// SECURITY: Password reset tokens are stored as hashes to prevent exposure if the database is breached.
+// hashPasswordResetToken creates a SHA-256 hash of a token and returns it as
+// base64 (URL encoding). SECURITY: Password reset tokens are stored as hashes
+// to prevent exposure if the database is breached.
+//
+// NOTE: DashboardAuthService.{RequestPasswordReset,VerifyPasswordResetToken,
+// ResetPassword} in platform_password.go hash tokens with hex encoding instead
+// (a separate, intentionally-distinct representation — not a duplication bug).
+// Do NOT consolidate these without coordinating both writers and a migration
+// of any persisted rows; switching encodings would change the hash string and
+// silently invalidate every outstanding reset token.
 func hashPasswordResetToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return base64.URLEncoding.EncodeToString(hash[:])

@@ -52,10 +52,24 @@ jobs:
               - '.testcoverage.yml'
               - '.golangci.yml'
             go-core:
+              # Packages imported broadly across the codebase — a change to
+              # any of these fans out to the full unit + e2e suite. Verified
+              # import fan-out: crypto(6), errors(6), util(5), keys/secrets/
+              # pubsub/runtime(3-4), query(2, but feeds api). Adding these
+              # fixes a consistency bug where they were treated as leaf
+              # packages and went through the (already-broken) selective path.
               - 'internal/config/**'
               - 'internal/database/**'
               - 'internal/auth/**'
               - 'internal/middleware/**'
+              - 'internal/crypto/**'
+              - 'internal/keys/**'
+              - 'internal/secrets/**'
+              - 'internal/errors/**'
+              - 'internal/util/**'
+              - 'internal/pubsub/**'
+              - 'internal/query/**'
+              - 'internal/runtime/**'
               - 'go.mod'
               - 'go.sum'
             admin-ui:
@@ -283,16 +297,16 @@ jobs:
         working-directory: ./sdk
         run: bun run test:ci
 
-      # - name: Upload SDK coverage to Codecov
-      #   uses: codecov/codecov-action@v5
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     files: ./sdk/coverage/coverage-final.json
-      #     flags: sdk
-      #     name: sdk-coverage
-      #     fail_ci_if_error: true
-      #     verbose: true
-      #     slug: nimbleflux/fluxbase
+      - name: Upload SDK coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./sdk/coverage/coverage-final.json
+          flags: sdk
+          name: sdk-coverage
+          fail_ci_if_error: false
+          verbose: true
+          slug: nimbleflux/fluxbase
 
       - name: Type check SDK
         working-directory: ./sdk
@@ -575,44 +589,67 @@ jobs:
             echo "Core package changed — running all e2e tests"
             go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
           else
-            echo "Selective e2e — areas: ${{ needs.changes.outputs.go-areas }}"
-            # Map changed areas to e2e test file prefixes
-            PATTERNS=""
+            # Mark this run as selective so the coverage gate below uses
+            # unit-only coverage (a partial e2e run produces a partial
+            # coverage-e2e.out, which would under-count e2e-backed packages
+            # and could trip per-package thresholds that a full run meets).
+            echo "E2E_SELECTIVE=true" >> "$GITHUB_ENV"
+            # Selective e2e: build a -run regex from the ACTUAL test functions
+            # defined in the changed areas' files, rather than guessing name
+            # prefixes. All e2e tests share one flat package (test/e2e), so
+            # package-level selection can't narrow — only -run can. The regex is
+            # constructed by reading `func TestX` symbols from the matching
+            # files, so it can't silently run the wrong subset the way the old
+            # area->file-prefix mapping did (e.g. auth_test.go defines TestREST*).
+            #
+            # Area -> e2e file-glob mapping. Areas are top-level internal dirs.
             IFS=',' read -ra AREAS <<< "${{ needs.changes.outputs.go-areas }}"
+            FILES=""
             for area in "${AREAS[@]}"; do
               case "$area" in
-                auth)      PATTERNS="$PATTERNS auth_ two_factor_ oauth_" ;;
-                storage)   PATTERNS="$PATTERNS storage_ rls_ debug_storage" ;;
-                ai)        PATTERNS="$PATTERNS ai_" ;;
-                api)       PATTERNS="$PATTERNS rest_ graphql_ rpc_ sql_editor" ;;
-                branching) PATTERNS="$PATTERNS branching_" ;;
-                tenantdb)  PATTERNS="$PATTERNS tenant_" ;;
-                functions) PATTERNS="$PATTERNS functions_" ;;
-                realtime)  PATTERNS="$PATTERNS realtime_" ;;
-                ratelimit) PATTERNS="$PATTERNS ratelimit_" ;;
-                webhook)   PATTERNS="$PATTERNS webhook_" ;;
-                mcp)       PATTERNS="$PATTERNS mcp_" ;;
-                jobs)      PATTERNS="$PATTERNS logging_" ;;
-                *)         PATTERNS="$PATTERNS $area" ;;
+                auth)      FILES="$FILES test/e2e/auth_*.go test/e2e/two_factor_*.go test/e2e/oauth_*.go test/e2e/otp_hash_test.go" ;;
+                storage)   FILES="$FILES test/e2e/storage_*.go" ;;
+                ai)        FILES="$FILES test/e2e/ai_*.go test/e2e/postgis_test.go" ;;
+                api)       FILES="$FILES test/e2e/rest_*.go test/e2e/graphql_test.go test/e2e/rpc_test.go test/e2e/sql_editor_test.go" ;;
+                branching) FILES="$FILES test/e2e/branching_*.go" ;;
+                tenantdb)  FILES="$FILES test/e2e/tenant_*.go test/e2e/tenant_isolation_test.go" ;;
+                functions) FILES="$FILES test/e2e/functions_*.go" ;;
+                realtime)  FILES="$FILES test/e2e/realtime_*.go" ;;
+                ratelimit) FILES="$FILES test/e2e/ratelimit_*.go" ;;
+                webhook)   FILES="$FILES test/e2e/webhook_*.go test/e2e/ssrf_*.go" ;;
+                mcp)       FILES="$FILES test/e2e/mcp_*.go" ;;
+                jobs)      FILES="$FILES test/e2e/logging_*.go test/e2e/job_retry_test.go test/e2e/jobs_get_test.go" ;;
+                *)         FILES="$FILES test/e2e/${area}_*.go" ;;
               esac
             done
 
-            # Find matching e2e test files
-            E2E_PKGS=""
-            for pattern in $PATTERNS; do
-              matches=$(find test/e2e -name "${pattern}*_test.go" -exec dirname {} \; 2>/dev/null | sort -u)
-              E2E_PKGS="$E2E_PKGS $matches"
+            # Always include setup + health — they validate the harness itself.
+            FILES="$FILES test/e2e/setup_test.go test/e2e/health_test.go"
+
+            # Extract `func TestX` symbols from the selected files (existing
+            # files only) and build a -run alternation regex.
+            RUN_REGEX=""
+            for f in $FILES; do
+              [ -f "$f" ] || continue
+              names=$(grep -hoE "^func Test[A-Za-z0-9_]+" "$f" | sed 's/^func //' | sort -u)
+              for name in $names; do
+                if [ -z "$RUN_REGEX" ]; then
+                  RUN_REGEX="$name"
+                else
+                  RUN_REGEX="$RUN_REGEX|$name"
+                fi
+              done
             done
 
-            # Always include setup + health + admin
-            E2E_PKGS="./test/e2e $E2E_PKGS"
-
-            if [ -z "$(echo $E2E_PKGS | tr -d ' ')" ] || [ "$E2E_PKGS" = "./test/e2e" ]; then
-              echo "No specific e2e tests matched — running full suite"
+            if [ -z "$RUN_REGEX" ]; then
+              echo "No e2e tests matched areas [${{ needs.changes.outputs.go-areas }}] — running full suite"
               go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
             else
-              echo "Running e2e packages: $(echo $E2E_PKGS | xargs)"
-              go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic $(echo $E2E_PKGS | xargs)
+              echo "Selective e2e for areas [${{ needs.changes.outputs.go-areas }}]: $(echo "$RUN_REGEX" | tr '|' ' ')"
+              # RUN_REGEX holds full Test function names (e.g. TestAuthSignin);
+              # -run matches against the full name, so anchor the alternation
+              # directly without re-adding a Test prefix.
+              go test -tags=integration -v -race -parallel=1 -timeout=10m -run "^($RUN_REGEX)\$" -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
             fi
           fi
 
@@ -628,14 +665,47 @@ jobs:
       - name: Check coverage thresholds
         run: |
           go install github.com/vladopajic/go-test-coverage/v2@latest
-          # Check thresholds against combined (unit + e2e) coverage
-          # go-test-coverage exits 1 whenever any file has uncovered lines,
-          # even when all thresholds pass. We only want to fail on actual
-          # threshold violations, so we check the output for explicit FAIL.
-          output=$(go-test-coverage --config=.testcoverage.yml 2>&1) || true
+
+          # On a selective (non-core, partial-e2e) run, coverage-e2e.out only
+          # reflects the selected tests, so the merged coverage.out would
+          # under-count e2e-backed packages and could trip per-package
+          # thresholds that a full run meets. Gate against unit-only coverage
+          # in that case; the full gate still runs on core/all changes.
+          if [ "$E2E_SELECTIVE" = "true" ]; then
+            echo "Selective e2e run — checking thresholds against unit-only coverage (coverage-unit.out)"
+            cp coverage-unit.out coverage-gate.out
+          else
+            cp coverage.out coverage-gate.out
+          fi
+
+          # Temporarily point the config at the gate profile.
+          sed "s|^profile: coverage.out|profile: coverage-gate.out|" .testcoverage.yml > .testcoverage-gate.yml
+
+          # go-test-coverage v2 exits non-zero whenever ANY file has uncovered
+          # lines — even when every configured threshold passes — so the exit
+          # code alone is not a reliable gate. Instead we capture output and
+          # fail only on an explicit threshold violation marker.
+          #
+          # Hardening: we also fail if the tool produces no recognizable
+          # satisfied/violation verdict at all (e.g. it crashed or its output
+          # format changed), so the gate cannot be silently disabled by an
+          # unrelated tooling change.
+          set +e
+          output=$(go-test-coverage --config=.testcoverage-gate.yml 2>&1)
+          exit_code=$?
           echo "$output"
-          if echo "$output" | grep -qE "satisfied:\s+FAIL"; then
+          rm -f .testcoverage-gate.yml coverage-gate.out
+
+          # 1. Explicit threshold violation → fail.
+          if echo "$output" | grep -qiE "(satisfied|coverage threshold):\s*FAIL|not satisfied|below threshold"; then
             echo "::error::Coverage threshold check failed"
+            exit 1
+          fi
+
+          # 2. No verdict line at all → tool misbehaved or output format
+          #    changed; surface it rather than silently passing.
+          if ! echo "$output" | grep -qiE "satisfied:\s*(PASS|FAIL)"; then
+            echo "::error::go-test-coverage produced no PASS/FAIL verdict (exit $exit_code); treating as a gate failure"
             exit 1
           fi
 
@@ -646,7 +716,7 @@ jobs:
           files: ./coverage.out
           flags: unittests
           name: go-codecov
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           verbose: true
           slug: nimbleflux/fluxbase
 
