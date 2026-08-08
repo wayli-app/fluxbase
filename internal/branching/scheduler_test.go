@@ -261,3 +261,30 @@ func TestBranchCleanupPriority(t *testing.T) {
 		assert.True(t, branch1.ExpiresAt.Before(*branch2.ExpiresAt))
 	})
 }
+
+// =============================================================================
+// Scheduler.IsRunning Tests
+// =============================================================================
+//
+// IsRunning (scheduler.go:169) reports the running flag under a mutex. It was
+// 0.0% under -short. NewCleanupScheduler(nil, nil, interval) builds a scheduler
+// without starting it; the true branch is exercised by setting the unexported
+// field directly (same-package white-box test).
+
+func TestCleanupScheduler_IsRunning(t *testing.T) {
+	t.Parallel()
+	t.Run("fresh scheduler not running", func(t *testing.T) {
+		t.Parallel()
+		s := NewCleanupScheduler(nil, nil, time.Hour)
+		assert.False(t, s.IsRunning())
+	})
+
+	t.Run("running flag true when set", func(t *testing.T) {
+		t.Parallel()
+		s := NewCleanupScheduler(nil, nil, time.Hour)
+		s.mu.Lock()
+		s.running = true
+		s.mu.Unlock()
+		assert.True(t, s.IsRunning())
+	})
+}

@@ -1,6 +1,7 @@
 package branching
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -568,4 +569,82 @@ func TestBranch_GetAccessLevel_NotFound(t *testing.T) {
 
 	level := branch.GetAccessLevel(userID)
 	assert.Nil(t, level)
+}
+
+// =============================================================================
+// Manager Accessor Tests (GetBranchConnectionURL, GetStorage, GetConfig)
+// =============================================================================
+//
+// These cover pure, 0.0%-coverage Manager methods reached under -short. They
+// use the &Manager{...} literal construction already used by the tenant-clone
+// tests, so no DB is required.
+
+func TestManager_GetBranchConnectionURL(t *testing.T) {
+	t.Parallel()
+	m := &Manager{mainDBURL: "postgresql://user:pass@localhost:5432/fluxbase"}
+
+	t.Run("rewrites path to branch database name", func(t *testing.T) {
+		t.Parallel()
+		branch := &Branch{DatabaseName: "branch_feature_x"}
+		got, err := m.GetBranchConnectionURL(branch)
+		assert.NoError(t, err)
+		assert.Contains(t, got, "/branch_feature_x")
+		// Host/user preserved.
+		assert.Contains(t, got, "user:pass@localhost:5432")
+		// Original db name replaced.
+		assert.NotContains(t, got, "/fluxbase")
+	})
+
+	t.Run("preserves query params if present", func(t *testing.T) {
+		t.Parallel()
+		m2 := &Manager{mainDBURL: "postgresql://u@localhost:5432/fluxbase?sslmode=disable"}
+		branch := &Branch{DatabaseName: "branch_y"}
+		got, err := m2.GetBranchConnectionURL(branch)
+		assert.NoError(t, err)
+		assert.Contains(t, got, "sslmode=disable")
+		assert.Contains(t, got, "/branch_y")
+	})
+}
+
+func TestManager_GetStorage(t *testing.T) {
+	t.Parallel()
+	t.Run("nil storage returns nil", func(t *testing.T) {
+		t.Parallel()
+		m := &Manager{}
+		assert.Nil(t, m.GetStorage())
+	})
+
+	t.Run("non-nil storage returned by identity", func(t *testing.T) {
+		t.Parallel()
+		st := NewStorage(nil, nil)
+		m := &Manager{storage: st}
+		assert.Same(t, st, m.GetStorage())
+	})
+}
+
+func TestManager_GetConfig(t *testing.T) {
+	t.Parallel()
+	cfg := config.BranchingConfig{Enabled: true, DefaultBranch: "development"}
+	m := &Manager{config: cfg}
+	got := m.GetConfig()
+	assert.Equal(t, cfg.Enabled, got.Enabled)
+	assert.Equal(t, "development", got.DefaultBranch)
+}
+
+// =============================================================================
+// Manager.checkLimits — no-limits path (pure, no storage calls)
+// =============================================================================
+//
+// With MaxBranchesPerTenant=0, MaxTotalBranches=0, MaxBranchesPerUser=0 the
+// method short-circuits to nil without ever calling storage, so it is reachable
+// with a nil storage field.
+
+func TestManager_CheckLimits_NoLimitsConfigured(t *testing.T) {
+	t.Parallel()
+	tenant := uuid.New()
+	user := uuid.New()
+	m := &Manager{config: config.BranchingConfig{Enabled: true}} // all limits zero-valued
+
+	err := m.checkLimits(context.Background(), &tenant, &user)
+	assert.NoError(t, err)
 }

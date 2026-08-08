@@ -324,3 +324,181 @@ func TestRouter_MainDBURL(t *testing.T) {
 		assert.Equal(t, url, router.mainDBURL)
 	})
 }
+
+// =============================================================================
+// IsMainBranch / Pool-Presence / Default-Branch Tests
+// =============================================================================
+//
+// These cover pure, 0.0%-coverage router helpers that existing -short tests
+// never reach (they're exercised only by integration tests). All use nil-pool
+// routers built via NewRouter(nil, cfg, nil, url), matching TestNewRouter.
+
+func TestIsMainBranch(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		slug string
+		want bool
+	}{
+		{"empty is main", "", true},
+		{"literal main", "main", true},
+		{"development is not main", "development", false},
+		{"main-main is not main (exact match only)", "main-main", false},
+		{"arbitrary slug", "feature-x", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, IsMainBranch(tt.slug))
+		})
+	}
+}
+
+func TestRouter_GetActiveBranchSource(t *testing.T) {
+	t.Parallel()
+	t.Run("api-set wins over config", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.BranchingConfig{Enabled: true, DefaultBranch: "development"}
+		r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+		r.SetActiveBranch("feature-x")
+		assert.Equal(t, "api", r.GetActiveBranchSource())
+	})
+
+	t.Run("config default when no api branch", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.BranchingConfig{Enabled: true, DefaultBranch: "development"}
+		r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+		assert.Equal(t, "config", r.GetActiveBranchSource())
+	})
+
+	t.Run("default when neither api nor config set", func(t *testing.T) {
+		t.Parallel()
+		// DefaultBranch empty → the previously-uncovered fallback arm.
+		cfg := config.BranchingConfig{Enabled: true, DefaultBranch: ""}
+		r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+		assert.Equal(t, "default", r.GetActiveBranchSource())
+	})
+}
+
+func TestRouter_GetDefaultBranch_FallbackToMain(t *testing.T) {
+	t.Parallel()
+	// Neither API-set nor config default → "main" (the arm GetDefaultBranch
+	// didn't cover under -short).
+	cfg := config.BranchingConfig{Enabled: true, DefaultBranch: ""}
+	r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+	assert.Equal(t, "main", r.GetDefaultBranch())
+}
+
+func TestRouter_HasPool(t *testing.T) {
+	t.Parallel()
+	cfg := config.BranchingConfig{Enabled: true}
+	r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+
+	t.Run("main slug always has pool", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, r.HasPool("main"))
+		assert.True(t, r.HasPool(""))
+	})
+
+	t.Run("unknown slug returns false", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, r.HasPool("nope"))
+	})
+
+	t.Run("injected slug returns true", func(t *testing.T) {
+		t.Parallel()
+		// HasPool/GetActivePools only check map presence, never dereference the
+		// pool, so a nil-pool entry is a valid fixture.
+		r.poolsMu.Lock()
+		r.pools["feature-x"] = &poolEntry{slug: "feature-x"}
+		r.poolsMu.Unlock()
+		assert.True(t, r.HasPool("feature-x"))
+	})
+}
+
+func TestRouter_GetActivePools(t *testing.T) {
+	t.Parallel()
+	cfg := config.BranchingConfig{Enabled: true}
+
+	t.Run("empty router returns non-nil empty slice", func(t *testing.T) {
+		t.Parallel()
+		r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+		got := r.GetActivePools()
+		// Contract: make([]string, 0, ...) — non-nil even when empty.
+		assert.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+
+	t.Run("returns injected slugs", func(t *testing.T) {
+		t.Parallel()
+		r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+		r.poolsMu.Lock()
+		r.pools["a"] = &poolEntry{slug: "a"}
+		r.pools["b"] = &poolEntry{slug: "b"}
+		r.poolsMu.Unlock()
+
+		got := r.GetActivePools()
+		assert.ElementsMatch(t, []string{"a", "b"}, got)
+	})
+}
+
+func TestRouter_GetMainPoolAndGetStorage(t *testing.T) {
+	t.Parallel()
+	t.Run("nil deps return nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.BranchingConfig{Enabled: true}
+		r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+		assert.Nil(t, r.GetMainPool())
+		assert.Nil(t, r.GetStorage())
+	})
+
+	t.Run("non-nil storage returned by identity", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.BranchingConfig{Enabled: true}
+		// NewStorage(nil, nil) is the existing nil-deps construction (used in
+		// storage_test.go). It does not open a connection.
+		st := NewStorage(nil, nil)
+		r := NewRouter(st, cfg, nil, "postgresql://localhost/fluxbase")
+		assert.Same(t, st, r.GetStorage())
+	})
+}
+
+// =============================================================================
+// GetPool / WarmupPool cheap paths (no DB needed)
+// =============================================================================
+
+func TestRouter_GetPool_CheapPaths(t *testing.T) {
+	t.Parallel()
+	cfg := config.BranchingConfig{Enabled: true}
+	r := NewRouter(nil, cfg, nil, "postgresql://localhost/fluxbase")
+
+	t.Run("main slug returns main pool (nil here) with no error", func(t *testing.T) {
+		t.Parallel()
+		p, err := r.GetPool(context.Background(), "main")
+		assert.NoError(t, err)
+		assert.Nil(t, p) // mainPool is nil in this fixture
+	})
+
+	t.Run("empty slug treated as main", func(t *testing.T) {
+		t.Parallel()
+		p, err := r.GetPool(context.Background(), "")
+		assert.NoError(t, err)
+		assert.Nil(t, p)
+	})
+
+	t.Run("non-main slug with branching disabled returns ErrBranchingDisabled", func(t *testing.T) {
+		t.Parallel()
+		disabled := NewRouter(nil, config.BranchingConfig{Enabled: false}, nil, "postgresql://localhost/fluxbase")
+		_, err := disabled.GetPool(context.Background(), "feature-x")
+		assert.ErrorIs(t, err, ErrBranchingDisabled)
+	})
+}
+
+func TestRouter_WarmupPool_Disabled(t *testing.T) {
+	t.Parallel()
+	// WarmupPool delegates to GetPool; with branching disabled and a non-main
+	// slug it returns ErrBranchingDisabled without touching the network.
+	r := NewRouter(nil, config.BranchingConfig{Enabled: false}, nil, "postgresql://localhost/fluxbase")
+	err := r.WarmupPool(context.Background(), "feature-x")
+	assert.ErrorIs(t, err, ErrBranchingDisabled)
+}

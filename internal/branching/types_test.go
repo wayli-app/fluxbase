@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================
@@ -411,4 +412,114 @@ func BenchmarkBranch_IsReady(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = branch.IsReady()
 	}
+}
+
+// =============================================================================
+// Branch Tenant Membership Tests
+// =============================================================================
+//
+// BelongsToTenant / IsInstanceLevel are the inverse checks over Branch.TenantID
+// (types.go:67,75). Currently 0.0% under -short. Pure logic over a *Branch.
+
+func TestBranch_BelongsToTenant(t *testing.T) {
+	t.Parallel()
+	tenant := uuid.New()
+	other := uuid.New()
+
+	tests := []struct {
+		name   string
+		branch *Branch
+		want   bool
+	}{
+		{"nil tenant id returns false", &Branch{TenantID: nil}, false},
+		{"matching tenant returns true", &Branch{TenantID: &tenant}, true},
+		{"different tenant returns false", &Branch{TenantID: &other}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.branch.BelongsToTenant(tenant))
+		})
+	}
+}
+
+func TestBranch_IsInstanceLevel(t *testing.T) {
+	t.Parallel()
+	tenant := uuid.New()
+	tests := []struct {
+		name   string
+		tenant *uuid.UUID
+		want   bool
+	}{
+		{"nil tenant is instance-level", nil, true},
+		{"tenant-scoped is not instance-level", &tenant, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			b := &Branch{TenantID: tt.tenant}
+			assert.Equal(t, tt.want, b.IsInstanceLevel())
+		})
+	}
+}
+
+// =============================================================================
+// Branch access helpers — push HasAccess / GetAccessLevel to full coverage
+// =============================================================================
+
+func TestBranch_HasAccess_FullMatrix(t *testing.T) {
+	t.Parallel()
+	userA := uuid.New()
+	userB := uuid.New()
+
+	t.Run("nil access list returns false", func(t *testing.T) {
+		t.Parallel()
+		b := &Branch{Access: nil}
+		assert.False(t, b.HasAccess(userA))
+	})
+
+	t.Run("present user returns true", func(t *testing.T) {
+		t.Parallel()
+		b := &Branch{Access: []BranchAccess{{UserID: userA, AccessLevel: BranchAccessRead}}}
+		assert.True(t, b.HasAccess(userA))
+	})
+
+	t.Run("absent user returns false", func(t *testing.T) {
+		t.Parallel()
+		b := &Branch{Access: []BranchAccess{{UserID: userA, AccessLevel: BranchAccessRead}}}
+		assert.False(t, b.HasAccess(userB))
+	})
+
+	t.Run("empty access list returns false", func(t *testing.T) {
+		t.Parallel()
+		b := &Branch{Access: []BranchAccess{}}
+		assert.False(t, b.HasAccess(userA))
+	})
+}
+
+func TestBranch_GetAccessLevel_FullMatrix(t *testing.T) {
+	t.Parallel()
+	userA := uuid.New()
+	userB := uuid.New()
+	level := BranchAccessAdmin
+
+	t.Run("nil access list returns nil", func(t *testing.T) {
+		t.Parallel()
+		b := &Branch{Access: nil}
+		assert.Nil(t, b.GetAccessLevel(userA))
+	})
+
+	t.Run("present user returns level pointer", func(t *testing.T) {
+		t.Parallel()
+		b := &Branch{Access: []BranchAccess{{UserID: userA, AccessLevel: level}}}
+		got := b.GetAccessLevel(userA)
+		require.NotNil(t, got)
+		assert.Equal(t, level, *got)
+	})
+
+	t.Run("absent user returns nil", func(t *testing.T) {
+		t.Parallel()
+		b := &Branch{Access: []BranchAccess{{UserID: userA, AccessLevel: level}}}
+		assert.Nil(t, b.GetAccessLevel(userB))
+	})
 }
