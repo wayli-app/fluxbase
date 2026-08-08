@@ -769,7 +769,9 @@ func countDestructiveStatements(content string) int {
 			strings.HasPrefix(trimmed, "DROP TRIGGER IF EXISTS") ||
 			strings.HasPrefix(trimmed, "DROP CONSTRAINT IF EXISTS") ||
 			strings.HasPrefix(trimmed, "ALTER TABLE") && strings.Contains(trimmed, "DROP CONSTRAINT IF EXISTS") ||
-			strings.HasPrefix(trimmed, "DROP INDEX IF EXISTS") {
+			strings.HasPrefix(trimmed, "DROP INDEX IF EXISTS") ||
+			strings.HasPrefix(trimmed, "DROP FUNCTION IF EXISTS") ||
+			strings.HasPrefix(trimmed, "DROP PROCEDURE IF EXISTS") {
 			continue
 		}
 		if strings.HasPrefix(trimmed, "DROP TABLE") ||
