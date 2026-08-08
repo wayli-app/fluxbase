@@ -2,6 +2,7 @@ package branching
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -1186,6 +1187,88 @@ func TestGenerateSlug_RealWorld(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := GenerateSlug(tt.input)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// =============================================================================
+// GenerateTenantBranchDatabaseName Tests
+// =============================================================================
+//
+// Contract (storage.go:392 doc comment): build a PostgreSQL-legal DB name for
+// a tenant-scoped branch from prefix + tenant slug + branch slug. Hyphens in
+// either slug become underscores; if the result starts with a digit it is
+// prefixed with "_"; the name is truncated to 63 chars (Postgres identifier
+// limit). Pure string builder — no I/O.
+
+func TestGenerateTenantBranchDatabaseName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		prefix     string
+		tenantSlug string
+		branchSlug string
+		want       string
+	}{
+		{
+			name:       "hyphenated tenant and branch slug",
+			prefix:     "branch_",
+			tenantSlug: "acme-corp",
+			branchSlug: "my-feature",
+			want:       "branch_acme_corp_my_feature",
+		},
+		{
+			name:       "default tenant",
+			prefix:     "branch_",
+			tenantSlug: "default",
+			branchSlug: "my-feature",
+			want:       "branch_default_my_feature",
+		},
+		{
+			// The digit-prepend only fires when the FIRST char of the assembled
+			// name is a digit, which happens when the prefix itself starts with
+			// a digit (the format is prefix+tenant+"_"+branch, no separator
+			// between prefix and tenant).
+			name:       "digit-leading prefix gets underscore prefix",
+			prefix:     "1branch",
+			tenantSlug: "default",
+			branchSlug: "feat",
+			want:       "_1branchdefault_feat",
+		},
+		{
+			name:       "empty prefix and slugs",
+			prefix:     "",
+			tenantSlug: "",
+			branchSlug: "",
+			want:       "_",
+		},
+		{
+			name:       "over 63 chars truncates to Postgres limit",
+			prefix:     "branch_",
+			tenantSlug: "tenantwithaverylongname",
+			branchSlug: strings.Repeat("a", 60),
+			want:       ("branch_tenantwithaverylongname_" + strings.Repeat("a", 60))[:63],
+		},
+		{
+			name:       "exactly 63 chars not truncated",
+			prefix:     "branch_",
+			tenantSlug: "t",
+			branchSlug: strings.Repeat("x", 63-len("branch_t_")),
+			want:       "branch_t_" + strings.Repeat("x", 63-len("branch_t_")),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := GenerateTenantBranchDatabaseName(tt.prefix, tt.tenantSlug, tt.branchSlug)
+			assert.Equal(t, tt.want, got)
+			// Contract invariants for every output.
+			assert.LessOrEqual(t, len(got), 63, "must not exceed Postgres identifier limit")
+			if len(got) > 0 {
+				first := got[0]
+				assert.False(t, first >= '0' && first <= '9',
+					"must not start with a digit: %q", got)
+			}
 		})
 	}
 }
