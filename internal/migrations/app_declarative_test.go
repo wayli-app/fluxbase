@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -228,5 +229,153 @@ func TestSubstituteAppUserForContent(t *testing.T) {
 		out, err := svc.substituteAppUserForContent(content)
 		require.NoError(t, err)
 		assert.Equal(t, content, out)
+	})
+}
+
+// =============================================================================
+// Pure helper tests: extractColumnDefByName, matchesColumnDef, stripLeadingComma,
+// countStatements, writeSchemaWorkDir
+// =============================================================================
+//
+// These were previously untested despite being core to column extraction and
+// statement counting. Contracts per app_declarative.go doc comments + bodies.
+
+func TestStripLeadingComma(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"no comma", "id int", "id int"},
+		{"leading comma", ",id int", "id int"},
+		{"leading comma with spaces", "  ,  id int", "id int"},
+		{"only comma", ",", ""},
+		{"empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, stripLeadingComma(tt.in))
+		})
+	}
+}
+
+func TestMatchesColumnDef(t *testing.T) {
+	t.Parallel()
+	// Constraint-style entries are NOT column definitions.
+	for _, kw := range []string{
+		"CONSTRAINT fk_pkey PRIMARY KEY (id)",
+		"PRIMARY KEY (id)",
+		"UNIQUE (email)",
+		"CHECK (x > 0)",
+		"FOREIGN KEY (uid) REFERENCES users(id)",
+	} {
+		t.Run("rejects/"+kw, func(t *testing.T) {
+			t.Parallel()
+			assert.False(t, matchesColumnDef(kw, "anything"))
+		})
+	}
+	t.Run("empty entry", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, matchesColumnDef("", "id"))
+	})
+	t.Run("matching unquoted column", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, matchesColumnDef("id serial PRIMARY KEY", "id"))
+	})
+	t.Run("non-matching column", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, matchesColumnDef("email text", "id"))
+	})
+	t.Run("matching quoted column", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, matchesColumnDef(`"my col" text`, "my col"))
+	})
+}
+
+func TestExtractColumnDefByName(t *testing.T) {
+	t.Parallel()
+	schema := `CREATE TABLE IF NOT EXISTS users (
+	id serial PRIMARY KEY,
+	email text NOT NULL,
+	"display name" text,
+	CONSTRAINT uk_email UNIQUE (email)
+);`
+
+	t.Run("found unquoted", func(t *testing.T) {
+		t.Parallel()
+		got := extractColumnDefByName(schema, "users", "email")
+		assert.Equal(t, "email text NOT NULL", got)
+	})
+
+	t.Run("found quoted column", func(t *testing.T) {
+		t.Parallel()
+		got := extractColumnDefByName(schema, "users", "display name")
+		assert.Contains(t, got, `"display name" text`)
+	})
+
+	t.Run("not present returns empty", func(t *testing.T) {
+		t.Parallel()
+		assert.Empty(t, extractColumnDefByName(schema, "users", "nonexistent"))
+	})
+
+	t.Run("table not present returns empty", func(t *testing.T) {
+		t.Parallel()
+		assert.Empty(t, extractColumnDefByName(schema, "orders", "id"))
+	})
+
+	t.Run("does not match constraint entry as column", func(t *testing.T) {
+		t.Parallel()
+		// "CONSTRAINT uk_email" is not a column; searching for it yields "".
+		assert.Empty(t, extractColumnDefByName(schema, "users", "CONSTRAINT"))
+	})
+}
+
+func TestCountStatements(t *testing.T) {
+	t.Parallel()
+	t.Run("multiple statements", func(t *testing.T) {
+		t.Parallel()
+		// Two distinct top-level statements.
+		n := countStatements("CREATE TABLE a (id int); CREATE TABLE b (id int);")
+		assert.GreaterOrEqual(t, n, 2)
+	})
+	t.Run("empty returns 0", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, 0, countStatements(""))
+	})
+	t.Run("garbage returns 0 not panic", func(t *testing.T) {
+		t.Parallel()
+		// Must not panic on unparseable input.
+		assert.Equal(t, 0, countStatements("))) not sql ((("))
+	})
+}
+
+func TestWriteSchemaWorkDir(t *testing.T) {
+	t.Parallel()
+	t.Run("schema only", func(t *testing.T) {
+		t.Parallel()
+		dir, schemaFile, err := writeSchemaWorkDir("CREATE TABLE t (id int);", "")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+		got, err := os.ReadFile(schemaFile)
+		require.NoError(t, err)
+		assert.Equal(t, "CREATE TABLE t (id int);", string(got))
+
+		// No ignore file when ignoreContent is empty.
+		_, err = os.ReadFile(filepath.Join(dir, ".pgschemaignore"))
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("with ignore file", func(t *testing.T) {
+		t.Parallel()
+		dir, _, err := writeSchemaWorkDir("CREATE TABLE t (id int);", "*.tmp")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+		got, err := os.ReadFile(filepath.Join(dir, ".pgschemaignore"))
+		require.NoError(t, err)
+		assert.Equal(t, "*.tmp", string(got))
 	})
 }

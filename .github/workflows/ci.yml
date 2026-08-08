@@ -52,10 +52,24 @@ jobs:
               - '.testcoverage.yml'
               - '.golangci.yml'
             go-core:
+              # Packages imported broadly across the codebase — a change to
+              # any of these fans out to the full unit + e2e suite. Verified
+              # import fan-out: crypto(6), errors(6), util(5), keys/secrets/
+              # pubsub/runtime(3-4), query(2, but feeds api). Adding these
+              # fixes a consistency bug where they were treated as leaf
+              # packages and went through the (already-broken) selective path.
               - 'internal/config/**'
               - 'internal/database/**'
               - 'internal/auth/**'
               - 'internal/middleware/**'
+              - 'internal/crypto/**'
+              - 'internal/keys/**'
+              - 'internal/secrets/**'
+              - 'internal/errors/**'
+              - 'internal/util/**'
+              - 'internal/pubsub/**'
+              - 'internal/query/**'
+              - 'internal/runtime/**'
               - 'go.mod'
               - 'go.sum'
             admin-ui:
@@ -575,45 +589,18 @@ jobs:
             echo "Core package changed — running all e2e tests"
             go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
           else
-            echo "Selective e2e — areas: ${{ needs.changes.outputs.go-areas }}"
-            # Map changed areas to e2e test file prefixes
-            PATTERNS=""
-            IFS=',' read -ra AREAS <<< "${{ needs.changes.outputs.go-areas }}"
-            for area in "${AREAS[@]}"; do
-              case "$area" in
-                auth)      PATTERNS="$PATTERNS auth_ two_factor_ oauth_" ;;
-                storage)   PATTERNS="$PATTERNS storage_ rls_ debug_storage" ;;
-                ai)        PATTERNS="$PATTERNS ai_" ;;
-                api)       PATTERNS="$PATTERNS rest_ graphql_ rpc_ sql_editor" ;;
-                branching) PATTERNS="$PATTERNS branching_" ;;
-                tenantdb)  PATTERNS="$PATTERNS tenant_" ;;
-                functions) PATTERNS="$PATTERNS functions_" ;;
-                realtime)  PATTERNS="$PATTERNS realtime_" ;;
-                ratelimit) PATTERNS="$PATTERNS ratelimit_" ;;
-                webhook)   PATTERNS="$PATTERNS webhook_" ;;
-                mcp)       PATTERNS="$PATTERNS mcp_" ;;
-                jobs)      PATTERNS="$PATTERNS logging_" ;;
-                *)         PATTERNS="$PATTERNS $area" ;;
-              esac
-            done
-
-            # Find matching e2e test files
-            E2E_PKGS=""
-            for pattern in $PATTERNS; do
-              matches=$(find test/e2e -name "${pattern}*_test.go" -exec dirname {} \; 2>/dev/null | sort -u)
-              E2E_PKGS="$E2E_PKGS $matches"
-            done
-
-            # Always include setup + health + admin
-            E2E_PKGS="./test/e2e $E2E_PKGS"
-
-            if [ -z "$(echo $E2E_PKGS | tr -d ' ')" ] || [ "$E2E_PKGS" = "./test/e2e" ]; then
-              echo "No specific e2e tests matched — running full suite"
-              go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
-            else
-              echo "Running e2e packages: $(echo $E2E_PKGS | xargs)"
-              go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic $(echo $E2E_PKGS | xargs)
-            fi
+            # NOTE: a per-area e2e selection scheme used to live here but was
+            # non-functional and has been removed. The blocker: all e2e tests
+            # share a single flat package (test/e2e), so `go test -run` is the
+            # only way to narrow — but e2e test FUNCTION names do not match the
+            # file-prefix mapping that was used here (e.g. auth_test.go defines
+            # TestREST* functions), so a -run filter built from area→file-prefix
+            # would silently run an arbitrary/wrong subset. Until the test
+            # functions are named to match areas (or tagged), run the full e2e
+            # suite on any non-core Go change. This matches the previous
+            # effective behavior.
+            echo "Non-core Go change (areas: ${{ needs.changes.outputs.go-areas }}) — running full e2e suite"
+            go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
           fi
 
       - name: Merge coverage reports

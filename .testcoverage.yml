@@ -63,11 +63,14 @@ override:
     threshold: 1
   - path: ^internal/extensions/
     threshold: 1
-  # Declarative migration engine is integration-tested; unit coverage is ~3%.
-  # Explicit floor prevents silent regressions and documents the current state.
-  # TODO: raise toward 10-15% once the plan/transition logic is unit-tested.
+  # Declarative migration engine: core planning/transform/diff helpers are now
+  # unit-tested (extractChangesFromGroups, changePriority, table-name
+  # extractors, column-def extraction, countStatements, etc.). The remaining
+  # surface is pgschema shell-out + DB execution, covered by integration tests.
+  # TODO: raise toward 20%+ once the partition/FK filters and plan validation
+  # are factored out of applyPlanDirectly.
   - path: ^internal/migrations/
-    threshold: 3
+    threshold: 10
 
   # Test utilities don't need coverage themselves
   - path: ^internal/testutil
