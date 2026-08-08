@@ -30,7 +30,13 @@ pre-commit:
         if ! command -v golangci-lint &> /dev/null; then
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.10.0
         fi
-        golangci-lint run ./...
+        # Scope matches the CI lint-go job (./internal/... ./cmd/... ./cli/...).
+        # test/e2e is intentionally excluded: it compiles only with
+        # -tags=integration, so golangci-lint run ./... fails to typecheck it
+        # and emits ~127 spurious typecheck errors. CI lints only the
+        # non-tag-gated packages; this hook now does the same. If linting e2e
+        # is desired, add --build-tags integration AND extend the scope.
+        golangci-lint run ./internal/... ./cmd/... ./cli/...
 
     typescript-admin:
       glob: "admin/src/**/*.{ts,tsx}"

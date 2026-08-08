@@ -589,18 +589,68 @@ jobs:
             echo "Core package changed — running all e2e tests"
             go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
           else
-            # NOTE: a per-area e2e selection scheme used to live here but was
-            # non-functional and has been removed. The blocker: all e2e tests
-            # share a single flat package (test/e2e), so `go test -run` is the
-            # only way to narrow — but e2e test FUNCTION names do not match the
-            # file-prefix mapping that was used here (e.g. auth_test.go defines
-            # TestREST* functions), so a -run filter built from area→file-prefix
-            # would silently run an arbitrary/wrong subset. Until the test
-            # functions are named to match areas (or tagged), run the full e2e
-            # suite on any non-core Go change. This matches the previous
-            # effective behavior.
-            echo "Non-core Go change (areas: ${{ needs.changes.outputs.go-areas }}) — running full e2e suite"
-            go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
+            # Mark this run as selective so the coverage gate below uses
+            # unit-only coverage (a partial e2e run produces a partial
+            # coverage-e2e.out, which would under-count e2e-backed packages
+            # and could trip per-package thresholds that a full run meets).
+            echo "E2E_SELECTIVE=true" >> "$GITHUB_ENV"
+            # Selective e2e: build a -run regex from the ACTUAL test functions
+            # defined in the changed areas' files, rather than guessing name
+            # prefixes. All e2e tests share one flat package (test/e2e), so
+            # package-level selection can't narrow — only -run can. The regex is
+            # constructed by reading `func TestX` symbols from the matching
+            # files, so it can't silently run the wrong subset the way the old
+            # area->file-prefix mapping did (e.g. auth_test.go defines TestREST*).
+            #
+            # Area -> e2e file-glob mapping. Areas are top-level internal dirs.
+            IFS=',' read -ra AREAS <<< "${{ needs.changes.outputs.go-areas }}"
+            FILES=""
+            for area in "${AREAS[@]}"; do
+              case "$area" in
+                auth)      FILES="$FILES test/e2e/auth_*.go test/e2e/two_factor_*.go test/e2e/oauth_*.go test/e2e/otp_hash_test.go" ;;
+                storage)   FILES="$FILES test/e2e/storage_*.go" ;;
+                ai)        FILES="$FILES test/e2e/ai_*.go test/e2e/postgis_test.go" ;;
+                api)       FILES="$FILES test/e2e/rest_*.go test/e2e/graphql_test.go test/e2e/rpc_test.go test/e2e/sql_editor_test.go" ;;
+                branching) FILES="$FILES test/e2e/branching_*.go" ;;
+                tenantdb)  FILES="$FILES test/e2e/tenant_*.go test/e2e/tenant_isolation_test.go" ;;
+                functions) FILES="$FILES test/e2e/functions_*.go" ;;
+                realtime)  FILES="$FILES test/e2e/realtime_*.go" ;;
+                ratelimit) FILES="$FILES test/e2e/ratelimit_*.go" ;;
+                webhook)   FILES="$FILES test/e2e/webhook_*.go test/e2e/ssrf_*.go" ;;
+                mcp)       FILES="$FILES test/e2e/mcp_*.go" ;;
+                jobs)      FILES="$FILES test/e2e/logging_*.go test/e2e/job_retry_test.go test/e2e/jobs_get_test.go" ;;
+                *)         FILES="$FILES test/e2e/${area}_*.go" ;;
+              esac
+            done
+
+            # Always include setup + health — they validate the harness itself.
+            FILES="$FILES test/e2e/setup_test.go test/e2e/health_test.go"
+
+            # Extract `func TestX` symbols from the selected files (existing
+            # files only) and build a -run alternation regex.
+            RUN_REGEX=""
+            for f in $FILES; do
+              [ -f "$f" ] || continue
+              names=$(grep -hoE "^func Test[A-Za-z0-9_]+" "$f" | sed 's/^func //' | sort -u)
+              for name in $names; do
+                if [ -z "$RUN_REGEX" ]; then
+                  RUN_REGEX="$name"
+                else
+                  RUN_REGEX="$RUN_REGEX|$name"
+                fi
+              done
+            done
+
+            if [ -z "$RUN_REGEX" ]; then
+              echo "No e2e tests matched areas [${{ needs.changes.outputs.go-areas }}] — running full suite"
+              go test -tags=integration -v -race -parallel=1 -timeout=10m -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
+            else
+              echo "Selective e2e for areas [${{ needs.changes.outputs.go-areas }}]: $(echo "$RUN_REGEX" | tr '|' ' ')"
+              # RUN_REGEX holds full Test function names (e.g. TestAuthSignin);
+              # -run matches against the full name, so anchor the alternation
+              # directly without re-adding a Test prefix.
+              go test -tags=integration -v -race -parallel=1 -timeout=10m -run "^($RUN_REGEX)\$" -coverprofile=coverage-e2e.out -covermode=atomic ./test/e2e/...
+            fi
           fi
 
       - name: Merge coverage reports
@@ -615,6 +665,22 @@ jobs:
       - name: Check coverage thresholds
         run: |
           go install github.com/vladopajic/go-test-coverage/v2@latest
+
+          # On a selective (non-core, partial-e2e) run, coverage-e2e.out only
+          # reflects the selected tests, so the merged coverage.out would
+          # under-count e2e-backed packages and could trip per-package
+          # thresholds that a full run meets. Gate against unit-only coverage
+          # in that case; the full gate still runs on core/all changes.
+          if [ "$E2E_SELECTIVE" = "true" ]; then
+            echo "Selective e2e run — checking thresholds against unit-only coverage (coverage-unit.out)"
+            cp coverage-unit.out coverage-gate.out
+          else
+            cp coverage.out coverage-gate.out
+          fi
+
+          # Temporarily point the config at the gate profile.
+          sed "s|^profile: coverage.out|profile: coverage-gate.out|" .testcoverage.yml > .testcoverage-gate.yml
+
           # go-test-coverage v2 exits non-zero whenever ANY file has uncovered
           # lines — even when every configured threshold passes — so the exit
           # code alone is not a reliable gate. Instead we capture output and
@@ -625,9 +691,10 @@ jobs:
           # format changed), so the gate cannot be silently disabled by an
           # unrelated tooling change.
           set +e
-          output=$(go-test-coverage --config=.testcoverage.yml 2>&1)
+          output=$(go-test-coverage --config=.testcoverage-gate.yml 2>&1)
           exit_code=$?
           echo "$output"
+          rm -f .testcoverage-gate.yml coverage-gate.out
 
           # 1. Explicit threshold violation → fail.
           if echo "$output" | grep -qiE "(satisfied|coverage threshold):\s*FAIL|not satisfied|below threshold"; then

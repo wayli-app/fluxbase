@@ -17,14 +17,26 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/database"
 )
 
-// ChangePassword changes a dashboard user's password
-func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string, ipAddress net.IP, userAgent string) error {
-	// Validate new password length
-	if len(newPassword) < MinPasswordLength {
+// validatePlatformPasswordLength enforces the dashboard/platform password length
+// policy (min and max bounds). It is deliberately length-only: platform user
+// flows accept passwords that the stricter PasswordHasher.ValidatePassword
+// (which adds upper/lower/digit/symbol complexity rules) would reject.
+// Consolidating with ValidatePassword would be a behavior change, not a dedup.
+// Extracted from ChangePassword and ResetPassword so the policy is unit-testable.
+func validatePlatformPasswordLength(password string) error {
+	if len(password) < MinPasswordLength {
 		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
 	}
-	if len(newPassword) > MaxPasswordLength {
+	if len(password) > MaxPasswordLength {
 		return fmt.Errorf("password must be at most %d characters", MaxPasswordLength)
+	}
+	return nil
+}
+
+// ChangePassword changes a dashboard user's password
+func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string, ipAddress net.IP, userAgent string) error {
+	if err := validatePlatformPasswordLength(newPassword); err != nil {
+		return err
 	}
 
 	// Fetch current password hash
@@ -163,7 +175,11 @@ func (s *DashboardAuthService) RequestPasswordReset(ctx context.Context, email s
 	}
 	token := base64.URLEncoding.EncodeToString(tokenBytes)
 
-	// Hash the token for storage
+	// Hash the token for storage. NOTE: platform reset tokens use hex encoding
+	// here, which is intentionally distinct from the base64URL encoding in
+	// password_reset.hashPasswordResetToken (app-user flow). The two code paths
+	// store into different tables/columns. See that helper's doc comment — do
+	// not consolidate without migrating persisted rows.
 	tokenHash := sha256.Sum256([]byte(token))
 	tokenHashHex := hex.EncodeToString(tokenHash[:])
 
@@ -215,12 +231,8 @@ func (s *DashboardAuthService) VerifyPasswordResetToken(ctx context.Context, tok
 
 // ResetPassword resets a dashboard user's password using a valid reset token
 func (s *DashboardAuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
-	// Validate new password length
-	if len(newPassword) < MinPasswordLength {
-		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
-	}
-	if len(newPassword) > MaxPasswordLength {
-		return fmt.Errorf("password must be at most %d characters", MaxPasswordLength)
+	if err := validatePlatformPasswordLength(newPassword); err != nil {
+		return err
 	}
 
 	// Hash the token for lookup
