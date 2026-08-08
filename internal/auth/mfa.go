@@ -51,6 +51,58 @@ func (m *MFAService) SetTOTPRateLimiter(limiter *TOTPRateLimiter) {
 	m.totpRateLimiter = limiter
 }
 
+// validateTOTPEnable captures the pure, security-relevant preconditions for
+// completing TOTP enrollment: the setup must not be expired and an encryption
+// key must be configured (enabling TOTP without one would store the secret in
+// plaintext). `now` is injected so the expiry check is deterministic in tests.
+// Returns nil if both checks pass.
+func validateTOTPEnable(expiresAt, now time.Time, encryptionKey []byte) error {
+	if now.After(expiresAt) {
+		return errors.New("2FA setup has expired, please start again")
+	}
+	if len(encryptionKey) == 0 {
+		return errors.New("TOTP encryption key not configured - cannot store TOTP secrets securely")
+	}
+	return nil
+}
+
+// resolveTOTPSecret recovers the cleartext TOTP secret from its stored form.
+//
+// If the encryption key is absent, the stored value is treated as already
+// cleartext and fellBackToPlaintext is true (decryptErr is nil). If the key is
+// present but decryption fails — e.g. the secret was never encrypted, or got
+// corrupted — the stored value is again treated as cleartext, fellBackToPlaintext
+// is true, and decryptErr carries the failure (for caller-side logging). Only
+// a successful decrypt returns fellBackToPlaintext=false.
+//
+// `decrypt` is injected so the logic is testable without touching the real
+// crypto package. Callers pass crypto.DecryptWithBytesKey.
+func resolveTOTPSecret(storedSecret string, encryptionKey []byte, decrypt func(string, []byte) (string, error)) (secret string, fellBackToPlaintext bool, decryptErr error) {
+	if len(encryptionKey) == 0 {
+		return storedSecret, true, nil
+	}
+	decrypted, err := decrypt(storedSecret, encryptionKey)
+	if err != nil {
+		return storedSecret, true, err
+	}
+	return decrypted, false, nil
+}
+
+// verifyTOTPDisablePassword enforces the password-reverification gate for
+// disabling TOTP. Passwordless accounts (empty PasswordHash, e.g. OAuth/OIDC
+// only) bypass the check by design. `cmp` is injected; callers pass
+// PasswordHasher.ComparePassword.
+func verifyTOTPDisablePassword(passwordHash, password string, cmp func(string, string) error) error {
+	if passwordHash == "" {
+		// Passwordless account — no password to verify; disable is allowed.
+		return nil
+	}
+	if err := cmp(passwordHash, password); err != nil {
+		return errors.New("invalid password")
+	}
+	return nil
+}
+
 type TOTPSetupResponse struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
@@ -115,8 +167,8 @@ func (m *MFAService) EnableTOTP(ctx context.Context, userID, code string) ([]str
 		return nil, fmt.Errorf("2FA setup not found or expired: %w", err)
 	}
 
-	if time.Now().After(expiresAt) {
-		return nil, errors.New("2FA setup has expired, please start again")
+	if err := validateTOTPEnable(expiresAt, time.Now(), m.encryptionKey); err != nil {
+		return nil, err
 	}
 
 	valid, err := VerifyTOTPCode(code, secret)
@@ -133,9 +185,6 @@ func (m *MFAService) EnableTOTP(ctx context.Context, userID, code string) ([]str
 		return nil, fmt.Errorf("failed to generate backup codes: %w", err)
 	}
 
-	if len(m.encryptionKey) == 0 {
-		return nil, errors.New("TOTP encryption key not configured - cannot store TOTP secrets securely")
-	}
 	encryptedSecret, err := crypto.EncryptWithBytesKey(secret, m.encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt TOTP secret: %w", err)
@@ -186,18 +235,15 @@ func (m *MFAService) VerifyTOTPWithContext(ctx context.Context, userID, code, ip
 		return fmt.Errorf("2FA not enabled for this user: %w", err)
 	}
 
-	secret := storedSecret
-	if len(m.encryptionKey) == 0 {
-		log.Warn().Str("user_id", userID).Msg("TOTP encryption key not configured - TOTP secrets may be stored insecurely")
-	} else {
-		decrypted, err := crypto.DecryptWithBytesKey(storedSecret, m.encryptionKey)
-		if err != nil {
+	secret, fellBackToPlaintext, decryptErr := resolveTOTPSecret(storedSecret, m.encryptionKey, crypto.DecryptWithBytesKey)
+	if fellBackToPlaintext {
+		if len(m.encryptionKey) == 0 {
+			log.Warn().Str("user_id", userID).Msg("TOTP encryption key not configured - TOTP secrets may be stored insecurely")
+		} else {
 			log.Warn().
-				Err(err).
+				Err(decryptErr).
 				Str("user_id", userID).
 				Msg("TOTP secret decrypted via plaintext fallback - consider migrating to encrypted storage")
-		} else {
-			secret = decrypted
 		}
 	}
 
@@ -254,11 +300,8 @@ func (m *MFAService) DisableTOTP(ctx context.Context, userID, password string) e
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	if user.PasswordHash != "" {
-		err := m.passwordHasher.ComparePassword(user.PasswordHash, password)
-		if err != nil {
-			return errors.New("invalid password")
-		}
+	if err := verifyTOTPDisablePassword(user.PasswordHash, password, m.passwordHasher.ComparePassword); err != nil {
+		return err
 	}
 
 	query := `
