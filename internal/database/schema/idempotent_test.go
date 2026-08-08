@@ -79,6 +79,56 @@ func TestMakeSQLIdempotent_CreateOrReplaceViewQuoted(t *testing.T) {
 	}
 }
 
+func TestMakeSQLIdempotent_CreateOrReplaceFunction(t *testing.T) {
+	// CREATE OR REPLACE FUNCTION cannot change its return type (SQLSTATE 42P13).
+	// Regression test: a DROP FUNCTION IF EXISTS with the arg-type signature must
+	// be prepended so the function is recreated fresh.
+	sql := `CREATE OR REPLACE FUNCTION public.get_public_trip_track(trip_uuid uuid) RETURNS TABLE(lat double precision, lng double precision, recorded_at timestamptz) LANGUAGE plpgsql AS $$ BEGIN END; $$;`
+	out := MakeSQLIdempotent(sql)
+	if !strings.Contains(out, `DROP FUNCTION IF EXISTS "public"."get_public_trip_track"(uuid) CASCADE;`) {
+		t.Errorf("expected DROP FUNCTION with signature prepended, got:\n%s", out)
+	}
+	if !strings.Contains(out, `CREATE OR REPLACE FUNCTION public.get_public_trip_track`) {
+		t.Errorf("expected original CREATE FUNCTION preserved, got:\n%s", out)
+	}
+	dropIdx := strings.Index(out, "DROP FUNCTION")
+	createIdx := strings.Index(out, "CREATE OR REPLACE FUNCTION")
+	if dropIdx < 0 || createIdx < 0 || dropIdx > createIdx {
+		t.Errorf("expected DROP before CREATE, got dropIdx=%d createIdx=%d", dropIdx, createIdx)
+	}
+}
+
+func TestMakeSQLIdempotent_CreateFunctionMultipleArgs(t *testing.T) {
+	// Multiple arguments of different types: the signature must list them all.
+	// Note: pgparser normalizes "double precision" to its canonical
+	// "pg_catalog.float8" form; the DROP uses whatever the parser emits.
+	sql := `CREATE FUNCTION public.calc_distance(lat double precision, lng double precision, user_uuid uuid) RETURNS integer LANGUAGE sql AS $$ SELECT 1; $$;`
+	out := MakeSQLIdempotent(sql)
+	if !strings.Contains(out, `DROP FUNCTION IF EXISTS "public"."calc_distance"(`) {
+		t.Errorf("expected DROP FUNCTION with arg signature prepended, got:\n%s", out)
+	}
+	if !strings.Contains(out, `uuid) CASCADE;`) {
+		t.Errorf("expected uuid as last arg in DROP signature, got:\n%s", out)
+	}
+}
+
+func TestMakeSQLIdempotent_CreateFunctionNoArgs(t *testing.T) {
+	sql := `CREATE FUNCTION public.now_utc() RETURNS timestamptz LANGUAGE sql AS $$ SELECT now(); $$;`
+	out := MakeSQLIdempotent(sql)
+	if !strings.Contains(out, `DROP FUNCTION IF EXISTS "public"."now_utc"() CASCADE;`) {
+		t.Errorf("expected DROP FUNCTION with empty arg list, got:\n%s", out)
+	}
+}
+
+func TestMakeSQLIdempotent_CreateFunctionUnqualified(t *testing.T) {
+	// Unqualified function name (no schema): DROP uses the bare name.
+	sql := `CREATE OR REPLACE FUNCTION my_func(id integer) RETURNS void LANGUAGE plpgsql AS $$ BEGIN END; $$;`
+	out := MakeSQLIdempotent(sql)
+	if !strings.Contains(out, `DROP FUNCTION IF EXISTS "my_func"(`) {
+		t.Errorf("expected DROP FUNCTION for unqualified name, got:\n%s", out)
+	}
+}
+
 func TestMakeSQLIdempotent_CreateIndex(t *testing.T) {
 	sql := `CREATE INDEX idx_users_email ON public.users (email);`
 	out := MakeSQLIdempotent(sql)
