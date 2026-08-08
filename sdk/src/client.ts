@@ -65,21 +65,28 @@ import type { FluxbaseClientOptions } from "./types";
  */
 export type CallableRPC = {
   /**
-   * Call a PostgreSQL function (RPC) - Supabase compatible
-   * Uses 'default' namespace
+   * Call a PostgreSQL function (RPC) - Supabase compatible.
+   * Defaults to the 'default' namespace; pass options.namespace to target a
+   * different one.
    *
    * @param fn - Function name
    * @param params - Function parameters
+   * @param options - Optional: { namespace?, async?, timeout? }
    * @returns Promise with data or error
    *
    * @example
    * ```typescript
+   * // Default namespace
    * const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
+   *
+   * // Custom namespace (shorthand for rpc.invoke with namespace)
+   * const { data, error } = await client.rpc('get_orders', { id: 1 }, { namespace: 'myapp' })
    * ```
    */
   <T = unknown>(
     fn: string,
     params?: Record<string, unknown>,
+    options?: { namespace?: string; async?: boolean; timeout?: number },
   ): Promise<{ data: T | null; error: Error | null }>;
 } & FluxbaseRPC;
 
@@ -230,6 +237,9 @@ export class FluxbaseClient<
    * // Supabase-style direct call (uses 'default' namespace)
    * const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
    *
+   * // With a custom namespace (shorthand for rpc.invoke)
+   * const { data, error } = await client.rpc('get_orders', { id: 1 }, { namespace: 'myapp' })
+   *
    * // With full options
    * const { data, error } = await client.rpc.invoke('get_user_orders', { user_id: '123' }, {
    *   namespace: 'custom',
@@ -377,12 +387,16 @@ export class FluxbaseClient<
     // Initialize RPC module with callable wrapper (Supabase-compatible)
     const rpcInstance = new FluxbaseRPC(this.fetch);
 
-    // Create callable function that wraps invoke() for Supabase-style calls
+    // Create callable function that wraps invoke() for Supabase-style calls.
+    // Accepts an optional options arg (namespace, async, timeout) so callers
+    // can use the shorthand syntax with a non-default namespace:
+    //   client.rpc('get_orders', { id: 1 }, { namespace: 'myapp' })
     const rpcCallable = async <T = unknown>(
       fn: string,
       params?: Record<string, unknown>,
+      options?: { namespace?: string; async?: boolean; timeout?: number },
     ): Promise<{ data: T | null; error: Error | null }> => {
-      const result = await rpcInstance.invoke<T>(fn, params);
+      const result = await rpcInstance.invoke<T>(fn, params, options);
       return {
         data: (result.data?.result as T) ?? null,
         error: result.error,
