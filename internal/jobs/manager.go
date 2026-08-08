@@ -36,15 +36,20 @@ type Manager struct {
 	stopCh                 chan struct{}
 
 	// Worker supervision
-	workerErrors   chan workerError
-	workersMutex   sync.RWMutex
-	activeWorkers  map[uuid.UUID]bool
-	restartCounts  map[uuid.UUID]int
-	restartTimes   map[uuid.UUID]time.Time
-	restartMutex   sync.Mutex
-	targetCount    int
-	supervisorCtx  context.Context
-	supervisorStop context.CancelFunc
+	workerErrors  chan workerError
+	workersMutex  sync.RWMutex
+	activeWorkers map[uuid.UUID]bool
+	// restartFailures tracks recent worker restart timestamps (manager-level, so
+	// backoff escalates across replacements rather than resetting on each new
+	// worker ID). Guarded by restartMutex.
+	restartFailures []time.Time
+	restartMutex    sync.Mutex
+	targetCount     int
+	supervisorCtx   context.Context
+	supervisorStop  context.CancelFunc
+	// startWorkerFn spawns a single worker. Overridable for tests; in production
+	// it is nil and Start falls back to the real startWorker.
+	startWorkerFn func(ctx context.Context) *Worker
 }
 
 // NewManager creates a new worker manager
@@ -61,8 +66,6 @@ func NewManager(cfg *config.JobsConfig, conn *database.Connection, jwtSecret, pu
 		stopCh:         make(chan struct{}),
 		workerErrors:   make(chan workerError, 100),
 		activeWorkers:  make(map[uuid.UUID]bool),
-		restartCounts:  make(map[uuid.UUID]int),
-		restartTimes:   make(map[uuid.UUID]time.Time),
 	}
 }
 
@@ -106,7 +109,7 @@ func (m *Manager) Start(ctx context.Context, workerCount int) error {
 
 	// Start initial workers
 	for i := 0; i < workerCount; i++ {
-		m.startWorker(ctx)
+		m.spawn(ctx)
 	}
 
 	log.Info().
@@ -153,67 +156,71 @@ func (m *Manager) startWorker(ctx context.Context) *Worker {
 	return worker
 }
 
-// superviseWorkers monitors worker health and restarts failed workers
+// spawn starts a worker, using the test override startWorkerFn when set, else
+// the real startWorker.
+func (m *Manager) spawn(ctx context.Context) *Worker {
+	if m.startWorkerFn != nil {
+		return m.startWorkerFn(ctx)
+	}
+	return m.startWorker(ctx)
+}
+
+// superviseWorkers monitors worker health and restarts failed workers.
+//
+// It always attempts to recover (never permanently gives up): under repeated
+// failures the inter-restart backoff escalates exponentially up to a cap
+// (Config.WorkerMaxRestartBackoff, default 60s) and stays there, so the system
+// self-heals once the underlying issue clears without hammering the database.
+// The backoff is tracked at the manager level (not per worker ID) so it keeps
+// escalating across replacement workers, each of which gets a fresh UUID.
+//
+// Recent failures older than restartResetWindow are pruned, so a worker that
+// runs stably for a while resets the escalation.
 func (m *Manager) superviseWorkers() {
+	const restartResetWindow = 5 * time.Minute
+
 	for {
 		select {
 		case err := <-m.workerErrors:
 			log.Warn().
 				Err(err.err).
 				Str("worker_id", err.workerID.String()).
-				Msg("Worker failed, checking restart eligibility")
+				Msg("Worker failed, scheduling restart")
 
-			// Check if we should restart
-			m.restartMutex.Lock()
-			// Reset restart count after 5 minutes of stability
-			if lastTime, ok := m.restartTimes[err.workerID]; ok && time.Since(lastTime) >= 5*time.Minute {
-				delete(m.restartCounts, err.workerID)
-				delete(m.restartTimes, err.workerID)
-			}
-			restartCount := m.restartCounts[err.workerID]
-			maxRestarts := 5
-			shouldRestart := restartCount < maxRestarts
-			if shouldRestart {
-				m.restartCounts[err.workerID] = restartCount + 1
-				m.restartTimes[err.workerID] = time.Now()
-			}
-			m.restartMutex.Unlock()
+			backoff, recentFailures := m.nextRestartBackoff(restartResetWindow)
 
-			if shouldRestart {
-				// Exponential backoff: 1s, 2s, 4s, 8s, 16s
-				backoff := time.Second << time.Duration(restartCount)
-				if backoff > 30*time.Second {
-					backoff = 30 * time.Second
-				}
+			log.Info().
+				Str("failed_worker_id", err.workerID.String()).
+				Int("recent_failures", recentFailures).
+				Dur("backoff", backoff).
+				Msg("Scheduling worker restart with backoff")
+
+			// Wait for backoff, but bail out immediately if we're shutting down.
+			timer := time.NewTimer(backoff)
+			select {
+			case <-timer.C:
+			case <-m.supervisorCtx.Done():
+				timer.Stop()
+				log.Info().Msg("Worker supervisor stopped during restart backoff")
+				return
+			}
+
+			// Start a replacement only if we're below the target count.
+			m.workersMutex.RLock()
+			currentCount := len(m.activeWorkers)
+			m.workersMutex.RUnlock()
+
+			if currentCount < m.targetCount {
 				log.Info().
-					Str("failed_worker_id", err.workerID.String()).
-					Int("restart_count", restartCount+1).
-					Dur("backoff", backoff).
-					Msg("Scheduling worker restart with backoff")
-
-				time.Sleep(backoff)
-
-				// Check current worker count
-				m.workersMutex.RLock()
-				currentCount := len(m.activeWorkers)
-				m.workersMutex.RUnlock()
-
-				if currentCount < m.targetCount {
-					log.Info().
-						Int("current_workers", currentCount).
-						Int("target_workers", m.targetCount).
-						Msg("Starting replacement worker")
-					m.startWorker(m.supervisorCtx)
-				} else {
-					log.Info().
-						Int("current_workers", currentCount).
-						Msg("Worker count at target, not starting replacement")
-				}
+					Int("current_workers", currentCount).
+					Int("target_workers", m.targetCount).
+					Msg("Starting replacement worker")
+				m.spawn(m.supervisorCtx)
 			} else {
-				log.Error().
-					Str("worker_id", err.workerID.String()).
-					Int("restart_count", restartCount).
-					Msg("Worker exceeded max restarts, not restarting")
+				log.Info().
+					Int("current_workers", currentCount).
+					Int("target_workers", m.targetCount).
+					Msg("Worker count at target, not starting replacement")
 			}
 
 		case <-m.supervisorCtx.Done():
@@ -221,6 +228,55 @@ func (m *Manager) superviseWorkers() {
 			return
 		}
 	}
+}
+
+// nextRestartBackoff records a failure now, prunes failures older than the
+// reset window, and returns the backoff to wait before the next restart plus
+// the count of recent failures. Backoff escalates 1s, 2s, 4s, ... capped at
+// Config.WorkerMaxRestartBackoff (default 60s).
+func (m *Manager) nextRestartBackoff(resetWindow time.Duration) (time.Duration, int) {
+	now := time.Now()
+
+	m.restartMutex.Lock()
+	defer m.restartMutex.Unlock()
+
+	// Prune failures outside the reset window.
+	cutoff := now.Add(-resetWindow)
+	kept := m.restartFailures[:0]
+	for _, t := range m.restartFailures {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	kept = append(kept, now)
+	m.restartFailures = kept
+
+	recent := len(kept)
+
+	// Backoff = 2^(recent-1) * base, capped. recent starts at 1 on the first
+	// failure, so the first backoff is the base (1s).
+	const base = time.Second
+	shift := uint(recent - 1)
+	// Guard against shift overflow for very high failure counts.
+	if shift > 20 {
+		shift = 20
+	}
+	backoff := base << shift
+
+	cap := m.maxRestartBackoff()
+	if backoff > cap {
+		backoff = cap
+	}
+	return backoff, recent
+}
+
+// maxRestartBackoff returns the configured restart-backoff cap, defaulting to
+// 60s when unset or non-positive.
+func (m *Manager) maxRestartBackoff() time.Duration {
+	if m.Config == nil || m.Config.WorkerMaxRestartBackoff <= 0 {
+		return 60 * time.Second
+	}
+	return m.Config.WorkerMaxRestartBackoff
 }
 
 // Stop stops all workers gracefully

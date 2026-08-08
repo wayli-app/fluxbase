@@ -33,9 +33,11 @@ var (
 	BuildDate = "unknown"
 
 	// CLI flags
-	showVersion      = flag.Bool("version", false, "Show version information")
-	validateConfig   = flag.Bool("validate", false, "Validate configuration and exit")
-	maxRetryAttempts = getEnvInt("FLUXBASE_DATABASE_RETRY_ATTEMPTS", 5)
+	showVersion    = flag.Bool("version", false, "Show version information")
+	validateConfig = flag.Bool("validate", false, "Validate configuration and exit")
+	// Legacy env override for the DB connection retry count. When unset, the
+	// value comes from the config (database.retry_attempts, default 8).
+	envRetryAttempts = getEnvInt("FLUXBASE_DATABASE_RETRY_ATTEMPTS", 0)
 
 	// Scaling CLI flags (override config file settings)
 	workerOnly           = flag.Bool("worker-only", false, "Run in worker-only mode (disable API server, only process background jobs)")
@@ -131,7 +133,9 @@ func main() {
 		log.Info().Msg("Testing database connection...")
 		db, err := database.ConnectWithRetry(cfg.Database, 1)
 		if err != nil {
-			db.Close()
+			if db != nil {
+				db.Close()
+			}
 			if cleanupVips != nil {
 				cleanupVips()
 			}
@@ -148,8 +152,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Initialize database connection with retry logic
-	db, err := database.ConnectWithRetry(cfg.Database, maxRetryAttempts)
+	// Initialize database connection with retry logic. The legacy
+	// FLUXBASE_DATABASE_RETRY_ATTEMPTS env var overrides the config attempt count
+	// for the initial connection when set.
+	connectAttempts := cfg.Database.RetryAttempts
+	if envRetryAttempts > 0 {
+		connectAttempts = envRetryAttempts
+	}
+	db, err := database.ConnectWithRetry(cfg.Database, connectAttempts)
 	if err != nil {
 		if cleanupVips != nil {
 			cleanupVips()
@@ -171,14 +181,16 @@ func main() {
 		AdminPassword: cfg.Database.AdminPassword,
 	}
 	bootstrapSvc := bootstrap.NewServiceWithConfig(db.Pool(), bootstrapConfig)
-	if err := bootstrapSvc.EnsureBootstrap(context.Background()); err != nil {
+	// Bootstrap opens its own admin pool internally, so a transient DB blip after
+	// the initial connect surfaces here. Retry transient errors before aborting.
+	runStartupStep("database bootstrap", dbRetryConfig(cfg.Database), func() {
 		if cleanupVips != nil {
 			cleanupVips()
 		}
 		db.Close()
-		log.Error().Err(err).Msg("Failed to run bootstrap")
-		os.Exit(1)
-	}
+	}, func() error {
+		return bootstrapSvc.EnsureBootstrap(context.Background())
+	})
 	log.Info().Msg("Database bootstrap completed successfully")
 
 	// Apply declarative schema (tables, indexes, functions, policies)
@@ -253,14 +265,16 @@ func main() {
 		source = "schema_apply"
 	}
 
-	if err := declarativeSvc.ApplyDeclarativeWithSource(context.Background(), source); err != nil {
+	// The declarative apply opens its own pools, so retry transient errors
+	// before aborting startup.
+	runStartupStep("declarative schema apply", dbRetryConfig(cfg.Database), func() {
 		if cleanupVips != nil {
 			cleanupVips()
 		}
 		db.Close()
-		log.Error().Err(err).Msg("Failed to apply declarative schema")
-		os.Exit(1)
-	}
+	}, func() error {
+		return declarativeSvc.ApplyDeclarativeWithSource(context.Background(), source)
+	})
 	log.Info().Str("source", source).Msg("Declarative schema applied successfully")
 
 	// Recreate the pool after migrations to clear any stale prepared statement cache
@@ -302,10 +316,10 @@ func main() {
 
 		appNamespaces := cfg.Database.DeclarativeAppSchema.Namespaces
 		if cfg.Database.DeclarativeAppSchema.OnStartup {
-			if err := appDeclarative.ApplyAllPending(context.Background(), appNamespaces); err != nil {
-				log.Error().Err(err).Msg("Failed to apply declarative app schema")
-				os.Exit(1)
-			}
+			// App-schema apply opens its own pools; retry transient errors.
+			runStartupStep("declarative app schema apply", dbRetryConfig(cfg.Database), nil, func() error {
+				return appDeclarative.ApplyAllPending(context.Background(), appNamespaces)
+			})
 		}
 
 		// Coexistence guard: warn (do not fail) if the same namespace also has
@@ -499,6 +513,39 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// dbRetryConfig builds the RetryConfig for DB-dependent startup steps from the
+// database config. The legacy FLUXBASE_DATABASE_RETRY_ATTEMPTS env var, when set,
+// overrides the configured attempt count for the initial connection only.
+func dbRetryConfig(db config.DatabaseConfig) database.RetryConfig {
+	rc := database.DefaultRetryConfig()
+	if db.RetryAttempts > 0 {
+		rc.MaxAttempts = db.RetryAttempts
+	}
+	if db.RetryInitialBackoff > 0 {
+		rc.InitialBackoff = db.RetryInitialBackoff
+	}
+	if db.RetryMaxBackoff > 0 {
+		rc.MaxBackoff = db.RetryMaxBackoff
+	}
+	return rc
+}
+
+// runStartupStep runs a DB-dependent startup step with transient-error retry.
+// On success it returns nil; on final failure it logs and exits the process
+// (matching the prior os.Exit(1) behavior). cleanup runs once before exit when
+// the step fails terminally (e.g. close the DB, release vips).
+func runStartupStep(name string, rc database.RetryConfig, cleanup func(), fn func() error) {
+	err := database.RetryTransient(context.Background(), name, rc, fn)
+	if err == nil {
+		return
+	}
+	if cleanup != nil {
+		cleanup()
+	}
+	log.Error().Err(err).Msg(name + " failed")
+	os.Exit(1)
 }
 
 // validateStorageHealth checks if the storage provider is accessible

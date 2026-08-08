@@ -42,6 +42,8 @@ type Worker struct {
 	currentJobCountMutex   sync.RWMutex
 	shutdownChan           chan struct{}
 	shutdownComplete       chan struct{}
+	fatalErr               chan error // delivered exactly once when a background loop dies (see fail)
+	failed                 atomic.Bool
 	draining               bool // True when worker is draining (not accepting new jobs)
 	drainingMutex          sync.RWMutex
 }
@@ -84,6 +86,7 @@ func NewWorker(cfg *config.JobsConfig, storage *Storage, jwtSecret, publicURL st
 		publicURL:        publicURL,
 		shutdownChan:     make(chan struct{}),
 		shutdownComplete: make(chan struct{}),
+		fatalErr:         make(chan error, 1),
 	}
 
 	// Set up runtime callbacks
@@ -137,8 +140,17 @@ func (w *Worker) Start(ctx context.Context) error {
 	// Start job poll loop
 	go w.pollLoop(ctx)
 
-	// Wait for shutdown signal
-	<-w.shutdownChan
+	// Wait for shutdown signal or a fatal error from one of the background
+	// loops. A fatal error means the worker can no longer process jobs (e.g.
+	// a loop panicked); in that case we run the same graceful drain and
+	// surface the error so the manager's supervisor can start a replacement.
+	var fatal error
+	select {
+	case <-w.shutdownChan:
+	case fatal = <-w.fatalErr:
+		// Initiate the normal drain path so running jobs are handled.
+		w.signalShutdown()
+	}
 
 	// Set draining mode to stop accepting new jobs
 	w.setDraining(true)
@@ -173,14 +185,42 @@ func (w *Worker) Start(ctx context.Context) error {
 				Msg("Shutdown timeout reached, interrupting remaining jobs")
 			w.interruptAllJobs()
 			close(w.shutdownComplete)
-			return nil
+			return fatal
 		case <-ticker.C:
 			if w.getCurrentJobCount() == 0 {
 				log.Info().Str("worker_id", w.ID.String()).Msg("All jobs completed, worker stopped")
 				close(w.shutdownComplete)
-				return nil
+				return fatal
 			}
 		}
+	}
+}
+
+// fail marks the worker as fatally failed. It delivers a single error to the
+// fatalErr channel (buffered, size 1) so Worker.Start can surface it to the
+// manager's supervisor. Subsequent calls are no-ops: a worker fails at most
+// once. This is used by background loops (poll/heartbeat/timeout/cleanup) to
+// report unrecoverable panics so a replacement worker can be started; without
+// it, a dead loop would leave the worker silently idle forever.
+func (w *Worker) fail(reason string) {
+	if w.failed.Swap(true) {
+		return
+	}
+	err := fmt.Errorf("worker %s: %s", w.ID, reason)
+	select {
+	case w.fatalErr <- err:
+	default:
+	}
+}
+
+// signalShutdown closes shutdownChan once (idempotent), unblocking Start and
+// the background loops that select on it.
+func (w *Worker) signalShutdown() {
+	select {
+	case <-w.shutdownChan:
+		// already closed
+	default:
+		close(w.shutdownChan)
 	}
 }
 
@@ -222,7 +262,10 @@ func (w *Worker) pollLoop(ctx context.Context) {
 				Interface("panic", rec).
 				Str("worker_id", w.ID.String()).
 				Str("goroutine", "pollLoop").
-				Msg("Panic in poll loop - recovered, worker will stop processing jobs")
+				Msg("Panic in poll loop - recovered, marking worker as failed for restart")
+			// Without this the worker would silently stop polling forever;
+			// fail() lets the supervisor start a replacement.
+			w.fail(fmt.Sprintf("pollLoop panic: %v", rec))
 		}
 	}()
 
@@ -328,7 +371,8 @@ func (w *Worker) staleWorkerCleanupLoop(ctx context.Context) {
 				Interface("panic", rec).
 				Str("worker_id", w.ID.String()).
 				Str("goroutine", "staleWorkerCleanupLoop").
-				Msg("Panic in stale worker cleanup loop - recovered")
+				Msg("Panic in stale worker cleanup loop - recovered, marking worker as failed for restart")
+			w.fail(fmt.Sprintf("staleWorkerCleanupLoop panic: %v", rec))
 		}
 	}()
 
@@ -372,7 +416,8 @@ func (w *Worker) progressTimeoutLoop(ctx context.Context) {
 				Interface("panic", rec).
 				Str("worker_id", w.ID.String()).
 				Str("goroutine", "progressTimeoutLoop").
-				Msg("Panic in progress timeout loop - recovered")
+				Msg("Panic in progress timeout loop - recovered, marking worker as failed for restart")
+			w.fail(fmt.Sprintf("progressTimeoutLoop panic: %v", rec))
 		}
 	}()
 

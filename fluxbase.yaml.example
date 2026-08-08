@@ -46,6 +46,13 @@ database:
   health_check_period: "1m"             # FLUXBASE_DATABASE_HEALTH_CHECK_PERIOD - Health check interval
   user_migrations_path: "/migrations/user"  # FLUXBASE_DATABASE_USER_MIGRATIONS_PATH - Path to user-provided migration files
 
+  # Reliability: startup DB-dependent steps (connect, bootstrap, schema apply)
+  # retry on transient errors so a slow-to-start Postgres doesn't abort startup.
+  connect_timeout: "10s"                # FLUXBASE_DATABASE_CONNECT_TIMEOUT - libpq connect_timeout (fails fast on hung connect)
+  retry_attempts: 8                     # FLUXBASE_DATABASE_RETRY_ATTEMPTS - total attempts per startup step
+  retry_initial_backoff: "1s"           # FLUXBASE_DATABASE_RETRY_INITIAL_BACKOFF - first retry backoff
+  retry_max_backoff: "30s"              # FLUXBASE_DATABASE_RETRY_MAX_BACKOFF - cap on each retry backoff
+
 # Authentication Configuration
 auth:
   jwt_secret: "your-secret-key-change-in-production"  # FLUXBASE_AUTH_JWT_SECRET - JWT signing secret (REQUIRED - must be changed!)
@@ -408,6 +415,11 @@ jobs:
 
   # Graceful shutdown
   graceful_shutdown_timeout: "5m"       # FLUXBASE_JOBS_GRACEFUL_SHUTDOWN_TIMEOUT - Time to wait for running jobs during shutdown
+
+  # Reliability: crashed embedded workers are automatically restarted. Backoff
+  # between restarts escalates exponentially up to this cap and never gives up,
+  # so the system self-heals once the underlying issue clears.
+  worker_max_restart_backoff: "60s"    # FLUXBASE_JOBS_WORKER_MAX_RESTART_BACKOFF - Cap for restart backoff
 
 # OpenTelemetry Tracing Configuration
 # Distributed tracing for observability (Jaeger, Tempo, Honeycomb, etc.)
