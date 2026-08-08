@@ -13,6 +13,18 @@ import (
 
 // This file contains comprehensive tests for MFA/TOTP authentication flows
 
+// NOTE: This file previously contained several `t.Skip` stub functions
+// (TestEnableMFA_AlreadyEnabled, TestVerifyMFA_DisabledUser,
+// TestDisableMFA_*, TestRegenerateBackupCodes_MFANotEnabled) that asserted
+// nothing — each was an empty body with a "Requires database integration"
+// skip. They have been removed to avoid implying coverage that doesn't exist.
+// The real DB-coupled MFA service methods (EnableMFA/DisableMFA/VerifyMFA on
+// MFAService) still lack test coverage; see the linked issue for the plan to
+// cover them via repository mocks or a CI-run integration job. The pure-logic
+// helpers below (GenerateTOTPSecret, VerifyTOTPCode, GenerateBackupCodes,
+// VerifyBackupCode, MockTOTPRateLimiter) are exercised by the tests in this
+// file.
+
 // TestEnableMFA_Success tests successful MFA enrollment with TOTP
 func TestEnableMFA_Success(t *testing.T) {
 	// Note: This test demonstrates the expected flow
@@ -55,12 +67,8 @@ func TestEnableMFA_Success(t *testing.T) {
 	}
 }
 
-// TestEnableMFA_AlreadyEnabled tests that MFA can't be enabled twice
-func TestEnableMFA_AlreadyEnabled(t *testing.T) {
-	// This would be tested with a real database
-	// The service should check if TOTP is already enabled before allowing enable
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
+// TestEnableMFA_AlreadyEnabled: removed (was an empty t.Skip stub).
+// See file note above re: DB-coupled MFA coverage.
 
 // TestEnableMFA_InvalidSecret tests MFA setup with invalid TOTP secret
 func TestEnableMFA_InvalidSecret(t *testing.T) {
@@ -269,44 +277,8 @@ func TestVerifyMFA_BackupCode_OneTimeUse(t *testing.T) {
 	assert.False(t, valid, "Used backup code should not verify against any remaining hash")
 }
 
-// TestVerifyMFA_DisabledUser tests that TOTP verification fails for users with TOTP disabled
-func TestVerifyMFA_DisabledUser(t *testing.T) {
-	// This would require database integration
-	// The service should return an error when trying to verify TOTP for a user who doesn't have it enabled
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
-
-// TestDisableMFA_Success tests successful MFA disabling
-func TestDisableMFA_Success(t *testing.T) {
-	// This would require database integration
-	// The service should:
-	// 1. Verify user's password
-	// 2. Clear TOTP secret
-	// 3. Clear backup codes
-	// 4. Set totp_enabled to false
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
-
-// TestDisableMFA_NotEnabled tests disabling MFA when it's not enabled
-func TestDisableMFA_NotEnabled(t *testing.T) {
-	// This would require database integration
-	// Should handle gracefully when TOTP is already disabled
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
-
-// TestDisableMFA_RequiresVerification tests that disabling MFA requires password verification
-func TestDisableMFA_DisableMFA_RequiresVerification(t *testing.T) {
-	// This would require database integration
-	// The service should verify the user's password before disabling MFA
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
-
-// TestDisableMFA_WrongVerificationCode tests that wrong password prevents MFA disabling
-func TestDisableMFA_WrongVerificationCode(t *testing.T) {
-	// This would require database integration
-	// Should not disable MFA if password verification fails
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
+// TestVerifyMFA_DisabledUser / TestDisableMFA_*: removed (empty t.Skip stubs).
+// See file note above re: DB-coupled MFA coverage.
 
 // TestGenerateBackupCodes_Success tests backup code generation
 func TestGenerateBackupCodes_Success(t *testing.T) {
@@ -456,12 +428,8 @@ func TestRegenerateBackupCodes_Success(t *testing.T) {
 	assert.False(t, allValid, "Old codes should not verify against new hashes")
 }
 
-// TestRegenerateBackupCodes_MFANotEnabled tests regenerating codes when MFA not enabled
-func TestRegenerateBackupCodes_MFANotEnabled(t *testing.T) {
-	// This would require database integration
-	// The service should return an error if trying to regenerate backup codes when MFA is not enabled
-	t.Skip("Requires database integration - to be tested with full integration tests")
-}
+// TestRegenerateBackupCodes_MFANotEnabled: removed (empty t.Skip stub).
+// See file note above re: DB-coupled MFA coverage.
 
 // TestTOTPCode_TimeWindow tests TOTP code validation within time window
 func TestTOTPCode_TimeWindow(t *testing.T) {
