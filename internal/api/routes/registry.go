@@ -393,12 +393,19 @@ func registerAllGroups(registry *Registry, deps *AllDeps) {
 	if deps.AI != nil {
 		registry.MustRegister(BuildAIRoutes(deps.AI))
 	}
-	if deps.Settings != nil {
-		registry.MustRegister(BuildSettingsRoutes(deps.Settings))
-	}
+	// Register the child settings groups (user, secret) BEFORE the generic
+	// /api/v1/settings group. The generic group defines GET /api/v1/settings/:key,
+	// whose :key param would otherwise shadow the static "user" and "secret"
+	// child prefixes at their index path (e.g. GET /api/v1/settings/secret/ was
+	// matched as the generic handler with key="secret" → 404 "Setting not found").
+	// Fiber's radix tree resolves static segments ahead of params only when the
+	// static route is inserted first, so registration order is load-bearing here.
 	if deps.UserSettings != nil {
 		registry.MustRegister(BuildUserSettingsRoutes(deps.UserSettings))
 		registry.MustRegister(BuildUserSecretsRoutes(deps.UserSettings))
+	}
+	if deps.Settings != nil {
+		registry.MustRegister(BuildSettingsRoutes(deps.Settings))
 	}
 	if deps.Dashboard != nil {
 		registry.MustRegister(BuildDashboardAuthRoutes(deps.Dashboard))
