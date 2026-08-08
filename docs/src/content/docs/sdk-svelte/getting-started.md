@@ -7,7 +7,7 @@ description: Reactive Svelte stores and SvelteKit SSR helpers for Fluxbase, buil
 
 The Fluxbase Svelte SDK (`@nimbleflux/fluxbase-sdk-svelte`) provides idiomatic
 Svelte stores and SvelteKit SSR helpers on top of the core
-[`@nimbleflux/fluxbase-sdk`](../sdk/getting-started/), built on
+[`@nimbleflux/fluxbase-sdk`](/sdk/getting-started/), built on
 [TanStack Svelte Query](https://tanstack.com/query/latest/docs/framework/svelte/overview).
 
 ## Installation
@@ -43,7 +43,7 @@ singleton would leak query state between users on the server.
 For server-rendered apps, back the auth session with an httpOnly cookie so the
 JWT never reaches client-side JavaScript. The SDK ships a
 `createCookieStorage` adapter that bridges SvelteKit's `cookies()` API to the
-core SDK's [injectable `StorageAdapter`](../sdk/getting-started/#ssr--custom-storage-adapter):
+core SDK's [injectable `StorageAdapter`](/sdk/getting-started/#ssr--custom-storage-adapter):
 
 ```ts
 // src/hooks.server.ts
@@ -103,6 +103,6 @@ Realtime stores (`tableInserts`, `tableUpdates`, `tableDeletes`,
 
 ## What's available
 
-The Svelte SDK mirrors the [React SDK](../sdk-react/getting-started/) surface:
+The Svelte SDK mirrors the [React SDK](/sdk-react/getting-started/) surface:
 auth, database queries, realtime, storage, functions, jobs, branching, RPC,
 vector, secrets, GraphQL, SAML, captcha, auth config, and admin operations.

@@ -8,7 +8,7 @@ description: Vue/Nuxt composables and SSR cookie storage for Fluxbase.
 The Fluxbase Vue SDK (`@nimbleflux/fluxbase-sdk-vue`) provides composables and
 SSR cookie-based auth for [Vue 3](https://vuejs.org/) /
 [Nuxt](https://nuxt.com/), built on the core
-[`@nimbleflux/fluxbase-sdk`](../sdk/getting-started/).
+[`@nimbleflux/fluxbase-sdk`](/sdk/getting-started/).
 
 > **Scaffold status:** provides the SSR-auth foundation (cookie storage,
 > provide/inject composable). Full reactive composables (like the React/Svelte
@@ -70,5 +70,5 @@ export default defineEventHandler((event) => {
 
 ## How the cookie adapter works
 
-The adapter uses the core SDK's [injectable `StorageAdapter`](../sdk/getting-started/#ssr--custom-storage-adapter)
+The adapter uses the core SDK's [injectable `StorageAdapter`](/sdk/getting-started/#ssr--custom-storage-adapter)
 seam to persist the auth session in an httpOnly cookie.

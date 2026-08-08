@@ -46,7 +46,7 @@ Open [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main
 1. `setupRoutes()` calls `registerRoutesViaRegistry()` which delegates to `routes.RegisterAllRoutes()`
 2. [`internal/api/routes/registry.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/registry.go) — The centralized route registry. Every route is registered with explicit auth requirements (`AuthRequirement`), and middleware is auto-injected based on those declarations. The registry also validates consistency (e.g., no route with `Auth: AuthNone` and `Public: false`)
 
-Route dependencies (handler references, middleware) are organized in per-domain files: [`routes_auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/routes_auth.go), [`routes_ai.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/routes_ai.go), etc.
+Route dependencies (handler references, middleware) are organized in per-domain files: [`auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/auth.go), [`ai.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/ai.go), etc.
 
 ### ③ Middleware — CORS and rate limiting
 

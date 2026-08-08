@@ -8,7 +8,7 @@ description: Server/client adapters and SSR cookie storage for Fluxbase in Next.
 The Fluxbase Next.js SDK (`@nimbleflux/fluxbase-sdk-next`) provides server-side
 client creation, SSR cookie-based auth, and a client-side provider for
 [Next.js](https://nextjs.org/), built on the core
-[`@nimbleflux/fluxbase-sdk`](../sdk/getting-started/).
+[`@nimbleflux/fluxbase-sdk`](/sdk/getting-started/).
 
 > **Scaffold status:** provides the SSR-auth foundation (cookie storage, server
 > client factory, client provider). Full React Query hooks (like the React SDK)
@@ -71,6 +71,6 @@ export function Providers({ children }) {
 
 ## How the cookie adapter works
 
-The adapter uses the core SDK's [injectable `StorageAdapter`](../sdk/getting-started/#ssr--custom-storage-adapter)
+The adapter uses the core SDK's [injectable `StorageAdapter`](/sdk/getting-started/#ssr--custom-storage-adapter)
 seam to persist the auth session in an httpOnly cookie. The core SDK's existing
 401 token-refresh logic runs against it transparently.

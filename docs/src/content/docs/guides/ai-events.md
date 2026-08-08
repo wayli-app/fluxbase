@@ -266,4 +266,4 @@ chat.sendMessage(convId, "How many users signed up last week?", {
 });
 ```
 
-See the [AI Chatbots guide](./ai-chatbots.md) for end-to-end examples and the [Multi-Agent Supervisor guide](./ai-agents.md) for routing details.
+See the [AI Chatbots guide](/guides/ai-chatbots/) for end-to-end examples and the [Multi-Agent Supervisor guide](/guides/ai-agents/) for routing details.

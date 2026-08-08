@@ -77,7 +77,7 @@ curl -X POST https://your-server/api/v1/admin/ai/integrations/$ID/test \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Full CRUD endpoints listed in the [API reference](./ai-events.md).
+Full CRUD endpoints listed in the [API reference](/guides/ai-events/).
 
 ## Enable for a chatbot
 
@@ -111,7 +111,7 @@ User: "What time does the Berlin zoo close today?"
    └─ final answer: "Berlin zoo closes at 18:30 today ([source](https://www.zooberlin.de))."
 ```
 
-The Web Agent emits `agent_thought` events for each step (search query, fetch URL, result summary), so clients can render the thought process in real time. See [Multi-Agent Supervisor](./ai-agents.md) for the full event reference.
+The Web Agent emits `agent_thought` events for each step (search query, fetch URL, result summary), so clients can render the thought process in real time. See [Multi-Agent Supervisor](/guides/ai-agents/) for the full event reference.
 
 ## Cost
 
@@ -142,6 +142,6 @@ Each tenant can have its own integrations. Tenant scoping is enforced by the sam
 
 ## See also
 
-- [Multi-Agent Supervisor](./ai-agents.md) — where the Web Agent fits in the pipeline
-- [AI Chatbots](./ai-chatbots.md) — chatbot configuration including the `@fluxbase:web-search` annotation
-- [AI events reference](./ai-events.md) — WebSocket events emitted by the Web Agent
+- [Multi-Agent Supervisor](/guides/ai-agents/) — where the Web Agent fits in the pipeline
+- [AI Chatbots](/guides/ai-chatbots/) — chatbot configuration including the `@fluxbase:web-search` annotation
+- [AI events reference](/guides/ai-events/) — WebSocket events emitted by the Web Agent

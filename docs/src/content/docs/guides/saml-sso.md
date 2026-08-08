@@ -20,7 +20,7 @@ Fluxbase works with any SAML 2.0 compliant identity provider:
 
 | Provider | Documentation |
 |----------|---------------|
-| Okta | [Okta SAML Setup](https://developer.okta.com/docs/guides/build-sso-integration/saml2/main/) |
+| Okta | [Okta SAML Setup](https://help.okta.com/oie/en-us/content/topics/apps/apps_app_integration_wizard_saml.htm) |
 | Azure AD | [Azure AD SAML](https://docs.microsoft.com/en-us/azure/active-directory/fundamentals/auth-saml) |
 | Google Workspace | [Google SAML Apps](https://support.google.com/a/answer/6087519) |
 | OneLogin | [OneLogin SAML](https://developers.onelogin.com/saml) |

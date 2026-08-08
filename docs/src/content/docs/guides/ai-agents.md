@@ -107,8 +107,8 @@ The ReAct loop remains fully supported. It runs faster and cheaper, at the cost 
 
 ## See also
 
-- [AI Chatbots](./ai-chatbots.md) — overview of chatbot setup and configuration
-- [Page-aware chatbots](./ai-chatbots.md#page-aware-chatbots) — one chatbot, multiple page profiles
-- [AI events reference](./ai-events.md) — WebSocket event types
-- [Knowledge Bases](./knowledge-bases.md) — RAG setup
-- [Vector Search](./vector-search.md) — embeddings
+- [AI Chatbots](/guides/ai-chatbots/) — overview of chatbot setup and configuration
+- [Page-aware chatbots](/guides/ai-chatbots/#page-aware-chatbots) — one chatbot, multiple page profiles
+- [AI events reference](/guides/ai-events/) — WebSocket event types
+- [Knowledge Bases](/guides/knowledge-bases/) — RAG setup
+- [Vector Search](/guides/vector-search/) — embeddings

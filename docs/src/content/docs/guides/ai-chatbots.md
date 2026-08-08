@@ -993,7 +993,7 @@ When the supervisor pipeline is enabled, you can also enable the Web Agent — a
 
 Two-part setup:
 
-1. **Tenant/instance level**: configure Tavily credentials in **AI → Tool Integrations** (UI) or via `FLUXBASE_AI_TAVILY_API_KEY` env var. See [Tool Integrations](./ai-integrations.md) for full setup.
+1. **Tenant/instance level**: configure Tavily credentials in **AI → Tool Integrations** (UI) or via `FLUXBASE_AI_TAVILY_API_KEY` env var. See [Tool Integrations](/guides/ai-integrations/) for full setup.
 
 2. **Chatbot level**: opt in via annotation:
 
@@ -1011,7 +1011,7 @@ When both are set, the supervisor routes current-info questions ("what's the lat
 
 If the Tavily key is missing or empty, the Web Agent can't run — the supervisor logs an actionable warning and falls back to the ReAct loop (which has no web tool). Check the server logs for `"Web agent routed but no web_search integration resolves"` to confirm the cause, and inspect the [`tool_audit_log`](#observability) table to see whether web searches were actually issued.
 
-See [Multi-Agent Supervisor](./ai-agents.md) for the full architecture, agent reference, and verification details.
+See [Multi-Agent Supervisor](/guides/ai-agents/) for the full architecture, agent reference, and verification details.
 
 ## Page-aware Chatbots
 
