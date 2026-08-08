@@ -45,6 +45,13 @@ func setDefaults() {
 	viper.SetDefault("database.health_check_period", "1m")
 	viper.SetDefault("database.user_migrations_path", "/migrations/user")
 	viper.SetDefault("database.slow_query_threshold", "1s")
+	// Reliability: startup DB-dependent steps (connect, bootstrap, schema apply)
+	// retry on transient errors with exponential backoff. Defaults are bounded so
+	// startup waits ~1-2 min for a slow-to-start Postgres rather than aborting.
+	viper.SetDefault("database.connect_timeout", "10s")      // libpq connect_timeout
+	viper.SetDefault("database.retry_attempts", 8)           // total attempts per step
+	viper.SetDefault("database.retry_initial_backoff", "1s") // first retry backoff
+	viper.SetDefault("database.retry_max_backoff", "30s")    // cap on each backoff
 
 	// Declarative app-schema defaults (opt-in — off by default so existing apps are unaffected)
 	viper.SetDefault("database.declarative_app_schema.enabled", false)
@@ -266,7 +273,8 @@ func setDefaults() {
 		"192.168.0.0/16", // Private networks
 		"127.0.0.0/8",    // Loopback (localhost)
 	})
-	viper.SetDefault("jobs.graceful_shutdown_timeout", "5m") // Wait up to 5 minutes for jobs during shutdown
+	viper.SetDefault("jobs.graceful_shutdown_timeout", "5m")   // Wait up to 5 minutes for jobs during shutdown
+	viper.SetDefault("jobs.worker_max_restart_backoff", "60s") // Cap exponential backoff between worker restarts
 
 	// Tracing defaults (OpenTelemetry)
 	viper.SetDefault("tracing.enabled", false)             // Disabled by default

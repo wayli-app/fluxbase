@@ -24,6 +24,7 @@ type JobsConfig struct {
 	WorkerTimeout             time.Duration `mapstructure:"worker_timeout"`               // Worker considered dead after this
 	SyncAllowedIPRanges       []string      `mapstructure:"sync_allowed_ip_ranges"`       // IP CIDR ranges allowed to sync jobs
 	GracefulShutdownTimeout   time.Duration `mapstructure:"graceful_shutdown_timeout"`    // Time to wait for running jobs during shutdown (default: 5m)
+	WorkerMaxRestartBackoff   time.Duration `mapstructure:"worker_max_restart_backoff"`   // Cap for exponential backoff between worker restarts (default: 60s)
 }
 
 // Validate validates jobs configuration
@@ -86,6 +87,12 @@ func (jc *JobsConfig) Validate() error {
 	// single missed heartbeat never triggers cleanup.
 	if jc.WorkerTimeout < 2*jc.WorkerHeartbeatInterval {
 		return fmt.Errorf("worker_timeout (%v) must be at least 2x worker_heartbeat_interval (%v)", jc.WorkerTimeout, jc.WorkerHeartbeatInterval)
+	}
+
+	// Validate restart backoff cap. <=0 is allowed (means "use default") and is
+	// normalized in defaults; explicitly negative-after-normalize is invalid.
+	if jc.WorkerMaxRestartBackoff < 0 {
+		return fmt.Errorf("worker_max_restart_backoff cannot be negative, got: %v", jc.WorkerMaxRestartBackoff)
 	}
 
 	// Warn if max_max_duration is very high (over 1 hour)
