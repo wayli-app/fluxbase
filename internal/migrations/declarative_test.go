@@ -135,8 +135,10 @@ func TestExtractChangesFromGroups_MultipleGroupsConcatenatedInOrder(t *testing.T
 	t.Parallel()
 	plan := &Plan{Groups: []PlanGroup{
 		{Steps: []PlanStep{testStep("A", "create", "public.table.a")}},
-		{Steps: []PlanStep{testStep("B", "create", "public.table.b"),
-			testStep("C", "create", "public.table.c")}},
+		{Steps: []PlanStep{
+			testStep("B", "create", "public.table.b"),
+			testStep("C", "create", "public.table.c"),
+		}},
 	}}
 	got := extractChangesFromGroups(plan)
 	require.Len(t, got, 3)
@@ -252,30 +254,20 @@ func TestExtractAlterTableName(t *testing.T) {
 		{"simple", "ALTER TABLE users ADD COLUMN x int", "users"},
 		{"if exists", "ALTER TABLE IF EXISTS users ADD COLUMN x int", "users"},
 		{"schema qualified", "ALTER TABLE platform.users ADD COLUMN x int", "users"},
-		// KNOWN BUG (pinned, not endorsed): extractAlterTableName tokenizes with
-		// strings.Fields BEFORE stripping quotes, so a quoted identifier that
-		// contains whitespace ("User Table") is split into ["User", "Table"] and
-		// only "User" is returned. The sensible contract is to return the full
-		// quoted identifier. Impact: the partition-table skip logic in
-		// applyPlanDirectly (declarative.go:669,699,710) silently fails to match
-		// such tables, so ALTER TABLE on a quoted partition table won't be
-		// skipped and can hit the SQLSTATE 42P16 the skip is meant to avoid.
-		// Fix: tokenize respecting double-quoted identifiers. Tracked for a
-		// follow-up; out of scope for this coverage PR.
-		{"quoted multi-word name (BUG: mangled)", `ALTER TABLE "User Table" ADD COLUMN x int`, "User"},
-		{"quoted single-word name works", `ALTER TABLE "users" ADD COLUMN x int`, "users"},
+		// Quoted identifiers — including multi-word names with internal whitespace
+		// — must be returned intact. firstSQLIdentifier honors SQL double-quote
+		// escaping; previously strings.Fields split these mid-identifier.
+		{"quoted multi-word name", `ALTER TABLE "User Table" ADD COLUMN x int`, "User Table"},
+		{"quoted single-word name", `ALTER TABLE "users" ADD COLUMN x int`, "users"},
+		{"quoted reserved word", `ALTER TABLE "order" ADD COLUMN x int`, "order"},
 		{"lowercase", "alter table users add column x int", "users"},
 		{"not an alter table", "CREATE TABLE users (id int)", ""},
 		{"empty", "", ""},
-		{"trailing semicolon kept by this extractor", "ALTER TABLE users;", "users;"},
+		{"trailing semicolon stripped", "ALTER TABLE users;", "users"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			// NOTE the "trailing semicolon kept" case pins that extractAlterTableName
-			// does NOT strip ';', unlike extractIndexTableName/extractDropTriggerTableName.
-			// Per testing discipline: this is a pin of current behavior; if it proves
-			// to be a bug (callers depend on clean names), flag and fix the code.
 			assert.Equal(t, tt.want, extractAlterTableName(tt.sql))
 		})
 	}
@@ -292,13 +284,9 @@ func TestExtractIndexTableName(t *testing.T) {
 		{"create unique index", "CREATE UNIQUE INDEX idx ON users (id)", "users"},
 		{"concurrently if not exists", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx ON users (id)", "users"},
 		{"schema qualified", "CREATE INDEX idx ON platform.users (id)", "users"},
-		// KNOWN BUG (pinned): same quoted-identifier tokenization issue as
-		// extractAlterTableName — see that test's note. extractIndexTableName is
-		// used for the partitionedTables lookup at declarative.go:727, so a
-		// quoted multi-word partitioned table would not have CONCURRENTLY
-		// stripped. Sensible contract: return "User Table".
-		{"quoted multi-word (BUG: mangled)", `CREATE INDEX idx ON "User Table" (id)`, "User"},
-		{"quoted single-word works", `CREATE INDEX idx ON "users" (id)`, "users"},
+		// Quoted identifiers returned intact (see extractAlterTableName note).
+		{"quoted multi-word", `CREATE INDEX idx ON "User Table" (id)`, "User Table"},
+		{"quoted single-word", `CREATE INDEX idx ON "users" (id)`, "users"},
 		{"trailing semicolon stripped", "CREATE INDEX idx ON users (id);", "users"},
 		{"no ON clause", "CREATE INDEX idx", ""},
 		{"not a create index", "ALTER TABLE users ADD COLUMN x", ""},
@@ -321,6 +309,7 @@ func TestExtractTriggerTableName(t *testing.T) {
 		{"create trigger", "CREATE TRIGGER tr AFTER INSERT ON users FOR EACH ROW EXECUTE FUNCTION f()", "users"},
 		{"create or replace", "CREATE OR REPLACE TRIGGER tr AFTER INSERT ON users EXECUTE FUNCTION f()", "users"},
 		{"schema qualified", "CREATE TRIGGER tr AFTER INSERT ON platform.users EXECUTE FUNCTION f()", "users"},
+		{"quoted multi-word name", `CREATE TRIGGER tr AFTER INSERT ON "User Table" EXECUTE FUNCTION f()`, "User Table"},
 		{"no ON clause", "CREATE TRIGGER tr AFTER INSERT", ""},
 		{"not a trigger", "CREATE TABLE users (id int)", ""},
 	}
@@ -342,6 +331,7 @@ func TestExtractDropTriggerTableName(t *testing.T) {
 		{"drop trigger", "DROP TRIGGER IF EXISTS tr ON users", "users"},
 		{"schema qualified", "DROP TRIGGER tr ON platform.users", "users"},
 		{"trailing semicolon stripped", "DROP TRIGGER tr ON users;", "users"},
+		{"quoted multi-word name", `DROP TRIGGER tr ON "User Table"`, "User Table"},
 		{"no ON clause", "DROP TRIGGER tr", ""},
 		{"not a drop trigger", "CREATE TABLE users (id int)", ""},
 	}
