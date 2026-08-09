@@ -30,7 +30,7 @@ override:
   - path: ^internal/config/
     threshold: 40
   - path: ^internal/realtime/
-    threshold: 35
+    threshold: 45
   - path: ^internal/rpc/
     threshold: 35
   - path: ^internal/runtime/
@@ -44,7 +44,7 @@ override:
   - path: ^internal/ai/
     threshold: 20
   - path: ^internal/functions/
-    threshold: 20
+    threshold: 23
   - path: ^internal/mcp/
     threshold: 20
   - path: ^internal/api/
@@ -65,12 +65,13 @@ override:
     threshold: 1
   # Declarative migration engine: core planning/transform/diff helpers are now
   # unit-tested (extractChangesFromGroups, changePriority, table-name
-  # extractors, column-def extraction, countStatements, etc.). The remaining
-  # surface is pgschema shell-out + DB execution, covered by integration tests.
-  # TODO: raise toward 20%+ once the partition/FK filters and plan validation
+  # extractors, column-def extraction, FK-name loading/filtering, fingerprint,
+  # preprocessSchemaFile, writePlanToTemp, etc.). The remaining surface is
+  # pgschema shell-out + DB execution, covered by integration tests.
+  # TODO: raise further once the partition/FK filters and plan validation
   # are factored out of applyPlanDirectly.
   - path: ^internal/migrations/
-    threshold: 10
+    threshold: 15
 
   # Test utilities don't need coverage themselves
   - path: ^internal/testutil
