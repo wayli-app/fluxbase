@@ -425,11 +425,22 @@ func main() {
 	// Validate storage provider health
 	log.Info().Msg("Validating storage provider...")
 	if err := validateStorageHealth(server); err != nil {
+		log.Error().Err(err).Msg("Storage validation failed")
+
 		if cleanupVips != nil {
 			cleanupVips()
 		}
+		// Stop background services (e.g. the log-retention goroutine started in
+		// NewServer) BEFORE closing the pool. Connection.Close() sets pool=nil,
+		// so an in-flight retention cleanup that calls conn.Pool().Begin would
+		// dereference a nil pool and panic. The graceful-shutdown path below
+		// already does shutdown-then-close; this early-exit path must match it.
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Warn().Err(err).Msg("Graceful shutdown failed during validation error exit")
+		}
+		shutdownCancel()
 		db.Close() // Explicitly close since defer won't run with os.Exit
-		log.Error().Err(err).Msg("Storage validation failed")
 		os.Exit(1)
 	}
 	log.Info().Str("provider", cfg.Storage.Provider).Msg("Storage provider validated successfully")

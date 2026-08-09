@@ -170,7 +170,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 
 # ------------------------------------------------------------------------------
-# Stage 3b: Lite Production Runtime Image (distroless, glibc CGO binary)
+# Stage 3b: Prepare writable runtime directories for the distroless lite image.
+#
+# base-debian12:nonroot runs as uid/gid 65532, but distroless has no shell, so
+# we cannot `mkdir`/`chown` inside the lite stage itself. We create the runtime
+# dirs here with the right owner and copy them into the lite stage with
+# --chown. This mirrors what runtime-full does via `mkdir + chown`. Without it,
+# a named or anonymous volume mounted on /app/storage is root-owned, the
+# LocalStorage.Health probe cannot write .health_check, and validateStorageHealth
+# aborts startup (see cmd/fluxbase/main.go).
+# ------------------------------------------------------------------------------
+FROM debian:bookworm-slim AS lite-dirs
+RUN mkdir -p /appdir/storage /appdir/config /appdir/data /appdir/logs \
+    && chown -R 65532:65532 /appdir
+
+
+# ------------------------------------------------------------------------------
+# Stage 3c: Lite Production Runtime Image (distroless, glibc CGO binary)
 # ------------------------------------------------------------------------------
 FROM gcr.io/distroless/base-debian12:nonroot AS runtime-lite
 
@@ -194,6 +210,18 @@ COPY --from=go-builder /build/fluxbase-server /usr/local/bin/fluxbase-server
 COPY --from=deno-bin /deno /usr/local/bin/deno
 COPY --from=pgschema-fetcher /usr/local/bin/pgschema /usr/local/bin/pgschema
 
+# Seed writable runtime directories owned by uid/gid 65532 (the :nonroot user).
+# distroless has no shell, so we cannot mkdir/chown at runtime; COPY --chown
+# from the lite-dirs stage bakes in the correct ownership. This makes
+# /app/storage writable when an anonymous volume is mounted (Docker copies
+# existing image-owned content into a new anonymous volume with ownership
+# preserved), matching what runtime-full sets up via mkdir + chown. Required so
+# LocalStorage.Health can write its .health_check probe on first boot.
+COPY --from=lite-dirs --chown=65532:65532 /appdir/storage /app/storage
+COPY --from=lite-dirs --chown=65532:65532 /appdir/config  /app/config
+COPY --from=lite-dirs --chown=65532:65532 /appdir/data    /app/data
+COPY --from=lite-dirs --chown=65532:65532 /appdir/logs    /app/logs
+
 # distroless :nonroot runs as uid 65532. The runtime writes /tmp/deno for edge
 # functions; base-debian12 provides a writable /tmp by default.
 ENV FLUXBASE_SERVER_ADDRESS=:8080 \
@@ -215,7 +243,7 @@ ENTRYPOINT ["fluxbase-server"]
 
 
 # ------------------------------------------------------------------------------
-# Stage 3c: Full Production Runtime Image (glibc, with OCR/ffmpeg/vips)
+# Stage 3d: Full Production Runtime Image (glibc, with OCR/ffmpeg/vips)
 #
 # This is the FINAL stage (and therefore the default image produced by
 # `docker build` with no --target), preserving the historical default behavior.
