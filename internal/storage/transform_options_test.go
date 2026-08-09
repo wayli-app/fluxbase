@@ -396,56 +396,12 @@ func TestValidateOptions_FormatNormalization(t *testing.T) {
 	}
 }
 
-// TestValidateOptions_QualityNormalization tests quality value normalization
-func TestValidateOptions_QualityNormalization(t *testing.T) {
-	transformer := NewImageTransformerWithOptions(TransformerOptions{})
-
-	tests := []struct {
-		name     string
-		quality  int
-		expected int
-	}{
-		{
-			name:     "valid quality",
-			quality:  85,
-			expected: 85,
-		},
-		{
-			name:     "quality 0",
-			quality:  0,
-			expected: 0, // 0 is valid (only negative/above 100 are normalized)
-		},
-		{
-			name:     "quality 100",
-			quality:  100,
-			expected: 100,
-		},
-		{
-			name:     "quality below 0",
-			quality:  -10,
-			expected: 80, // Normalized to default
-		},
-		{
-			name:     "quality above 100",
-			quality:  150,
-			expected: 80, // Normalized to default
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			opts := &TransformOptions{
-				Width:   800,
-				Height:  600,
-				Quality: tt.quality,
-			}
-
-			err := transformer.ValidateOptions(opts)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, opts.Quality)
-		})
-	}
-}
+// NOTE: TestValidateOptions_QualityNormalization is build-specific — the vips
+// and novips ValidateOptions implementations normalize out-of-range quality
+// values differently (vips: <=0 -> 80, >100 -> 100 clamp; novips: <0 or >100
+// -> 80, leaving 0 untouched). It lives in transform_test.go (vips) and
+// transform_novips_test.go (!vips), not here, so this unconstrained file does
+// not assert a single contract that one build would violate.
 
 // TestBucketDimension tests dimension bucketing for DoS protection
 func TestBucketDimension(t *testing.T) {

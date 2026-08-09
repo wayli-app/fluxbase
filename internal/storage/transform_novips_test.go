@@ -182,6 +182,40 @@ func TestNovips_TransformErrors_AreSentinels(t *testing.T) {
 	}
 }
 
+// TestValidateOptions_QualityNormalization pins the novips quality policy:
+// only values <0 or >100 are reset to the default (80); 0 passes through
+// untouched. (The vips build clamps differently — <=0 -> 80, >100 -> 100 — so
+// its version lives in transform_test.go.)
+func TestValidateOptions_QualityNormalization(t *testing.T) {
+	transformer := NewImageTransformerWithOptions(TransformerOptions{})
+
+	tests := []struct {
+		name     string
+		quality  int
+		expected int
+	}{
+		{"valid quality", 85, 85},
+		{"quality 0 is valid", 0, 0},
+		{"quality 100 is valid", 100, 100},
+		{"quality below 0 normalized to default", -10, 80},
+		{"quality above 100 normalized to default", 150, 80},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &TransformOptions{
+				Width:   800,
+				Height:  600,
+				Quality: tt.quality,
+			}
+
+			err := transformer.ValidateOptions(opts)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, opts.Quality)
+		})
+	}
+}
+
 // smallPNG is a minimal 1x1 PNG used as transform input in these tests. It is
 // never actually decoded because the novips transform fails before any image
 // processing occurs; it just needs to be valid enough to serve as a reader.

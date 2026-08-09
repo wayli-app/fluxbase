@@ -309,6 +309,41 @@ func TestImageTransformer_ValidateOptions(t *testing.T) {
 	})
 }
 
+// TestValidateOptions_QualityNormalization pins the vips quality policy:
+// values <=0 are replaced with the default (80), and values >100 are clamped
+// to 100 (rather than reset to the default). The novips build normalizes
+// differently (<0 or >100 -> 80, 0 untouched), so its version lives in
+// transform_novips_test.go.
+func TestValidateOptions_QualityNormalization(t *testing.T) {
+	transformer := NewImageTransformerWithOptions(TransformerOptions{})
+
+	tests := []struct {
+		name     string
+		quality  int
+		expected int
+	}{
+		{"valid quality", 85, 85},
+		{"quality 0 normalized to default", 0, 80},
+		{"quality 100 is valid", 100, 100},
+		{"quality below 0 normalized to default", -10, 80},
+		{"quality above 100 clamped to max", 150, 100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &TransformOptions{
+				Width:   800,
+				Height:  600,
+				Quality: tt.quality,
+			}
+
+			err := transformer.ValidateOptions(opts)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, opts.Quality)
+		})
+	}
+}
+
 // =============================================================================
 // calculateDimensions Tests
 // =============================================================================
