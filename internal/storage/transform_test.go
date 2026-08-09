@@ -61,40 +61,6 @@ func TestTransformErrors(t *testing.T) {
 }
 
 // =============================================================================
-// BucketDimension Tests
-// =============================================================================
-
-func TestBucketDimension(t *testing.T) {
-	tests := []struct {
-		name       string
-		dim        int
-		bucketSize int
-		expected   int
-	}{
-		{"exact bucket", 100, 50, 100},
-		{"round up", 126, 50, 150},
-		{"round down", 124, 50, 100},
-		{"midpoint rounds up", 125, 50, 150},
-		{"small dimension", 30, 50, 50},
-		{"zero dimension", 0, 50, 0},
-		{"negative dimension", -10, 50, -10},
-		{"zero bucket size", 100, 0, 100},
-		{"negative bucket size", 100, -50, 100},
-		{"large dimension", 8100, 50, 8100},
-		{"bucket size 100", 250, 100, 300},
-		{"bucket size 25", 38, 25, 50},
-		{"bucket size 1 (no bucketing)", 123, 1, 123},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := BucketDimension(tt.dim, tt.bucketSize)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-// =============================================================================
 // SupportedOutputFormats Tests
 // =============================================================================
 
@@ -147,43 +113,6 @@ func TestSupportedInputMimeTypes(t *testing.T) {
 	for _, mime := range unsupported {
 		t.Run("unsupported_"+mime, func(t *testing.T) {
 			assert.False(t, SupportedInputMimeTypes[mime])
-		})
-	}
-}
-
-// =============================================================================
-// CanTransform Tests
-// =============================================================================
-
-func TestCanTransform(t *testing.T) {
-	tests := []struct {
-		name        string
-		contentType string
-		expected    bool
-	}{
-		{"jpeg", "image/jpeg", true},
-		{"png", "image/png", true},
-		{"webp", "image/webp", true},
-		{"gif", "image/gif", true},
-		{"avif", "image/avif", true},
-		{"svg", "image/svg+xml", true},
-		{"tiff", "image/tiff", true},
-		{"bmp", "image/bmp", true},
-		{"text", "text/plain", false},
-		{"pdf", "application/pdf", false},
-		{"video", "video/mp4", false},
-		{"jpeg with charset", "image/jpeg; charset=utf-8", true},
-		{"png with boundary", "image/png; boundary=something", true},
-		{"uppercase", "IMAGE/JPEG", true},
-		{"mixed case", "Image/Png", true},
-		{"empty", "", false},
-		{"heic not supported", "image/heic", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := CanTransform(tt.contentType)
-			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -380,6 +309,41 @@ func TestImageTransformer_ValidateOptions(t *testing.T) {
 	})
 }
 
+// TestValidateOptions_QualityNormalization pins the vips quality policy:
+// values <=0 are replaced with the default (80), and values >100 are clamped
+// to 100 (rather than reset to the default). The novips build normalizes
+// differently (<0 or >100 -> 80, 0 untouched), so its version lives in
+// transform_novips_test.go.
+func TestValidateOptions_QualityNormalization(t *testing.T) {
+	transformer := NewImageTransformerWithOptions(TransformerOptions{})
+
+	tests := []struct {
+		name     string
+		quality  int
+		expected int
+	}{
+		{"valid quality", 85, 85},
+		{"quality 0 normalized to default", 0, 80},
+		{"quality 100 is valid", 100, 100},
+		{"quality below 0 normalized to default", -10, 80},
+		{"quality above 100 clamped to max", 150, 100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &TransformOptions{
+				Width:   800,
+				Height:  600,
+				Quality: tt.quality,
+			}
+
+			err := transformer.ValidateOptions(opts)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, opts.Quality)
+		})
+	}
+}
+
 // =============================================================================
 // calculateDimensions Tests
 // =============================================================================
@@ -519,80 +483,6 @@ func TestImageTransformer_determineOutputFormat(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-// =============================================================================
-// ParseTransformOptions Tests
-// =============================================================================
-
-func TestParseTransformOptions(t *testing.T) {
-	t.Run("no options returns nil", func(t *testing.T) {
-		opts := ParseTransformOptions(0, 0, "", 0, "")
-		assert.Nil(t, opts)
-	})
-
-	t.Run("width only", func(t *testing.T) {
-		opts := ParseTransformOptions(800, 0, "", 0, "")
-		require.NotNil(t, opts)
-		assert.Equal(t, 800, opts.Width)
-		assert.Equal(t, 0, opts.Height)
-		assert.Equal(t, FitCover, opts.Fit) // Default
-	})
-
-	t.Run("height only", func(t *testing.T) {
-		opts := ParseTransformOptions(0, 600, "", 0, "")
-		require.NotNil(t, opts)
-		assert.Equal(t, 0, opts.Width)
-		assert.Equal(t, 600, opts.Height)
-	})
-
-	t.Run("format only", func(t *testing.T) {
-		opts := ParseTransformOptions(0, 0, "webp", 0, "")
-		require.NotNil(t, opts)
-		assert.Equal(t, "webp", opts.Format)
-	})
-
-	t.Run("quality only", func(t *testing.T) {
-		opts := ParseTransformOptions(0, 0, "", 90, "")
-		require.NotNil(t, opts)
-		assert.Equal(t, 90, opts.Quality)
-	})
-
-	t.Run("fit modes", func(t *testing.T) {
-		testCases := []struct {
-			input    string
-			expected FitMode
-		}{
-			{"cover", FitCover},
-			{"COVER", FitCover},
-			{"Cover", FitCover},
-			{"contain", FitContain},
-			{"fill", FitFill},
-			{"inside", FitInside},
-			{"outside", FitOutside},
-			{"invalid", FitCover}, // Default
-			{"", FitCover},        // Default
-		}
-
-		for _, tc := range testCases {
-			t.Run("fit_"+tc.input, func(t *testing.T) {
-				opts := ParseTransformOptions(100, 0, "", 0, tc.input)
-				require.NotNil(t, opts)
-				assert.Equal(t, tc.expected, opts.Fit)
-			})
-		}
-	})
-
-	t.Run("all options", func(t *testing.T) {
-		opts := ParseTransformOptions(800, 600, "png", 85, "contain")
-
-		require.NotNil(t, opts)
-		assert.Equal(t, 800, opts.Width)
-		assert.Equal(t, 600, opts.Height)
-		assert.Equal(t, "png", opts.Format)
-		assert.Equal(t, 85, opts.Quality)
-		assert.Equal(t, FitContain, opts.Fit)
-	})
 }
 
 // =============================================================================

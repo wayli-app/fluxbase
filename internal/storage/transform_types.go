@@ -2,7 +2,6 @@ package storage
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 )
@@ -154,84 +153,8 @@ func ParseTransformOptions(width, height int, format string, quality int, fit st
 	return opts
 }
 
-// NewImageTransformerWithOptions creates a new image transformer with full options
-// This is a stub that returns an error when transformation is attempted without vips support
-func NewImageTransformerWithOptions(opts TransformerOptions) *ImageTransformer {
-	if opts.MaxWidth <= 0 {
-		opts.MaxWidth = MaxTransformDimension
-	}
-	if opts.MaxHeight <= 0 {
-		opts.MaxHeight = MaxTransformDimension
-	}
-	if opts.MaxTotalPixels <= 0 {
-		opts.MaxTotalPixels = DefaultMaxTotalPixels
-	}
-	if opts.BucketSize <= 0 {
-		opts.BucketSize = DefaultBucketSize
-	}
-
-	return &ImageTransformer{
-		initialized:    false, // Not initialized without vips
-		maxWidth:       opts.MaxWidth,
-		maxHeight:      opts.MaxHeight,
-		maxTotalPixels: opts.MaxTotalPixels,
-		bucketSize:     opts.BucketSize,
-	}
-}
-
-// ValidateOptions validates and normalizes transform options
-func (t *ImageTransformer) ValidateOptions(opts *TransformOptions) error {
-	if opts == nil {
-		return nil // No transformation requested
-	}
-
-	// Validate dimensions
-	if opts.Width < 0 || opts.Height < 0 {
-		return ErrInvalidDimensions
-	}
-
-	if opts.Width > 0 && opts.Width > t.maxWidth {
-		return fmt.Errorf("%w: width %d exceeds maximum %d", ErrImageTooLarge, opts.Width, t.maxWidth)
-	}
-
-	if opts.Height > 0 && opts.Height > t.maxHeight {
-		return fmt.Errorf("%w: height %d exceeds maximum %d", ErrImageTooLarge, opts.Height, t.maxHeight)
-	}
-
-	// Calculate total pixels
-	totalPixels := opts.Width * opts.Height
-	if totalPixels > 0 && totalPixels > t.maxTotalPixels {
-		return fmt.Errorf("%w: %dx%d = %d pixels exceeds maximum %d",
-			ErrTooManyPixels, opts.Width, opts.Height, totalPixels, t.maxTotalPixels)
-	}
-
-	// Validate format
-	if opts.Format != "" {
-		opts.Format = strings.ToLower(strings.TrimSpace(opts.Format))
-		if !SupportedOutputFormats[opts.Format] {
-			return ErrUnsupportedFormat
-		}
-	}
-
-	// Validate quality
-	if opts.Quality < 0 || opts.Quality > 100 {
-		opts.Quality = 80
-	}
-
-	// Normalize fit mode
-	if opts.Fit == "" {
-		opts.Fit = FitCover
-	}
-
-	// Bucket dimensions for caching and DoS protection
-	if t.bucketSize > 0 {
-		if opts.Width > 0 {
-			opts.Width = BucketDimension(opts.Width, t.bucketSize)
-		}
-		if opts.Height > 0 {
-			opts.Height = BucketDimension(opts.Height, t.bucketSize)
-		}
-	}
-
-	return nil
-}
+// NOTE: NewImageTransformerWithOptions and ValidateOptions are defined in the
+// build-tagged files (transform.go for the vips build, transform_novips.go for
+// the default/novips build). They must NOT live here — transform_types.go has
+// no build constraint, so defining them here duplicates the symbols in the
+// vips build and breaks `go build -tags vips`.

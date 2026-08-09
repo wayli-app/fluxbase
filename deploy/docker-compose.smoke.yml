@@ -1,0 +1,56 @@
+# Smoke-test overlay for the Fluxbase stack.
+#
+# Layered on top of deploy/docker-compose.yml:
+#   docker compose \
+#     -f deploy/docker-compose.yml \
+#     -f deploy/docker-compose.smoke.yml \
+#     --env-file deploy/.smoke.env \
+#     up -d --wait
+#
+# What this changes vs. the production compose:
+#   1. Isolates the stack on its own project name (fluxbase-smoke), so it never
+#      touches a dev stack or any other running Fluxbase instance.
+#   2. Builds the fluxbase image from THIS PR's source (fluxbase-smoke:local)
+#      instead of pulling the published ghcr image — so the test exercises the
+#      PR's own code, not a stale release. The FLAVOR build arg selects full
+#      (debian-slim + OCR + ffmpeg + libvips) or lite (distroless, no media
+#      deps); the matching runtime stage is chosen via target.
+#   3. Pins deterministic host ports so probes (scripts/smoke-test.sh) can hit
+#      a stable address across runs.
+#
+# Everything else (healthchecks, env wiring, depends_on ordering) is inherited
+# from docker-compose.yml — we are testing that file, not a parallel definition.
+#
+# Usage:
+#   # full (default)
+#   FLAVOR=full docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.smoke.yml up -d --wait
+#   # lite
+#   FLAVOR=lite docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.smoke.yml up -d --wait
+
+name: fluxbase-smoke
+
+services:
+  fluxbase:
+    # Build from source so the smoke tests the PR's own code. The image tag and
+    # build target are flavor-specific; consumers build the right tag before up.
+    image: fluxbase-smoke:local-${FLAVOR:-full}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        FLAVOR: ${FLAVOR:-full}
+        VERSION: smoke
+      # full is the default (final) stage; lite emits the distroless stage.
+      target: ${TARGET:-runtime-full}
+    ports:
+      - '8080:8080'
+    # A fresh stack applies ~150 declarative-schema migrations on first boot
+    # (~60-90s). Disable the inherited wget healthcheck (the lite image is
+    # distroless and has no wget anyway) and let scripts/smoke-test.sh poll
+    # GET /health with retries as the readiness gate.
+    healthcheck:
+      disable: true
+
+  postgres:
+    ports:
+      - '5432:5432'

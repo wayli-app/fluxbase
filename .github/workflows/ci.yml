@@ -1101,14 +1101,21 @@ jobs:
           path: dist/fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}
 
   docker:
-    name: Docker Build Test
+    name: Docker Build Test (${{ matrix.flavor }})
     runs-on: ubuntu-latest
     needs: [changes, test-go]
     if: >-
-      github.event_name == 'push' &&
-      (needs.changes.outputs.docker == 'true' ||
-       needs.changes.outputs.go == 'true' ||
-       needs.changes.outputs.ci-config == 'true')
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.docker == 'true' ||
+      needs.changes.outputs.go == 'true' ||
+      needs.changes.outputs.ci-config == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        # Verify both image flavors compile end-to-end. full is the default
+        # (CGO + ocr/vips tags); lite is the distroless static build.
+        flavor: [full, lite]
     steps:
       - uses: actions/checkout@v7
 
@@ -1121,9 +1128,12 @@ jobs:
           context: .
           platforms: linux/amd64
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          tags: ghcr.io/${{ github.repository }}:test
+          target: ${{ matrix.flavor == 'lite' && 'runtime-lite' || 'runtime-full' }}
+          build-args: |
+            FLAVOR=${{ matrix.flavor }}
+          cache-from: type=gha,scope=${{ matrix.flavor }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.flavor }}
+          tags: ghcr.io/${{ github.repository }}:test-${{ matrix.flavor }}
 
   docker-docs:
     name: Docker Docs Build Test
@@ -1187,3 +1197,147 @@ jobs:
           cache-from: type=gha,key=docs-
           cache-to: type=gha,mode=max,key=docs-
           tags: ghcr.io/${{ github.repository }}-docs:test
+
+  # ===========================================================================
+  # Part G: Compile + test the Go tree with the `ocr vips` build tags.
+  #
+  # CI normally builds the default (novips) configuration only. The vips build
+  # tag was historically broken (duplicate symbols in transform_types.go) and
+  # this went undetected because nothing exercised it. This job ensures both
+  # build configurations compile and their storage/ai tests pass.
+  # ===========================================================================
+  test-go-build-tags:
+    name: Go Tests (ocr vips tags)
+    runs-on: ubuntu-latest
+    needs: [changes, test-go]
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.go == 'true' ||
+      needs.changes.outputs.docker == 'true' ||
+      needs.changes.outputs.ci-config == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # The embed directives (internal/runtime/embedded_sdk.js,
+      # internal/jobs/embedded_sdk.js, internal/adminui/dist) reference
+      # build-generated artifacts that a fresh checkout does not have. Generate
+      # them before building — same approach the test-go job uses.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Generate embedded SDK for Jobs runtime
+        run: |
+          cd sdk
+          bun install --frozen-lockfile
+          bun run generate:embedded-sdk
+
+      - name: Create dist directory with placeholder for embed directive
+        run: |
+          mkdir -p internal/adminui/dist
+          echo '<!DOCTYPE html><html><head><title>Placeholder</title></head><body></body></html>' > internal/adminui/dist/index.html
+
+      # The ocr/vips tags pull in CGO bindings (gosseract, govips) that need
+      # the native dev headers to compile.
+      - name: Install CGO build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libtesseract-dev libleptonica-dev libvips-dev poppler-utils pkg-config
+
+      - name: Verify full build compiles with -tags "ocr vips"
+        run: CGO_ENABLED=1 go build -tags "ocr vips" ./...
+
+      - name: Run storage + ai tests with -tags "ocr vips"
+        run: |
+          CGO_ENABLED=1 go test -tags "ocr vips" \
+            -timeout 10m \
+            ./internal/storage/... ./internal/ai/...
+
+  # ===========================================================================
+  # Part F.4: Setup smoke — verify a fresh Fluxbase stack actually boots and
+  # serves traffic, for BOTH image flavors. Builds the image from this branch's
+  # source, brings up the stack via the documented docker-compose path, runs
+  # scripts/smoke-test.sh, dumps logs on failure, and always tears down.
+  # Modeled on the Wayli e2e-setup job.
+  # ===========================================================================
+  docker-smoke:
+    name: Setup Smoke (${{ matrix.flavor }})
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.docker == 'true' ||
+      needs.changes.outputs.go == 'true' ||
+      needs.changes.outputs.ci-config == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [full, lite]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build Fluxbase image from source
+        run: |
+          docker build \
+            --build-arg FLAVOR=${{ matrix.flavor }} \
+            --target ${{ matrix.flavor == 'lite' && 'runtime-lite' || 'runtime-full' }} \
+            -t fluxbase-smoke:local-${{ matrix.flavor }} \
+            -f Dockerfile .
+
+      # Generate secrets non-interactively (the script's --stdout mode writes a
+      # Docker Compose .env with anon + service-role keys + setup token).
+      - name: Generate stack secrets
+        run: |
+          bash deploy/generate-keys.sh --stdout > deploy/.smoke.env
+
+      - name: Bring up the stack
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          TARGET: ${{ matrix.flavor == 'lite' && 'runtime-lite' || 'runtime-full' }}
+        run: |
+          # Start detached WITHOUT --wait: the smoke overlay disables the
+          # healthcheck (the lite image is distroless and has no wget), and a
+          # fresh stack runs ~150 schema migrations on first boot. The
+          # smoke-test.sh script polls GET /health (up to 300s) as the real
+          # readiness gate.
+          docker compose \
+            -f deploy/docker-compose.yml \
+            -f deploy/docker-compose.smoke.yml \
+            --env-file deploy/.smoke.env \
+            up -d
+
+      - name: Run setup smoke
+        run: |
+          bash scripts/smoke-test.sh \
+            --flavor ${{ matrix.flavor }} \
+            --compose-file deploy/docker-compose.yml \
+            --compose-file deploy/docker-compose.smoke.yml
+
+      - name: Dump stack logs on failure
+        if: failure()
+        run: |
+          docker compose \
+            -f deploy/docker-compose.yml \
+            -f deploy/docker-compose.smoke.yml \
+            --env-file deploy/.smoke.env \
+            logs --tail=200 || true
+
+      # ALWAYS tear down: destroy containers, volumes, and the isolated network.
+      - name: Tear down the stack
+        if: always()
+        run: |
+          docker compose \
+            -f deploy/docker-compose.yml \
+            -f deploy/docker-compose.smoke.yml \
+            --env-file deploy/.smoke.env \
+            down -v --remove-orphans || true

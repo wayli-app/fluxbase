@@ -16,6 +16,13 @@ Image transformations are applied at download time:
 
 Original files remain unchanged. Transformed images can be cached for performance.
 
+:::note
+Image transformations require the **full** Docker image (the default,
+unsuffixed tag, e.g. `ghcr.io/nimbleflux/fluxbase:latest`). The `-lite` image
+is built without libvips and cannot transform images — transform requests will
+return an error. If you need transformations, use the full image.
+:::
+
 ## Query Parameters
 
 Add these parameters to any storage file URL:
