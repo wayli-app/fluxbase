@@ -9,12 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestAuthHandler_GetUserIdentities_Integration tests getting user identities
 func TestAuthHandler_GetUserIdentities_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -45,7 +45,7 @@ func TestAuthHandler_GetUserIdentities_Integration(t *testing.T) {
 
 // TestAuthHandler_GetUserIdentities_Unauthenticated_Integration tests getting identities without auth
 func TestAuthHandler_GetUserIdentities_Unauthenticated_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -59,7 +59,7 @@ func TestAuthHandler_GetUserIdentities_Unauthenticated_Integration(t *testing.T)
 
 // TestAuthHandler_LinkIdentity_Validation_Integration tests identity link validation
 func TestAuthHandler_LinkIdentity_Validation_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -81,7 +81,7 @@ func TestAuthHandler_LinkIdentity_Validation_Integration(t *testing.T) {
 
 // TestAuthHandler_LinkIdentity_InvalidProvider_Integration tests linking with invalid provider
 func TestAuthHandler_LinkIdentity_InvalidProvider_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -106,7 +106,7 @@ func TestAuthHandler_LinkIdentity_InvalidProvider_Integration(t *testing.T) {
 
 // TestAuthHandler_UnlinkIdentity_NotFound_Integration tests unlinking non-existent identity
 func TestAuthHandler_UnlinkIdentity_NotFound_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -126,7 +126,7 @@ func TestAuthHandler_UnlinkIdentity_NotFound_Integration(t *testing.T) {
 
 // TestAuthHandler_UnlinkIdentity_Unauthenticated_Integration tests unlinking without auth
 func TestAuthHandler_UnlinkIdentity_Unauthenticated_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 

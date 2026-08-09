@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestAuthHandler_SendOTP_Integration tests sending OTP code
 func TestAuthHandler_SendOTP_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -50,7 +50,7 @@ func TestAuthHandler_SendOTP_Integration(t *testing.T) {
 
 // TestAuthHandler_SendOTP_MissingEmail_Integration tests sending OTP without email
 func TestAuthHandler_SendOTP_MissingEmail_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -71,7 +71,7 @@ func TestAuthHandler_SendOTP_MissingEmail_Integration(t *testing.T) {
 
 // TestAuthHandler_VerifyOTP_Integration tests verifying OTP code
 func TestAuthHandler_VerifyOTP_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -105,7 +105,7 @@ func TestAuthHandler_VerifyOTP_Integration(t *testing.T) {
 
 // TestAuthHandler_VerifyOTP_MissingFields_Integration tests verifying OTP with missing fields
 func TestAuthHandler_VerifyOTP_MissingFields_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 

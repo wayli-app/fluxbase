@@ -22,12 +22,12 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/secrets"
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestSecretsHandler_CreateSecret_Integration tests POST /secrets endpoint
 func TestSecretsHandler_CreateSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -184,7 +184,7 @@ func TestSecretsHandler_CreateSecret_Integration(t *testing.T) {
 
 // TestSecretsHandler_ListSecrets_Integration tests GET /secrets endpoint
 func TestSecretsHandler_ListSecrets_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -252,7 +252,7 @@ func TestSecretsHandler_ListSecrets_Integration(t *testing.T) {
 
 // TestSecretsHandler_GetSecret_Integration tests GET /secrets/:id
 func TestSecretsHandler_GetSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -296,7 +296,7 @@ func TestSecretsHandler_GetSecret_Integration(t *testing.T) {
 
 // TestSecretsHandler_UpdateSecret_Integration tests PUT /secrets/:id
 func TestSecretsHandler_UpdateSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -392,7 +392,7 @@ func TestSecretsHandler_UpdateSecret_Integration(t *testing.T) {
 
 // TestSecretsHandler_DeleteSecret_Integration tests DELETE /secrets/:id
 func TestSecretsHandler_DeleteSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -439,7 +439,7 @@ func TestSecretsHandler_DeleteSecret_Integration(t *testing.T) {
 
 // TestSecretsHandler_GetVersions_Integration tests GET /secrets/:id/versions
 func TestSecretsHandler_GetVersions_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -484,7 +484,7 @@ func TestSecretsHandler_GetVersions_Integration(t *testing.T) {
 
 // TestSecretsHandler_Rollback_Integration tests POST /secrets/:id/rollback/:version
 func TestSecretsHandler_Rollback_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -534,7 +534,7 @@ func TestSecretsHandler_Rollback_Integration(t *testing.T) {
 
 // TestSecretsHandler_GetStats_Integration tests GET /secrets/stats
 func TestSecretsHandler_GetStats_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -592,7 +592,7 @@ func TestSecretsHandler_GetStats_Integration(t *testing.T) {
 
 // TestSecretsHandler_Expiration_Integration tests expiration handling
 func TestSecretsHandler_Expiration_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	app := setupSecretsApp(t, tc)
@@ -633,7 +633,7 @@ func TestSecretsHandler_Expiration_Integration(t *testing.T) {
 // =============================================================================
 
 // setupSecretsApp creates a Fiber app with secrets routes for testing
-func setupSecretsApp(t *testing.T, tc *testutil.IntegrationTestContext) *fiber.App {
+func setupSecretsApp(t *testing.T, tc *e2e.IntegrationTestContext) *fiber.App {
 	// Get database connection
 	db := tc.DB
 
@@ -731,7 +731,7 @@ func makeRequest(t *testing.T, app *fiber.App, method, path string, body interfa
 
 // createTestUserWithToken creates a test user and returns a valid JWT token
 // The token is generated using the same JWT config as the test app
-func createTestUserWithToken(t *testing.T, tc *testutil.IntegrationTestContext, email, password string) (userID, token string) {
+func createTestUserWithToken(t *testing.T, tc *e2e.IntegrationTestContext, email, password string) (userID, token string) {
 	t.Helper()
 
 	ctx := context.Background()

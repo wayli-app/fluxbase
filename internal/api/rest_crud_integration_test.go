@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // randomEmail generates a unique email address for testing
@@ -25,7 +25,7 @@ func randomEmail() string {
 // tables during integration tests.
 // Note: Currently unused but kept for potential future use.
 /*
-func createTestTable(tc *testutil.IntegrationTestContext, schema, table, createSQL string) {
+func createTestTable(tc *e2e.IntegrationTestContext, schema, table, createSQL string) {
 	tc.ExecuteSQL(createSQL)
 	refreshSchemaCache(tc)
 	grantTablePermissions(tc, schema, table)
@@ -35,7 +35,7 @@ func createTestTable(tc *testutil.IntegrationTestContext, schema, table, createS
 // refreshSchemaCache refreshes the REST API schema cache so that newly created tables
 // can be discovered. This is necessary because the schema cache is populated at server
 // startup and doesn't automatically discover tables created afterward.
-func refreshSchemaCache(tc *testutil.IntegrationTestContext) {
+func refreshSchemaCache(tc *e2e.IntegrationTestContext) {
 	// Access the schema cache directly and refresh it
 	// This is more reliable than using the API endpoint which requires special authentication
 	// and avoids authentication issues with service keys in admin routes
@@ -49,7 +49,7 @@ func refreshSchemaCache(tc *testutil.IntegrationTestContext) {
 
 // grantTablePermissions grants necessary permissions on a table to the authenticated role
 // This is needed for tables created during tests so that authenticated users can perform CRUD operations
-func grantTablePermissions(tc *testutil.IntegrationTestContext, schema, table string) {
+func grantTablePermissions(tc *e2e.IntegrationTestContext, schema, table string) {
 	// Grant SELECT, INSERT, UPDATE, DELETE permissions on the table to authenticated role
 	// This bypasses RLS and allows basic CRUD operations for testing
 	// We use regular ExecuteSQL since fluxbase_app user has sufficient privileges
@@ -63,7 +63,7 @@ func grantTablePermissions(tc *testutil.IntegrationTestContext, schema, table st
 // =============================================================================
 
 func TestRESTHandler_Create_SingleRecord_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -116,7 +116,7 @@ func TestRESTHandler_Create_SingleRecord_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_Create_BatchRecords_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -164,7 +164,7 @@ func TestRESTHandler_Create_BatchRecords_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_List_AllRecords_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -214,7 +214,7 @@ func TestRESTHandler_List_AllRecords_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_List_WithFilter_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -267,7 +267,7 @@ func TestRESTHandler_List_WithFilter_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_List_WithPagination_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -314,7 +314,7 @@ func TestRESTHandler_List_WithPagination_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_GetSingleRecord_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -360,7 +360,7 @@ func TestRESTHandler_GetSingleRecord_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_GetSingleRecord_NotFound_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -393,7 +393,7 @@ func TestRESTHandler_GetSingleRecord_NotFound_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_UpdateSingleRecord_Patch_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -451,7 +451,7 @@ func TestRESTHandler_UpdateSingleRecord_Patch_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_UpdateSingleRecord_Put_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -504,7 +504,7 @@ func TestRESTHandler_UpdateSingleRecord_Put_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_DeleteSingleRecord_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -555,7 +555,7 @@ func TestRESTHandler_DeleteSingleRecord_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_BatchDelete_WithFilter_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -604,7 +604,7 @@ func TestRESTHandler_BatchDelete_WithFilter_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_BatchUpdate_WithFilter_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -661,7 +661,7 @@ func TestRESTHandler_BatchUpdate_WithFilter_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_OrderBy_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -713,7 +713,7 @@ func TestRESTHandler_OrderBy_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_Selection_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -782,7 +782,7 @@ func TestRESTHandler_Selection_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_Aggregation_Count_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -830,7 +830,7 @@ func TestRESTHandler_Aggregation_Count_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_InvalidTable_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -846,7 +846,7 @@ func TestRESTHandler_InvalidTable_Integration(t *testing.T) {
 }
 
 func TestRESTHandler_Unauthenticated_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 

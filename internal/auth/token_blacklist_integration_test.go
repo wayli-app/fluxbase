@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 const authTestSecretKey = "test-secret-key-must-be-32-characters!"
 
 // TestRevokeAllUserTokens_Integration tests the complete user-wide revocation flow
 func TestRevokeAllUserTokens_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "auth")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "auth")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -111,7 +111,7 @@ func TestRevokeAllUserTokens_Integration(t *testing.T) {
 
 // TestUserRevocationCache tests the cache behavior for user-wide revocation
 func TestUserRevocationCache(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "auth")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "auth")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 

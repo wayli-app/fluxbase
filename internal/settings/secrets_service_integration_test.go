@@ -13,19 +13,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nimbleflux/fluxbase/internal/settings"
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // =============================================================================
 // SecretsService Integration Tests
 // =============================================================================
 
-func createSecretsService(t *testing.T, tc *testutil.IntegrationTestContext) *settings.SecretsService {
+func createSecretsService(t *testing.T, tc *e2e.IntegrationTestContext) *settings.SecretsService {
 	t.Helper()
 	return settings.NewSecretsService(tc.DB, []byte(testEncryptionKey))
 }
 
-func createTestUser(t *testing.T, tc *testutil.IntegrationTestContext) uuid.UUID {
+func createTestUser(t *testing.T, tc *e2e.IntegrationTestContext) uuid.UUID {
 	t.Helper()
 	ctx := context.Background()
 	userID := uuid.New()
@@ -40,7 +40,7 @@ func createTestUser(t *testing.T, tc *testutil.IntegrationTestContext) uuid.UUID
 	return userID
 }
 
-func setupSystemSecret(t *testing.T, tc *testutil.IntegrationTestContext, key, value string) {
+func setupSystemSecret(t *testing.T, tc *e2e.IntegrationTestContext, key, value string) {
 	t.Helper()
 	svc := createCustomSettingsService(t, tc)
 	ctx := context.Background()
@@ -55,7 +55,7 @@ func setupSystemSecret(t *testing.T, tc *testutil.IntegrationTestContext, key, v
 	require.NoError(t, err)
 }
 
-func setupUserSecret(t *testing.T, tc *testutil.IntegrationTestContext, userID uuid.UUID, key, value string) {
+func setupUserSecret(t *testing.T, tc *e2e.IntegrationTestContext, userID uuid.UUID, key, value string) {
 	t.Helper()
 	svc := createCustomSettingsService(t, tc)
 	ctx := context.Background()
@@ -75,7 +75,7 @@ func setupUserSecret(t *testing.T, tc *testutil.IntegrationTestContext, userID u
 // =============================================================================
 
 func TestSecretsService_GetSystemSecret_Success(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	setupSystemSecret(t, tc, "secret.system.test", "my-secret-value")
@@ -89,7 +89,7 @@ func TestSecretsService_GetSystemSecret_Success(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSecret_NotFound(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -101,7 +101,7 @@ func TestSecretsService_GetSystemSecret_NotFound(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSecret_ComplexValue(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	complexValue := "key\nwith\nnewlines\tand\ttabs\"quotes'"
@@ -116,7 +116,7 @@ func TestSecretsService_GetSystemSecret_ComplexValue(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSecret_EmptyValue(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	setupSystemSecret(t, tc, "secret.system.empty", "")
@@ -130,7 +130,7 @@ func TestSecretsService_GetSystemSecret_EmptyValue(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSecret_UnicodeValue(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	unicodeValue := "secret 世界 🌍 全"
@@ -149,7 +149,7 @@ func TestSecretsService_GetSystemSecret_UnicodeValue(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_GetUserSecret_Success(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -164,7 +164,7 @@ func TestSecretsService_GetUserSecret_Success(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSecret_NotFound(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -178,7 +178,7 @@ func TestSecretsService_GetUserSecret_NotFound(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSecret_WrongUser(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	// Create actual users in the database
@@ -196,7 +196,7 @@ func TestSecretsService_GetUserSecret_WrongUser(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSecret_LongValue(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -219,7 +219,7 @@ func TestSecretsService_GetUserSecret_LongValue(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_GetSystemSecrets_Multiple(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	// Setup multiple system secrets
@@ -239,7 +239,7 @@ func TestSecretsService_GetSystemSecrets_Multiple(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSecrets_Empty(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -251,7 +251,7 @@ func TestSecretsService_GetSystemSecrets_Empty(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSecrets_WithNonSecretSettings(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	// Create a non-secret setting
@@ -279,7 +279,7 @@ func TestSecretsService_GetSystemSecrets_WithNonSecretSettings(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSecrets_Multiple(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -299,7 +299,7 @@ func TestSecretsService_GetUserSecrets_Multiple(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSecrets_UserIsolation(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	// Create actual users in the database
@@ -328,7 +328,7 @@ func TestSecretsService_GetUserSecrets_UserIsolation(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSecrets_Empty(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -346,7 +346,7 @@ func TestSecretsService_GetUserSecrets_Empty(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_SetSystemSecret_Create(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -362,7 +362,7 @@ func TestSecretsService_SetSystemSecret_Create(t *testing.T) {
 }
 
 func TestSecretsService_SetSystemSecret_Update(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	setupSystemSecret(t, tc, "secret.system.update", "original-value")
@@ -380,7 +380,7 @@ func TestSecretsService_SetSystemSecret_Update(t *testing.T) {
 }
 
 func TestSecretsService_SetSystemSecret_SpecialCharacters(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -400,7 +400,7 @@ func TestSecretsService_SetSystemSecret_SpecialCharacters(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_SetUserSecret_Create(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -417,7 +417,7 @@ func TestSecretsService_SetUserSecret_Create(t *testing.T) {
 }
 
 func TestSecretsService_SetUserSecret_Update(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -435,7 +435,7 @@ func TestSecretsService_SetUserSecret_Update(t *testing.T) {
 }
 
 func TestSecretsService_SetUserSecret_UserIsolation(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -466,7 +466,7 @@ func TestSecretsService_SetUserSecret_UserIsolation(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_DeleteSystemSecret_Success(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	setupSystemSecret(t, tc, "secret.system.delete", "value")
@@ -484,7 +484,7 @@ func TestSecretsService_DeleteSystemSecret_Success(t *testing.T) {
 }
 
 func TestSecretsService_DeleteSystemSecret_NotFound(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -500,7 +500,7 @@ func TestSecretsService_DeleteSystemSecret_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_DeleteUserSecret_Success(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -519,7 +519,7 @@ func TestSecretsService_DeleteUserSecret_Success(t *testing.T) {
 }
 
 func TestSecretsService_DeleteUserSecret_NotFound(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -532,7 +532,7 @@ func TestSecretsService_DeleteUserSecret_NotFound(t *testing.T) {
 }
 
 func TestSecretsService_DeleteUserSecret_CannotDeleteOtherUsers(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID1 := createTestUser(t, tc)
@@ -558,7 +558,7 @@ func TestSecretsService_DeleteUserSecret_CannotDeleteOtherUsers(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_GetUserSetting_Secret(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc)
@@ -573,7 +573,7 @@ func TestSecretsService_GetUserSetting_Secret(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSetting_NonSecret(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createCustomSettingsService(t, tc)
@@ -596,7 +596,7 @@ func TestSecretsService_GetUserSetting_NonSecret(t *testing.T) {
 }
 
 func TestSecretsService_GetUserSetting_NotFound(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -613,7 +613,7 @@ func TestSecretsService_GetUserSetting_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_GetSystemSetting_Secret(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	setupSystemSecret(t, tc, "system.secret.setting.getsecret", "system-secret")
@@ -627,7 +627,7 @@ func TestSecretsService_GetSystemSetting_Secret(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSetting_NonSecret(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createCustomSettingsService(t, tc)
@@ -650,7 +650,7 @@ func TestSecretsService_GetSystemSetting_NonSecret(t *testing.T) {
 }
 
 func TestSecretsService_GetSystemSetting_NotFound(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -666,7 +666,7 @@ func TestSecretsService_GetSystemSetting_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_GetAllUserSettings_Mixed(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	customSvc := createCustomSettingsService(t, tc)
@@ -703,7 +703,7 @@ func TestSecretsService_GetAllUserSettings_Mixed(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_GetAllSystemSettings_Mixed(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	customSvc := createCustomSettingsService(t, tc)
@@ -741,7 +741,7 @@ func TestSecretsService_GetAllSystemSettings_Mixed(t *testing.T) {
 // =============================================================================
 
 func TestSecretsService_GetSettingWithFallback_UserSetting(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	userID := createTestUser(t, tc) // Create actual user in database
@@ -757,7 +757,7 @@ func TestSecretsService_GetSettingWithFallback_UserSetting(t *testing.T) {
 }
 
 func TestSecretsService_GetSettingWithFallback_SystemFallback(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	uniqueKey := fmt.Sprintf("fallback.systemfallback.%s", uuid.New().String())
@@ -775,7 +775,7 @@ func TestSecretsService_GetSettingWithFallback_SystemFallback(t *testing.T) {
 }
 
 func TestSecretsService_GetSettingWithFallback_NoFallback(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	svc := createSecretsService(t, tc)
@@ -789,7 +789,7 @@ func TestSecretsService_GetSettingWithFallback_NoFallback(t *testing.T) {
 }
 
 func TestSecretsService_GetSettingWithFallback_NilUserID(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "settings")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "settings")
 	defer tc.CleanupTestData()
 
 	uniqueKey := fmt.Sprintf("fallback.systemniluserid.%s", uuid.New().String())
