@@ -17,6 +17,36 @@ Fluxbase provides official Docker images with:
 
 **Image Registry**: `ghcr.io/nimbleflux/fluxbase`
 
+## Image Variants
+
+Fluxbase ships two image variants from a single Dockerfile. The **full** image
+is the default (the unsuffixed tag); **lite** is opt-in via a `-lite` tag suffix.
+
+| Variant | Tag example | Base | Includes |
+| --- | --- | --- | --- |
+| **full** (default) | `:2026.8.7`, `:latest` | `debian:bookworm-slim` | Tesseract OCR, ffmpeg, libvips image transforms |
+| **lite** | `:2026.8.7-lite`, `:latest-lite` | distroless (`base-debian12`) | None of the above (~80–120MB) |
+
+### Which should I use?
+
+- **full** — the safe default. Use this if you rely on any of: scanned/image
+  PDF ingestion in AI knowledge bases (OCR), edge functions or jobs that
+  transcode video (ffmpeg), or storage image transformations (resize/reformat
+  via libvips).
+- **lite** — the smaller footprint. Best when you don't need OCR, ffmpeg, or
+  image transforms. Missing capabilities self-disable at runtime: the service
+  starts normally, logs a warning, and the relevant endpoints report
+  unavailable (e.g. the knowledge-base capabilities endpoint returns
+  `ocr_available: false`).
+
+```bash
+# Default (full)
+docker pull ghcr.io/nimbleflux/fluxbase:latest
+
+# Lite
+docker pull ghcr.io/nimbleflux/fluxbase:latest-lite
+```
+
 ## Quick Start
 
 ### 1. Pull the Docker Image

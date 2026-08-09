@@ -19,6 +19,8 @@ services:
     networks:
       - fluxbase
 
+  # Image variants: use the default (full) tag, or set FLUXBASE_VERSION to
+  # <version>-lite for the smaller distroless image (no OCR/ffmpeg/transforms).
   fluxbase:
     image: ghcr.io/nimbleflux/fluxbase:${FLUXBASE_VERSION:-2026.6.1}
     container_name: fluxbase

@@ -55,10 +55,19 @@ extraDeploy: []
 ## @param image.pullPolicy Fluxbase image pull policy
 ## @param image.pullSecrets Fluxbase image pull secrets
 ##
+## Image variants:
+##   <version>        full (default): debian-slim with Tesseract OCR, ffmpeg
+##                    (for edge-function video transcoding), and libvips image
+##                    transformations.
+##   <version>-lite   smaller distroless image (~80-120MB) without OCR, ffmpeg,
+##                    or image transforms. Capabilities self-disable at runtime.
+##                    To use it, set tag to e.g. "2026.8.7-lite".
+##
 image:
   registry: ghcr.io
   repository: nimbleflux/fluxbase
-  # Overrides the image tag whose default is the chart appVersion
+  # Overrides the image tag whose default is the chart appVersion.
+  # Use "<version>-lite" for the smaller distroless image.
   tag: ""
   digest: ""
   ## Specify a imagePullPolicy

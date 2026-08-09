@@ -77,6 +77,14 @@ services:
   #     - fluxbase
 
   # Fluxbase API
+  #
+  # Image variants (set FLUXBASE_VERSION in .env to switch):
+  #   <version>        full image (default): debian-slim with Tesseract OCR,
+  #                    ffmpeg (for edge-function video transcoding), and
+  #                    libvips image transformations.
+  #   <version>-lite   smaller distroless image (~80-120MB) without OCR,
+  #                    ffmpeg, or image transforms. Capabilities self-disable
+  #                    at runtime. e.g. FLUXBASE_VERSION=2026.8.7-lite
   fluxbase:
     image: ghcr.io/nimbleflux/fluxbase:${FLUXBASE_VERSION:-2026.8.7}
     container_name: fluxbase

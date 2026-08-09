@@ -598,32 +598,62 @@ docker-build-docs: ## Build documentation Docker image
 	@echo "${YELLOW}To run locally:${NC} docker run -p 8080:8080 $(DOCKER_IMAGE)-docs:latest"
 	@echo "${YELLOW}Access at:${NC} http://localhost:8080"
 
-docker-build: ## Build Docker image
-	@echo "${YELLOW}Building Docker image $(DOCKER_IMAGE):$(VERSION)...${NC}"
+# Image flavor selection.
+#   FLAVOR=full (default): debian-slim runtime with OCR + ffmpeg + libvips image
+#                          transforms. Produces the default (unsuffixed) image.
+#   FLAVOR=lite:           distroless runtime, pure-Go static binary. No OCR,
+#                          no ffmpeg, no image transforms. Produces a -lite tag.
+# FLAVOR selects the go-builder config (CGO + build tags); the matching runtime
+# stage is selected via --target, so both must agree (enforced below).
+FLAVOR ?= full
+
+# Derive the tag suffix and target stage from FLAVOR.
+ifeq ($(FLAVOR),full)
+	FLAVOR_SUFFIX :=
+	FLAVOR_TARGET := runtime-full
+else ifeq ($(FLAVOR),lite)
+	FLAVOR_SUFFIX := -lite
+	FLAVOR_TARGET := runtime-lite
+else
+$(error Unsupported FLAVOR "$(FLAVOR)" — expected "full" or "lite")
+endif
+
+docker-build: ## Build Docker image (FLAVOR=full|lite, default full)
+	@echo "${YELLOW}Building Docker image $(DOCKER_IMAGE):$(VERSION)$(FLAVOR_SUFFIX) [flavor=$(FLAVOR)]...${NC}"
 	@docker build \
+		--build-arg FLAVOR=$(FLAVOR) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
-		-t $(DOCKER_IMAGE):$(VERSION) \
-		-t $(DOCKER_IMAGE):latest \
+		--target $(FLAVOR_TARGET) \
+		-t $(DOCKER_IMAGE):$(VERSION)$(FLAVOR_SUFFIX) \
+		-t $(DOCKER_IMAGE):latest$(FLAVOR_SUFFIX) \
 		-f Dockerfile .
-	@echo "${GREEN}Docker image built: $(DOCKER_IMAGE):$(VERSION)${NC}"
+	@echo "${GREEN}Docker image built: $(DOCKER_IMAGE):$(VERSION)$(FLAVOR_SUFFIX)${NC}"
 
-docker-build-production: ## Build production Docker image with admin UI
-	@echo "${YELLOW}Building production Docker image with admin UI...${NC}"
+docker-build-production: ## Build production Docker image with admin UI (FLAVOR=full|lite)
+	@echo "${YELLOW}Building production Docker image with admin UI [flavor=$(FLAVOR)]...${NC}"
 	@docker build \
+		--build-arg FLAVOR=$(FLAVOR) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
-		-t $(DOCKER_IMAGE):$(VERSION) \
-		-t $(DOCKER_IMAGE):latest \
+		--target $(FLAVOR_TARGET) \
+		-t $(DOCKER_IMAGE):$(VERSION)$(FLAVOR_SUFFIX) \
+		-t $(DOCKER_IMAGE):latest$(FLAVOR_SUFFIX) \
 		-f Dockerfile .
-	@echo "${GREEN}Production Docker image built: $(DOCKER_IMAGE):$(VERSION)${NC}"
+	@echo "${GREEN}Production Docker image built: $(DOCKER_IMAGE):$(VERSION)$(FLAVOR_SUFFIX)${NC}"
 
-docker-push: docker-build-production ## Push Docker image to registry
-	@echo "${YELLOW}Pushing Docker images...${NC}"
-	@docker push $(DOCKER_IMAGE):$(VERSION)
-	@docker push $(DOCKER_IMAGE):latest
+docker-build-full: ## Build the full Docker image (OCR + ffmpeg + libvips)
+	@$(MAKE) docker-build-production FLAVOR=full
+
+docker-build-lite: ## Build the lite Docker image (distroless, no media deps)
+	@$(MAKE) docker-build-production FLAVOR=lite
+
+docker-push: docker-build-production ## Push Docker image to registry (FLAVOR=full|lite)
+	@echo "${YELLOW}Pushing Docker images [flavor=$(FLAVOR)]...${NC}"
+	@docker push $(DOCKER_IMAGE):$(VERSION)$(FLAVOR_SUFFIX)
+	@docker push $(DOCKER_IMAGE):latest$(FLAVOR_SUFFIX)
 	@echo "${GREEN}Docker images pushed!${NC}"
 
 bump-patch: ## Bump patch version (0.1.0 -> 0.1.1)

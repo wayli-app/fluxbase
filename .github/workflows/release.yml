@@ -950,11 +950,31 @@ jobs:
             fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}* \
             --clobber
 
-  publish-docker-amd64:
-    name: Build Docker Image (AMD64)
+  publish-docker-arch:
+    name: Build Docker Image (${{ matrix.flavor }} / ${{ matrix.arch }})
     needs: get-version
-    runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two image flavors from one Dockerfile:
+        #   full = default image (OCR + ffmpeg + libvips image transforms)
+        #   lite = smaller distroless image (no OCR/ffmpeg/transforms)
+        flavor: [full, lite]
+        include:
+          - flavor: full
+            arch: amd64
+            runner: ubuntu-latest
+          - flavor: full
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - flavor: lite
+            arch: amd64
+            runner: ubuntu-latest
+          - flavor: lite
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
 
@@ -968,59 +988,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push AMD64 image
+      - name: Build and push ${{ matrix.flavor }}/${{ matrix.arch }} image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-amd64
+          # full is the default image (unsuffixed arch tag); lite uses -lite.
+          # --target selects the runtime stage; FLAVOR selects the go-builder config.
+          target: ${{ matrix.flavor == 'lite' && 'runtime-lite' || 'runtime-full' }}
+          tags: ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}${{ matrix.flavor == 'lite' && '-lite' || '' }}-${{ matrix.arch }}
           build-args: |
+            FLAVOR=${{ matrix.flavor }}
             VERSION=${{ needs.get-version.outputs.version }}
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ github.event.repository.updated_at }}
-          cache-from: type=gha,scope=amd64
-          cache-to: type=gha,mode=max,scope=amd64
-
-  publish-docker-arm64:
-    name: Build Docker Image (ARM64)
-    needs: get-version
-    runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push ARM64 image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-arm64
-          build-args: |
-            VERSION=${{ needs.get-version.outputs.version }}
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ github.event.repository.updated_at }}
-          cache-from: type=gha,scope=arm64
-          cache-to: type=gha,mode=max,scope=arm64
+          cache-from: type=gha,scope=${{ matrix.flavor }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.flavor }}-${{ matrix.arch }}
 
   publish-docker-manifest:
-    name: Create Docker Multi-arch Manifest
-    needs: [get-version, publish-docker-amd64, publish-docker-arm64]
-    runs-on: ubuntu-latest
+    name: Create Docker Multi-arch Manifest (${{ matrix.flavor }})
+    needs: [get-version, publish-docker-arch]
     if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [full, lite]
+    runs-on: ubuntu-latest
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -1029,27 +1024,45 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: |
-            ghcr.io/${{ github.repository }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ needs.get-version.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.get-version.outputs.version }},enable=${{ needs.get-version.outputs.is_prerelease == 'false' }}
-            type=semver,pattern={{major}},value=${{ needs.get-version.outputs.version }},enable=${{ needs.get-version.outputs.is_prerelease == 'false' }}
-            type=raw,value=latest,enable=${{ needs.get-version.outputs.is_prerelease == 'false' }}
-            type=raw,value=rc,enable=${{ needs.get-version.outputs.is_prerelease == 'true' }}
+      - name: Compute tags for this flavor
+        id: tags
+        env:
+          VERSION: ${{ needs.get-version.outputs.version }}
+          IS_PRERELEASE: ${{ needs.get-version.outputs.is_prerelease }}
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          # full is the default image (unsuffixed tags); lite appends -lite.
+          if [ "$FLAVOR" = "lite" ]; then SUFFIX="-lite"; else SUFFIX=""; fi
+          IMG="ghcr.io/${{ github.repository }}"
+
+          # Parse major.minor from VERSION (e.g. 2026.8.6 -> 2026.8, 2026).
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
+          MAJOR=$(echo "$MAJOR_MINOR" | cut -d. -f1)
+
+          TAGS=""
+          TAGS="$TAGS ${IMG}:${VERSION}${SUFFIX}"
+          if [ "$IS_PRERELEASE" = "false" ]; then
+            TAGS="$TAGS ${IMG}:${MAJOR_MINOR}${SUFFIX}"
+            TAGS="$TAGS ${IMG}:${MAJOR}${SUFFIX}"
+            TAGS="$TAGS ${IMG}:latest${SUFFIX}"
+          else
+            TAGS="$TAGS ${IMG}:rc${SUFFIX}"
+          fi
+
+          {
+            echo "tags<<EOF"
+            echo "$TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create and push multi-arch manifest
+        env:
+          FLAVOR_SUFFIX: ${{ matrix.flavor == 'lite' && '-lite' || '' }}
         run: |
-          TAGS="${{ steps.meta.outputs.tags }}"
-
-          for TAG in $TAGS; do
-            docker buildx imagetools create -t $TAG \
-              ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-amd64 \
-              ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-arm64
+          for TAG in ${{ steps.tags.outputs.tags }}; do
+            docker buildx imagetools create -t "$TAG" \
+              "ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}${FLAVOR_SUFFIX}-amd64" \
+              "ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}${FLAVOR_SUFFIX}-arm64"
           done
 
   publish-docs-image:
@@ -1711,7 +1724,7 @@ jobs:
           VERSION="${{ needs.get-version.outputs.version }}"
           IMAGE="ghcr.io/${{ github.repository }}:${VERSION}"
 
-          echo "Testing Docker image: $IMAGE"
+          echo "Testing Docker image (full/default): $IMAGE"
 
           # Pull the image (validates it exists and is accessible)
           docker pull "$IMAGE"
@@ -1719,7 +1732,14 @@ jobs:
           # Run basic health check
           docker run --rm "$IMAGE" --version || echo "Version check completed"
 
-          echo "✅ Docker image smoke test passed"
+          echo "✅ Docker image (full) smoke test passed"
+
+          # Also verify the lite variant was published.
+          LITE_IMAGE="ghcr.io/${{ github.repository }}:${VERSION}-lite"
+          echo "Testing Docker image (lite): $LITE_IMAGE"
+          docker pull "$LITE_IMAGE"
+          docker run --rm "$LITE_IMAGE" --version || echo "Version check completed"
+          echo "✅ Docker image (lite) smoke test passed"
 
       - name: Test NPM SDK installation
         if: needs.publish-npm-sdk.result == 'success'
