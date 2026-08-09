@@ -21,7 +21,7 @@ func TestSchemaInspector_getColumns_Integration(t *testing.T) {
 
 	t.Run("retrieves columns for a regular table", func(t *testing.T) {
 		// Use auth.users instead of public.users since that's where the users table is
-		columns, err := inspector.getColumns(context.Background(), "auth", "users")
+		columns, err := inspector.getColumns(context.Background(), inspector.q(), "auth", "users")
 		require.NoError(t, err)
 		assert.NotEmpty(t, columns, "users table should have columns")
 
@@ -35,7 +35,7 @@ func TestSchemaInspector_getColumns_Integration(t *testing.T) {
 	})
 
 	t.Run("includes column metadata", func(t *testing.T) {
-		columns, err := inspector.getColumns(context.Background(), "auth", "users")
+		columns, err := inspector.getColumns(context.Background(), inspector.q(), "auth", "users")
 		require.NoError(t, err)
 
 		// Find id column
@@ -54,7 +54,7 @@ func TestSchemaInspector_getColumns_Integration(t *testing.T) {
 	})
 
 	t.Run("returns empty for non-existent table", func(t *testing.T) {
-		columns, err := inspector.getColumns(context.Background(), "public", "nonexistent_table_xyz")
+		columns, err := inspector.getColumns(context.Background(), inspector.q(), "public", "nonexistent_table_xyz")
 		// getColumns returns empty slice for non-existent tables, not an error
 		assert.NoError(t, err)
 		assert.Empty(t, columns)
@@ -79,13 +79,13 @@ func TestSchemaInspector_getMaterializedViewColumns_Integration(t *testing.T) {
 
 		// Test the first materialized view
 		mv := matviews[0]
-		columns, err := inspector.getMaterializedViewColumns(context.Background(), mv.Schema, mv.Name)
+		columns, err := inspector.getMaterializedViewColumns(context.Background(), inspector.q(), mv.Schema, mv.Name)
 		require.NoError(t, err)
 		assert.NotEmpty(t, columns)
 	})
 
 	t.Run("returns empty for non-existent materialized view", func(t *testing.T) {
-		columns, err := inspector.getMaterializedViewColumns(context.Background(), "public", "nonexistent_matview_xyz")
+		columns, err := inspector.getMaterializedViewColumns(context.Background(), inspector.q(), "public", "nonexistent_matview_xyz")
 		assert.NoError(t, err)
 		assert.Empty(t, columns)
 	})
@@ -99,7 +99,7 @@ func TestSchemaInspector_getPrimaryKey_Integration(t *testing.T) {
 	inspector := NewSchemaInspector(NewConnectionWithPool(testCtx.Pool))
 
 	t.Run("retrieves primary key for users table", func(t *testing.T) {
-		pk, err := inspector.getPrimaryKey(context.Background(), "auth", "users")
+		pk, err := inspector.getPrimaryKey(context.Background(), inspector.q(), "auth", "users")
 		require.NoError(t, err)
 		assert.NotEmpty(t, pk, "users table should have primary key")
 		assert.Contains(t, pk, "id", "users primary key should contain id")
@@ -112,7 +112,7 @@ func TestSchemaInspector_getPrimaryKey_Integration(t *testing.T) {
 
 		foundComposite := false
 		for _, table := range tables {
-			pk, err := inspector.getPrimaryKey(context.Background(), table.Schema, table.Name)
+			pk, err := inspector.getPrimaryKey(context.Background(), inspector.q(), table.Schema, table.Name)
 			require.NoError(t, err)
 			if len(pk) > 1 {
 				assert.Greater(t, len(pk), 1, "Should have composite key")
@@ -132,7 +132,7 @@ func TestSchemaInspector_getPrimaryKey_Integration(t *testing.T) {
 			"CREATE TEMP TABLE temp_no_pk (id INT, name TEXT)")
 		require.NoError(t, err)
 
-		pk, err := inspector.getPrimaryKey(context.Background(), "public", "temp_no_pk")
+		pk, err := inspector.getPrimaryKey(context.Background(), inspector.q(), "public", "temp_no_pk")
 		require.NoError(t, err)
 		assert.Empty(t, pk)
 	})
@@ -152,7 +152,7 @@ func TestSchemaInspector_getForeignKeys_Integration(t *testing.T) {
 
 		foundFK := false
 		for _, table := range tables {
-			fks, err := inspector.getForeignKeys(context.Background(), table.Schema, table.Name)
+			fks, err := inspector.getForeignKeys(context.Background(), inspector.q(), table.Schema, table.Name)
 			require.NoError(t, err)
 
 			if len(fks) > 0 {
@@ -173,7 +173,7 @@ func TestSchemaInspector_getForeignKeys_Integration(t *testing.T) {
 	})
 
 	t.Run("returns empty for table without foreign keys", func(t *testing.T) {
-		fks, err := inspector.getForeignKeys(context.Background(), "auth", "users")
+		fks, err := inspector.getForeignKeys(context.Background(), inspector.q(), "auth", "users")
 		require.NoError(t, err)
 		// users may or may not have FKs depending on schema
 		// Accept either nil (no FKs) or empty slice
@@ -191,7 +191,7 @@ func TestSchemaInspector_getIndexes_Integration(t *testing.T) {
 	inspector := NewSchemaInspector(NewConnectionWithPool(testCtx.Pool))
 
 	t.Run("retrieves indexes for users table", func(t *testing.T) {
-		indexes, err := inspector.getIndexes(context.Background(), "auth", "users")
+		indexes, err := inspector.getIndexes(context.Background(), inspector.q(), "auth", "users")
 		require.NoError(t, err)
 		assert.NotEmpty(t, indexes, "users table should have indexes")
 
@@ -209,7 +209,7 @@ func TestSchemaInspector_getIndexes_Integration(t *testing.T) {
 	})
 
 	t.Run("includes index metadata", func(t *testing.T) {
-		indexes, err := inspector.getIndexes(context.Background(), "auth", "users")
+		indexes, err := inspector.getIndexes(context.Background(), inspector.q(), "auth", "users")
 		require.NoError(t, err)
 
 		for _, idx := range indexes {
@@ -227,7 +227,7 @@ func TestSchemaInspector_batchGetColumns_Integration(t *testing.T) {
 	inspector := NewSchemaInspector(NewConnectionWithPool(testCtx.Pool))
 
 	t.Run("retrieves columns for all tables in public schema", func(t *testing.T) {
-		columns, err := inspector.batchGetColumns(context.Background(), []string{"public"}, "table")
+		columns, err := inspector.batchGetColumns(context.Background(), inspector.q(), []string{"public"}, "table")
 		require.NoError(t, err)
 		assert.NotEmpty(t, columns, "Should retrieve columns for public tables")
 
@@ -239,7 +239,7 @@ func TestSchemaInspector_batchGetColumns_Integration(t *testing.T) {
 	})
 
 	t.Run("handles multiple schemas", func(t *testing.T) {
-		columns, err := inspector.batchGetColumns(context.Background(), []string{"public", "auth"}, "table")
+		columns, err := inspector.batchGetColumns(context.Background(), inspector.q(), []string{"public", "auth"}, "table")
 		require.NoError(t, err)
 
 		// Should have data from both schemas if auth tables exist
@@ -255,7 +255,7 @@ func TestSchemaInspector_batchGetMaterializedViewColumns_Integration(t *testing.
 	inspector := NewSchemaInspector(NewConnectionWithPool(testCtx.Pool))
 
 	t.Run("retrieves materialized view columns", func(t *testing.T) {
-		columns, err := inspector.batchGetMaterializedViewColumns(context.Background(), []string{"public"})
+		columns, err := inspector.batchGetMaterializedViewColumns(context.Background(), inspector.q(), []string{"public"})
 		require.NoError(t, err)
 
 		// May be empty if no materialized views exist
@@ -271,7 +271,7 @@ func TestSchemaInspector_batchGetPrimaryKeys_Integration(t *testing.T) {
 	inspector := NewSchemaInspector(NewConnectionWithPool(testCtx.Pool))
 
 	t.Run("retrieves primary keys for all tables", func(t *testing.T) {
-		pks, err := inspector.batchGetPrimaryKeys(context.Background(), []string{"public"})
+		pks, err := inspector.batchGetPrimaryKeys(context.Background(), inspector.q(), []string{"public"})
 		require.NoError(t, err)
 		assert.NotEmpty(t, pks, "Should have primary keys for public tables")
 
@@ -282,7 +282,7 @@ func TestSchemaInspector_batchGetPrimaryKeys_Integration(t *testing.T) {
 	})
 
 	t.Run("handles composite primary keys", func(t *testing.T) {
-		pks, err := inspector.batchGetPrimaryKeys(context.Background(), []string{"public"})
+		pks, err := inspector.batchGetPrimaryKeys(context.Background(), inspector.q(), []string{"public"})
 		require.NoError(t, err)
 
 		// Look for composite keys
@@ -305,7 +305,7 @@ func TestSchemaInspector_batchGetForeignKeys_Integration(t *testing.T) {
 	inspector := NewSchemaInspector(NewConnectionWithPool(testCtx.Pool))
 
 	t.Run("retrieves foreign keys for all tables", func(t *testing.T) {
-		fks, err := inspector.batchGetForeignKeys(context.Background(), []string{"public"})
+		fks, err := inspector.batchGetForeignKeys(context.Background(), inspector.q(), []string{"public"})
 		require.NoError(t, err)
 
 		// May be empty if no foreign keys exist
@@ -331,7 +331,7 @@ func TestSchemaInspector_batchGetIndexes_Integration(t *testing.T) {
 	inspector := NewSchemaInspector(NewConnectionWithPool(testCtx.Pool))
 
 	t.Run("retrieves indexes for all tables", func(t *testing.T) {
-		indexes, err := inspector.batchGetIndexes(context.Background(), []string{"public"})
+		indexes, err := inspector.batchGetIndexes(context.Background(), inspector.q(), []string{"public"})
 		require.NoError(t, err)
 		assert.NotEmpty(t, indexes, "Should have indexes for public tables")
 
@@ -342,7 +342,7 @@ func TestSchemaInspector_batchGetIndexes_Integration(t *testing.T) {
 	})
 
 	t.Run("includes primary and non-primary indexes", func(t *testing.T) {
-		indexes, err := inspector.batchGetIndexes(context.Background(), []string{"public"})
+		indexes, err := inspector.batchGetIndexes(context.Background(), inspector.q(), []string{"public"})
 		require.NoError(t, err)
 
 		hasPrimary := false
@@ -373,7 +373,7 @@ func TestSchemaInspector_batchFetchTableMetadata_Integration(t *testing.T) {
 			"auth.users": {Schema: "auth", Name: "users", Type: "table"},
 		}
 
-		err := inspector.batchFetchTableMetadata(context.Background(), []string{"public", "auth"}, tableMap, "table")
+		err := inspector.batchFetchTableMetadata(context.Background(), inspector.q(), []string{"public", "auth"}, tableMap, "table")
 		require.NoError(t, err)
 
 		// Verify all metadata populated
@@ -393,7 +393,7 @@ func TestSchemaInspector_batchFetchTableMetadata_Integration(t *testing.T) {
 			"auth.users": {Schema: "auth", Name: "users", Type: "table"},
 		}
 
-		err := inspector.batchFetchTableMetadata(context.Background(), []string{"public", "auth"}, tableMap, "table")
+		err := inspector.batchFetchTableMetadata(context.Background(), inspector.q(), []string{"public", "auth"}, tableMap, "table")
 		require.NoError(t, err)
 
 		users := tableMap["auth.users"]
@@ -424,7 +424,7 @@ func TestSchemaInspector_batchFetchTableMetadata_Integration(t *testing.T) {
 			},
 		}
 
-		err = inspector.batchFetchTableMetadata(context.Background(), []string{"public"}, viewMap, "view")
+		err = inspector.batchFetchTableMetadata(context.Background(), inspector.q(), []string{"public"}, viewMap, "view")
 		require.NoError(t, err)
 
 		// Views should only have columns, not keys/indexes
