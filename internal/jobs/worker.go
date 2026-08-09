@@ -748,13 +748,24 @@ func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string)
 	}
 	lineNumber := atomic.AddInt32(counterPtr, 1) - 1 // AddInt32 returns new value, so subtract 1 for 0-indexed
 
-	// Log to zerolog - central logging service will capture this via execution_id field
-	log.Info().
+	// Log to zerolog - central logging service will capture this via execution_id field.
+	// Attach tenant_id so the row is persisted with the correct tenant and survives the
+	// tenant-scoped RLS policy when fetched back via GetExecutionLogs (without this, the
+	// row is written with tenant_id NULL and filtered out on read, so getLogs returns
+	// empty for finished jobs). Mirrors internal/functions/handler.go handleLogMessage.
+	event := log.Info().
 		Str("execution_id", jobID.String()).
 		Str("execution_type", "job").
 		Str("level", level).
-		Int("line_number", int(lineNumber)).
-		Msg(message)
+		Int("line_number", int(lineNumber))
+
+	if tenantVal, ok := w.jobTenants.Load(jobID); ok {
+		if tenantID, ok := tenantVal.(string); ok && tenantID != "" {
+			event = event.Str("tenant_id", tenantID)
+		}
+	}
+
+	event.Msg(message)
 }
 
 // cancelJob cancels a running job
