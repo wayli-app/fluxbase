@@ -11,11 +11,12 @@
 #                           `go build -tags "ocr vips"` and CGO_ENABLED=1.
 #                           Tag suffix: none (this is the default image).
 #
-#   FLAVOR=lite:            distroless/base-debian12 runtime. Pure-Go static
-#                           binary (CGO_ENABLED=0). No OCR, no ffmpeg, no image
-#                           transforms (~80-120MB). Capabilities self-disable at
-#                           runtime and report unavailable via the API. Tag
-#                           suffix: -lite.
+#   FLAVOR=lite:            distroless/base-debian12 runtime. CGO-enabled glibc
+#                           binary (pg_query_go's C parser requires cgo) built
+#                           WITHOUT the ocr/vips tags. No OCR, no ffmpeg, no
+#                           image transforms (smaller than full). Capabilities
+#                           self-disable at runtime and report unavailable via
+#                           the API. Tag suffix: -lite.
 #
 # Usage:
 #   Full (default, with admin UI):  docker build -t fluxbase:latest .
@@ -84,9 +85,11 @@ FROM golang:1.26.1-bookworm AS go-builder
 
 ARG FLAVOR=full
 
-# Install build dependencies. CGO-based libraries (Tesseract/Leptonica for OCR,
-# libvips for image transforms) are only needed for the full flavor; the lite
-# flavor builds a pure-Go static binary with both stubs compiled in.
+# Install build dependencies. CGO is required for BOTH flavors because
+# pg_query_go (used for SQL validation) compiles a C parser via cgo. The
+# Tesseract/Leptonica/libvips dev packages are only needed by the full flavor
+# (they back the OCR + image-transform code paths); the lite flavor omits them
+# and compiles without the `ocr vips` tags, so those code paths use their stubs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
@@ -128,16 +131,16 @@ ARG BUILD_DATE=unknown
 
 # Build the Go binary.
 #   full: CGO enabled, glibc-native, OCR + vips build tags (Tesseract + libvips).
-#   lite: CGO disabled, pure-Go static binary, both stubs compiled in.
+#   lite: CGO enabled (pg_query_go needs the C parser), no OCR/vips tags so the
+#         stubs compile in. The lite binary is glibc-linked (NOT pure-static),
+#         so it runs on distroless/base-debian12 (glibc) but not on scratch.
 RUN set -eux; \
     if [ "$FLAVOR" = "full" ]; then \
       BUILD_TAGS="ocr vips"; \
-      CGO_VAL=1; \
     else \
       BUILD_TAGS=""; \
-      CGO_VAL=0; \
     fi; \
-    CGO_ENABLED=$CGO_VAL GOOS=linux go build \
+    CGO_ENABLED=1 GOOS=linux go build \
       -tags "$BUILD_TAGS" \
       -ldflags="-w -s \
         -X main.Version=${VERSION} \
@@ -167,7 +170,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 
 # ------------------------------------------------------------------------------
-# Stage 3b: Lite Production Runtime Image (distroless, pure-Go static binary)
+# Stage 3b: Lite Production Runtime Image (distroless, glibc CGO binary)
 # ------------------------------------------------------------------------------
 FROM gcr.io/distroless/base-debian12:nonroot AS runtime-lite
 
@@ -184,8 +187,9 @@ LABEL maintainer="Fluxbase Team" \
 
 WORKDIR /app
 
-# Copy the static Go binary and helper binaries.
-# distroless base-debian12 is glibc-based, so the deno binary runs unmodified.
+# Copy the Go binary and helper binaries. The binary is glibc-linked (cgo is
+# required for pg_query_go), and distroless/base-debian12 ships glibc, so it
+# runs here. The deno binary is also glibc-linked and runs unmodified.
 COPY --from=go-builder /build/fluxbase-server /usr/local/bin/fluxbase-server
 COPY --from=deno-bin /deno /usr/local/bin/deno
 COPY --from=pgschema-fetcher /usr/local/bin/pgschema /usr/local/bin/pgschema
