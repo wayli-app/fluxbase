@@ -1225,6 +1225,26 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # The embed directives (internal/runtime/embedded_sdk.js,
+      # internal/jobs/embedded_sdk.js, internal/adminui/dist) reference
+      # build-generated artifacts that a fresh checkout does not have. Generate
+      # them before building — same approach the test-go job uses.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Generate embedded SDK for Jobs runtime
+        run: |
+          cd sdk
+          bun install --frozen-lockfile
+          bun run generate:embedded-sdk
+
+      - name: Create dist directory with placeholder for embed directive
+        run: |
+          mkdir -p internal/adminui/dist
+          echo '<!DOCTYPE html><html><head><title>Placeholder</title></head><body></body></html>' > internal/adminui/dist/index.html
+
       # The ocr/vips tags pull in CGO bindings (gosseract, govips) that need
       # the native dev headers to compile.
       - name: Install CGO build dependencies
@@ -1285,11 +1305,16 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           TARGET: ${{ matrix.flavor == 'lite' && 'runtime-lite' || 'runtime-full' }}
         run: |
+          # Start detached WITHOUT --wait: the smoke overlay disables the
+          # healthcheck (the lite image is distroless and has no wget), and a
+          # fresh stack runs ~150 schema migrations on first boot. The
+          # smoke-test.sh script polls GET /health (up to 300s) as the real
+          # readiness gate.
           docker compose \
             -f deploy/docker-compose.yml \
             -f deploy/docker-compose.smoke.yml \
             --env-file deploy/.smoke.env \
-            up -d --wait
+            up -d
 
       - name: Run setup smoke
         run: |

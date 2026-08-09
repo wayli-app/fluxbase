@@ -32,7 +32,7 @@ NC=$'\033[0m'
 FLAVOR=""
 BASE_URL="http://localhost:8080"
 COMPOSE_FILES=( -f deploy/docker-compose.yml -f deploy/docker-compose.smoke.yml )
-TIMEOUT=120  # seconds to wait for /health
+TIMEOUT=300  # seconds to wait for /health (a fresh stack runs ~150 migrations)
 
 usage() {
     cat <<'EOF'

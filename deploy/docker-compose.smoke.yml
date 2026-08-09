@@ -44,6 +44,12 @@ services:
       target: ${TARGET:-runtime-full}
     ports:
       - '8080:8080'
+    # A fresh stack applies ~150 declarative-schema migrations on first boot
+    # (~60-90s). Disable the inherited wget healthcheck (the lite image is
+    # distroless and has no wget anyway) and let scripts/smoke-test.sh poll
+    # GET /health with retries as the readiness gate.
+    healthcheck:
+      disable: true
 
   postgres:
     ports:

@@ -53,7 +53,12 @@ generate_secrets() {
     JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
     ENCRYPTION_KEY=$(openssl rand -base64 32 | head -c 32)
     SETUP_TOKEN=$(openssl rand -base64 32 | tr -d '\n')
-    POSTGRES_PASSWORD=$(openssl rand -base64 16 | tr -d '\n')
+    # The Postgres password is embedded into a `postgres://user:PASS@host/db`
+    # connection URL that Fluxbase builds WITHOUT URL-encoding the password
+    # (internal/database/connection_migrations.go, bootstrap.go). Base64 output
+    # contains +, /, and = which corrupt URL parsing (invalid port / host), so
+    # generate the password from a URL-safe alphabet (alphanumeric only).
+    POSTGRES_PASSWORD=$(openssl rand -hex 16)
 
     b64url() {
         echo -n "$1" | base64 | tr '+/' '-_' | tr -d '=\n'
