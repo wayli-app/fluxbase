@@ -521,6 +521,24 @@ func TestBucketDimension(t *testing.T) {
 			bucketSize: 100,
 			expected:   1200,
 		},
+		{
+			name:       "custom bucket size 25",
+			dim:        38,
+			bucketSize: 25,
+			expected:   50,
+		},
+		{
+			name:       "bucket size 1 (no bucketing)",
+			dim:        123,
+			bucketSize: 1,
+			expected:   123,
+		},
+		{
+			name:       "large dimension with bucketing",
+			dim:        8100,
+			bucketSize: 50,
+			expected:   8100,
+		},
 	}
 
 	for _, tt := range tests {
@@ -608,9 +626,19 @@ func TestCanTransform(t *testing.T) {
 			wantCan:     true,
 		},
 		{
+			name:        "with boundary parameter",
+			contentType: "image/png; boundary=something",
+			wantCan:     true,
+		},
+		{
 			name:        "with spaces - needs trim",
 			contentType: " image/jpeg ",
 			wantCan:     false, // CanTransform doesn't trim spaces
+		},
+		{
+			name:        "mixed case Image/Png",
+			contentType: "Image/Png",
+			wantCan:     true,
 		},
 		{
 			name:        "pdf not supported",
@@ -620,6 +648,16 @@ func TestCanTransform(t *testing.T) {
 		{
 			name:        "text not supported",
 			contentType: "text/plain",
+			wantCan:     false,
+		},
+		{
+			name:        "video not supported",
+			contentType: "video/mp4",
+			wantCan:     false,
+		},
+		{
+			name:        "heic not supported",
+			contentType: "image/heic",
 			wantCan:     false,
 		},
 		{
