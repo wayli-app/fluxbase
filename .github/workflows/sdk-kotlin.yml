@@ -1,5 +1,11 @@
 name: SDK Kotlin
 
+# Runs only when sdk-kotlin/ or this workflow changes. Uses a `changes` job
+# with dorny/paths-filter (matching the pattern in ci.yml) so that:
+#   - Skipped jobs report as "success" not "expected" (unblocks PR merges).
+#   - Sub-area detection: docs-only changes skip the test+build cycle; only
+#     source changes run tests; config changes run everything.
+#   - push to main always runs (same convention as ci.yml).
 on:
   pull_request:
     paths:
@@ -16,46 +22,97 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ---- PR / push to main: lint + unit test + build (no publish) ----
-  build:
-    name: Build & Test
+  # ---- Detect which sub-areas of sdk-kotlin changed ----
+  changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    timeout-minutes: 1
+    outputs:
+      # True if any sdk-kotlin source file changed (src/**, test code).
+      source: ${{ steps.filter.outputs.source }}
+      # True if build config changed (build.gradle.kts, settings, version catalog,
+      # detekt, gradle wrapper). Config changes trigger full lint+test+build.
+      config: ${{ steps.filter.outputs.config }}
+      # True if only docs/README/CONTRIBUTING changed (no source, no config).
+      # Docs-only changes skip tests but still regenerate Dokka output.
+      docs-only: ${{ steps.filter.outputs.docs-only }}
+      # True if this workflow file itself changed — always run everything.
+      ci-config: ${{ steps.filter.outputs.ci-config }}
+      # True if anything in sdk-kotlin changed at all.
+      any: ${{ steps.filter.outputs.any }}
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            source:
+              - 'sdk-kotlin/src/**'
+              - 'sdk-kotlin/build.gradle.kts'
+              - 'sdk-kotlin/settings.gradle.kts'
+              - 'sdk-kotlin/gradle/**'
+            config:
+              - 'sdk-kotlin/build.gradle.kts'
+              - 'sdk-kotlin/settings.gradle.kts'
+              - 'sdk-kotlin/gradle/**'
+              - 'sdk-kotlin/detekt.yml'
+            ci-config:
+              - '.github/workflows/sdk-kotlin.yml'
+            any:
+              - 'sdk-kotlin/**'
+              - '.github/workflows/sdk-kotlin.yml'
 
+  # ---- Lint (detekt) — runs on source or config or CI changes ----
+  lint:
+    name: Lint
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.source == 'true' ||
+      needs.changes.outputs.config == 'true' ||
+      needs.changes.outputs.ci-config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Lint (detekt)
+      - uses: gradle/actions/setup-gradle@v4
+      - name: detekt
         working-directory: sdk-kotlin
         run: ./gradlew detekt
 
-      - name: Unit tests
+  # ---- Unit tests — runs on source or config or CI changes ----
+  test:
+    name: Unit Tests
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.source == 'true' ||
+      needs.changes.outputs.config == 'true' ||
+      needs.changes.outputs.ci-config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test
         working-directory: sdk-kotlin
         run: ./gradlew test
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: sdk-kotlin/build/reports/tests/
-
-      - name: Build
-        working-directory: sdk-kotlin
-        run: ./gradlew build
-
-      - name: Generate Dokka docs
-        working-directory: sdk-kotlin
-        run: ./gradlew dokkaGfm
-
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -63,25 +120,48 @@ jobs:
           name: coverage-report
           path: sdk-kotlin/build/reports/kover/
 
-  # ---- Tag sdk-kotlin-v*: publish to GitHub Packages + create Release ----
-  publish:
-    name: Publish to GitHub Packages
+  # ---- Build + Dokka docs — runs on any sdk-kotlin change (including docs-only,
+  #      since docs-only changes still need the Dokka output regenerated) ----
+  build:
+    name: Build & Docs
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.any == 'true'
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/sdk-kotlin-v')
-    permissions:
-      contents: write
-      packages: write
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build (skip tests — already ran in the test job)
+        working-directory: sdk-kotlin
+        run: ./gradlew build -x test
+      - name: Generate Dokka docs
+        working-directory: sdk-kotlin
+        run: ./gradlew dokkaGfm
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+  # ---- Publish to GitHub Packages — only on tag sdk-kotlin-v* ----
+  publish:
+    name: Publish
+    needs: changes
+    if: startsWith(github.ref, 'refs/tags/sdk-kotlin-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
 
       - name: Extract version from tag
         id: version
@@ -90,7 +170,6 @@ jobs:
           VERSION="${TAG#sdk-kotlin-v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          # Determine if this is a pre-release (contains -rc.)
           if [[ "$VERSION" == *-rc.* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
