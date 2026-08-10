@@ -163,6 +163,52 @@ $dokka.location:io.github.nimbleflux.fluxbase.core/HttpTransport/request/#io.git
 $dokka.location:io.github.nimbleflux.fluxbase.core/KtorHttpTransport///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.core/-ktor-http-transport/index.md
 $dokka.location:io.github.nimbleflux.fluxbase.core/KtorHttpTransport/KtorHttpTransport/#kotlin.String#kotlinx.serialization.json.Json/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.core/-ktor-http-transport/-ktor-http-transport.md
 $dokka.location:io.github.nimbleflux.fluxbase.core/KtorHttpTransport/request/#io.github.nimbleflux.fluxbase.core.HttpMethod#kotlin.String#kotlin.Any?#kotlin.collections.Map[kotlin.String,kotlin.String]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.core/-ktor-http-transport/request.md
+$dokka.location:io.github.nimbleflux.fluxbase.functions////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.functions/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.functions/FluxbaseFunctions///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.functions/-fluxbase-functions/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.functions/FluxbaseFunctions/FluxbaseFunctions/#io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.functions/-fluxbase-functions/-fluxbase-functions.md
+$dokka.location:io.github.nimbleflux.fluxbase.functions/FluxbaseFunctions/invoke/#kotlin.String#kotlin.Any?#kotlin.String#kotlin.String?#kotlin.collections.Map[kotlin.String,kotlin.String]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.functions/-fluxbase-functions/invoke.md
+$dokka.location:io.github.nimbleflux.fluxbase.functions/FluxbaseFunctions/invokeJson/#kotlin.String#kotlin.Any?#kotlin.String#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.functions/-fluxbase-functions/invoke-json.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/ExecutionLog///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-execution-log/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/ExecutionLog/ExecutionLog/#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-execution-log/-execution-log.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/ExecutionLog/level/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-execution-log/level.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/ExecutionLog/line/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-execution-log/line.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/ExecutionLog/timestamp/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-execution-log/timestamp.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs/FluxbaseJobs/#io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/-fluxbase-jobs.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs/cancel/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/cancel.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs/get/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/get.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs/getLogs/#kotlin.String#kotlin.Int?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/get-logs.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs/list/#kotlin.String?#kotlin.String?#kotlin.Int?#kotlin.Int?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/list.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs/retry/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/retry.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/FluxbaseJobs/submit/#kotlin.String#kotlin.Any?#io.github.nimbleflux.fluxbase.jobs.SubmitJobOptions/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/submit.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/Job/#kotlin.String#kotlin.String?#kotlin.String#kotlin.String#kotlinx.serialization.json.JsonElement?#kotlinx.serialization.json.JsonElement?#kotlin.String?#kotlin.Int#kotlin.Int?#kotlin.String?#kotlin.Int#kotlin.String?#kotlin.String#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/-job.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/createdAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/created-at.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/createdBy/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/created-by.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/error/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/error.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/id/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/id.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/jobName/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/job-name.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/namespace/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/namespace.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/payload/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/payload.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/priority/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/priority.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/progressMessage/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/progress-message.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/progressPercent/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/progress-percent.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/result/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/result.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/retryCount/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/retry-count.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/status/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/status.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/Job/updatedAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-job/updated-at.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/OnBehalfOf///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-on-behalf-of/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/OnBehalfOf/OnBehalfOf/#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-on-behalf-of/-on-behalf-of.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/OnBehalfOf/userEmail/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-on-behalf-of/user-email.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/OnBehalfOf/userId/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-on-behalf-of/user-id.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/OnBehalfOf/userRole/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-on-behalf-of/user-role.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/SubmitJobOptions///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-submit-job-options/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/SubmitJobOptions/SubmitJobOptions/#kotlin.Int?#kotlin.String?#kotlin.String?#io.github.nimbleflux.fluxbase.jobs.OnBehalfOf?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-submit-job-options/-submit-job-options.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/SubmitJobOptions/namespace/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-submit-job-options/namespace.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/SubmitJobOptions/onBehalfOf/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-submit-job-options/on-behalf-of.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/SubmitJobOptions/priority/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-submit-job-options/priority.md
+$dokka.location:io.github.nimbleflux.fluxbase.jobs/SubmitJobOptions/scheduled/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/-submit-job-options/scheduled.md
 $dokka.location:io.github.nimbleflux.fluxbase.postgrest////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/index.md
 $dokka.location:io.github.nimbleflux.fluxbase.postgrest/CountType.ESTIMATED///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-count-type/-e-s-t-i-m-a-t-e-d/index.md
 $dokka.location:io.github.nimbleflux.fluxbase.postgrest/CountType.EXACT///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-count-type/-e-x-a-c-t/index.md
@@ -239,6 +285,12 @@ $dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/entries/#
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/valueOf/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/value-of.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/values/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/values.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/wildcard/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/wildcard.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/KtorWebSocketTransport///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-ktor-web-socket-transport/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/KtorWebSocketTransport/KtorWebSocketTransport/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-ktor-web-socket-transport/-ktor-web-socket-transport.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/KtorWebSocketTransport/close/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-ktor-web-socket-transport/close.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/KtorWebSocketTransport/connect/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-ktor-web-socket-transport/connect.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/KtorWebSocketTransport/isConnected/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-ktor-web-socket-transport/is-connected.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/KtorWebSocketTransport/send/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-ktor-web-socket-transport/send.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/index.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig/PostgresChangesConfig/#kotlin.String#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/-postgres-changes-config.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig/event/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/event.md
@@ -270,6 +322,38 @@ $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/close/
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/connect/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/connect.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/isConnected/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/is-connected.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/send/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/send.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets/FluxbaseSecrets/#io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/-fluxbase-secrets.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets/delete/#kotlin.String#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/delete.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets/get/#kotlin.String#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/get.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets/list/#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/list.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets/set/#kotlin.String#kotlin.String#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/set.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets/update/#kotlin.String#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/update.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/SecretSummary/#kotlin.String#kotlin.String#kotlin.String#kotlin.String?#kotlin.String?#kotlin.Int#kotlin.String#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/-secret-summary.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/createdAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/created-at.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/currentVersion/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/current-version.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/description/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/description.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/id/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/id.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/name/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/name.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/namespace/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/namespace.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/scope/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/scope.md
+$dokka.location:io.github.nimbleflux.fluxbase.secrets/SecretSummary/updatedAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-secret-summary/updated-at.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/FluxbaseSettings///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/FluxbaseSettings/FluxbaseSettings/#io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/-fluxbase-settings.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/FluxbaseSettings/deleteUserSecret/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/delete-user-secret.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/FluxbaseSettings/get/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/get.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/FluxbaseSettings/getMany/#kotlin.collections.List[kotlin.String]#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/get-many.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/FluxbaseSettings/listUserSecrets/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/list-user-secrets.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/FluxbaseSettings/setUserSecret/#kotlin.String#kotlin.String#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/set-user-secret.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/UserSecretMetadata///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-user-secret-metadata/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/UserSecretMetadata/UserSecretMetadata/#kotlin.String#kotlin.String?#kotlin.String#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-user-secret-metadata/-user-secret-metadata.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/UserSecretMetadata/createdAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-user-secret-metadata/created-at.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/UserSecretMetadata/description/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-user-secret-metadata/description.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/UserSecretMetadata/key/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-user-secret-metadata/key.md
+$dokka.location:io.github.nimbleflux.fluxbase.settings/UserSecretMetadata/updatedAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/-user-secret-metadata/updated-at.md
 $dokka.location:io.github.nimbleflux.fluxbase////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/index.md
 $dokka.location:io.github.nimbleflux.fluxbase//createFluxbaseClient/#kotlin.String?#kotlin.String?#io.github.nimbleflux.fluxbase.FluxbaseClientOptions#io.github.nimbleflux.fluxbase.core.HttpTransport?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/create-fluxbase-client.md
 $dokka.location:io.github.nimbleflux.fluxbase//fluxbaseResponse/#kotlin.coroutines.SuspendFunction0[TypeParam(bounds=[kotlin.Any?])]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/fluxbase-response.md
@@ -280,8 +364,13 @@ $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient.Companion///Pointin
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient.Companion/create/#kotlin.String?#kotlin.String?#io.github.nimbleflux.fluxbase.FluxbaseClientOptions#io.github.nimbleflux.fluxbase.core.HttpTransport?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/-companion/create.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/index.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/auth/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/auth.md
+$dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/channel/#kotlin.String#io.github.nimbleflux.fluxbase.realtime.WebSocketTransport?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/channel.md
+$dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/functions/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/functions.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/http/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/http.md
+$dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/jobs/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/jobs.md
+$dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/secrets/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/secrets.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/setTenant/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/set-tenant.md
+$dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/settings/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/settings.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClientOptions///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client-options/index.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClientOptions/FluxbaseClientOptions/#kotlin.Boolean#kotlin.Boolean#io.github.nimbleflux.fluxbase.auth.StorageAdapter#kotlin.collections.Map[kotlin.String,kotlin.String]#kotlin.Long#kotlin.Boolean/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client-options/-fluxbase-client-options.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClientOptions/autoRefresh/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client-options/auto-refresh.md
@@ -312,6 +401,10 @@ $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseResponse/error/#/PointingT
 io.github.nimbleflux.fluxbase
 io.github.nimbleflux.fluxbase.auth
 io.github.nimbleflux.fluxbase.core
+io.github.nimbleflux.fluxbase.functions
+io.github.nimbleflux.fluxbase.jobs
 io.github.nimbleflux.fluxbase.postgrest
 io.github.nimbleflux.fluxbase.realtime
+io.github.nimbleflux.fluxbase.secrets
+io.github.nimbleflux.fluxbase.settings
 

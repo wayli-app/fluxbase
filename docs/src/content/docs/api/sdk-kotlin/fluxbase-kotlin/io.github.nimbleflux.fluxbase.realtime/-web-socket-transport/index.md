@@ -2,12 +2,17 @@
 
 # WebSocketTransport
 
-[jvm]\
 interface [WebSocketTransport](index.md)
 
 SPI for WebSocket I/O — the seam where tests inject a fake transport (see FakeWebSocketTransport) instead of a real WS connection.
 
 The real implementation uses Ktor's WebSocket client; the fake simulates server messages via FakeWebSocketTransport.simulateMessage.
+
+#### Inheritors
+
+| |
+|---|
+| [KtorWebSocketTransport](../-ktor-web-socket-transport/index.md) |
 
 ## Properties
 

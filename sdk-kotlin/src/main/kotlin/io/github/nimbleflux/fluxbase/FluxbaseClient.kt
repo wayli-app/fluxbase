@@ -46,6 +46,14 @@ class FluxbaseClient internal constructor(
     val http: FluxbaseHttpClient,
     /** The auth module. */
     val auth: FluxbaseAuth,
+    /** Edge Functions module. */
+    val functions: io.github.nimbleflux.fluxbase.functions.FluxbaseFunctions,
+    /** Background Jobs module. */
+    val jobs: io.github.nimbleflux.fluxbase.jobs.FluxbaseJobs,
+    /** Encrypted Secrets module. */
+    val secrets: io.github.nimbleflux.fluxbase.secrets.FluxbaseSecrets,
+    /** App/system settings + user secrets. */
+    val settings: io.github.nimbleflux.fluxbase.settings.FluxbaseSettings,
 ) {
     /**
      * Set the active tenant for multi-tenancy. Sets the `X-FB-Tenant` header.
@@ -53,6 +61,31 @@ class FluxbaseClient internal constructor(
      */
     fun setTenant(tenantId: String) {
         http.setHeader("X-FB-Tenant", tenantId)
+    }
+
+    /**
+     * Create a realtime channel for postgres_changes/broadcast/presence subscriptions.
+     * Port of `channel()` in `client.ts:654-674`.
+     *
+     * Usage:
+     * ```
+     * val channel = client.channel("public:trips")
+     * channel.on("INSERT", PostgresChangesConfig(table = "trips")) { payload -> ... }
+     * channel.subscribe()
+     * ```
+     */
+    fun channel(
+        name: String,
+        transport: io.github.nimbleflux.fluxbase.realtime.WebSocketTransport? = null,
+    ): io.github.nimbleflux.fluxbase.realtime.RealtimeChannel {
+        val wsTransport = transport ?: io.github.nimbleflux.fluxbase.realtime.KtorWebSocketTransport()
+        val token = auth.currentSession?.accessToken
+        return io.github.nimbleflux.fluxbase.realtime.RealtimeChannel(
+            baseUrl = http.baseUrl,
+            channelName = name,
+            token = token,
+            transport = wsTransport,
+        )
     }
 
     companion object {
@@ -107,7 +140,12 @@ class FluxbaseClient internal constructor(
                 storage = if (options.persist) options.storage else MemoryStorage(),
             )
 
-            return FluxbaseClient(http, auth)
+            val functions = io.github.nimbleflux.fluxbase.functions.FluxbaseFunctions(http)
+            val jobs = io.github.nimbleflux.fluxbase.jobs.FluxbaseJobs(http)
+            val secrets = io.github.nimbleflux.fluxbase.secrets.FluxbaseSecrets(http)
+            val settings = io.github.nimbleflux.fluxbase.settings.FluxbaseSettings(http)
+
+            return FluxbaseClient(http, auth, functions, jobs, secrets, settings)
         }
     }
 }
