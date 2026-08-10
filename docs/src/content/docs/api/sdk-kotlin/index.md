@@ -15,3 +15,4 @@
 | [io.github.nimbleflux.fluxbase.realtime](fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/index.md) |
 | [io.github.nimbleflux.fluxbase.secrets](fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/index.md) |
 | [io.github.nimbleflux.fluxbase.settings](fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/index.md) |
+| [io.github.nimbleflux.fluxbase.storage](fluxbase-kotlin/io.github.nimbleflux.fluxbase.storage/index.md) |

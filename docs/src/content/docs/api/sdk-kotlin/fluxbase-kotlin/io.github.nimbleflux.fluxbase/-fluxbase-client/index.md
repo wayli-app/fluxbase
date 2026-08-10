@@ -32,6 +32,7 @@ val (session, error) = client.auth.signInWithPassword("user@example.com", "pw")
 | [jobs](jobs.md) | [jvm]<br>val [jobs](jobs.md): [FluxbaseJobs](../../io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/index.md)<br>Background Jobs module. |
 | [secrets](secrets.md) | [jvm]<br>val [secrets](secrets.md): [FluxbaseSecrets](../../io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/index.md)<br>Encrypted Secrets module. |
 | [settings](settings.md) | [jvm]<br>val [settings](settings.md): [FluxbaseSettings](../../io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/index.md)<br>App/system settings + user secrets. |
+| [storage](storage.md) | [jvm]<br>val [storage](storage.md): [FluxbaseStorage](../../io.github.nimbleflux.fluxbase.storage/-fluxbase-storage/index.md)<br>Storage module — file upload/download/list. |
 
 ## Functions
 
