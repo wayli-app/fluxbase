@@ -3,6 +3,6 @@
 # execute
 
 [jvm]\
-suspend fun [execute](execute.md)(): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[T](index.md)&gt;&gt;
+suspend fun [execute](execute.md)(): [PostgrestResponse](../-postgrest-response/index.md)&lt;[List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[T](index.md)&gt;&gt;
 
-Execute a SELECT query and return the list of rows.
+Execute a SELECT query and return the list of rows (with count if requested).

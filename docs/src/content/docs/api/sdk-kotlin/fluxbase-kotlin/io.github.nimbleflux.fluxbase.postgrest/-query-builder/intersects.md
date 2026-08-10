@@ -1,0 +1,8 @@
+//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[intersects](intersects.md)
+
+# intersects
+
+[jvm]\
+fun [intersects](intersects.md)(column: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), geojson: [Any](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-any/index.html)?): [QueryBuilder](index.md)&lt;[T](index.md)&gt;
+
+PostGIS ST_Intersects — filter geometries that intersect [geojson](intersects.md).
