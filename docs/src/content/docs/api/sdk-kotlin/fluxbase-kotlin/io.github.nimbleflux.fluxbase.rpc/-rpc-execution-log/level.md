@@ -1,3 +1,10 @@
+---
+title: "level"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcExecutionLog](index.md)/[level](level.md)
 
 # level

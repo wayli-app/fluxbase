@@ -1,3 +1,10 @@
+---
+title: "id"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[BranchActivity](index.md)/[id](id.md)
 
 # id

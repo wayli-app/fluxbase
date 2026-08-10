@@ -1,3 +1,10 @@
+---
+title: "SecretSummary"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.secrets](../index.md)/[SecretSummary](index.md)
 
 # SecretSummary

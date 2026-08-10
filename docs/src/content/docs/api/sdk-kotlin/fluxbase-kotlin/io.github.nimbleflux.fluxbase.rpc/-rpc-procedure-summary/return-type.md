@@ -1,3 +1,10 @@
+---
+title: "returnType"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcProcedureSummary](index.md)/[returnType](return-type.md)
 
 # returnType

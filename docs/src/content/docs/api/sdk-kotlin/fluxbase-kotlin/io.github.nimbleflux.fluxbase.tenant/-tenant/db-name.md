@@ -1,3 +1,10 @@
+---
+title: "dbName"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[Tenant](index.md)/[dbName](db-name.md)
 
 # dbName

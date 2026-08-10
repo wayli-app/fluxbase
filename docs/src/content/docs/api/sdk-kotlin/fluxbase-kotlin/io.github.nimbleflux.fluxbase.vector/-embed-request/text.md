@@ -1,3 +1,10 @@
+---
+title: "text"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[EmbedRequest](index.md)/[text](text.md)
 
 # text

@@ -1,3 +1,10 @@
+---
+title: "INNER_PRODUCT"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../../index.md)/[VectorSearchMetric](../index.md)/[INNER_PRODUCT](index.md)
 
 # INNER_PRODUCT

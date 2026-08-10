@@ -1,3 +1,10 @@
+---
+title: "orderByVector"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[orderByVector](order-by-vector.md)
 
 # orderByVector

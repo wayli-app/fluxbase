@@ -1,3 +1,10 @@
+---
+title: "EmbedResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[EmbedResponse](index.md)/[EmbedResponse](-embed-response.md)
 
 # EmbedResponse

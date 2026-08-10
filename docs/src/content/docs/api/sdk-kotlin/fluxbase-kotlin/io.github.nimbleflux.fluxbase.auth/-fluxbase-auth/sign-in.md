@@ -1,3 +1,10 @@
+---
+title: "signIn"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[signIn](sign-in.md)
 
 # signIn

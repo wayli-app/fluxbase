@@ -1,3 +1,10 @@
+---
+title: "fluxbaseResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase](index.md)/[fluxbaseResponse](fluxbase-response.md)
 
 # fluxbaseResponse

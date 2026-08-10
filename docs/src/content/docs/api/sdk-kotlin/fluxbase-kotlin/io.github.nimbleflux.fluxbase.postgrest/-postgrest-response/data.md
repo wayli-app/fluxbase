@@ -1,3 +1,10 @@
+---
+title: "data"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[PostgrestResponse](index.md)/[data](data.md)
 
 # data

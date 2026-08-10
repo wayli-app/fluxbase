@@ -1,3 +1,10 @@
+---
+title: "githubRepo"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[Branch](index.md)/[githubRepo](github-repo.md)
 
 # githubRepo

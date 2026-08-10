@@ -1,3 +1,10 @@
+---
+title: "stDistance"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[stDistance](st-distance.md)
 
 # stDistance

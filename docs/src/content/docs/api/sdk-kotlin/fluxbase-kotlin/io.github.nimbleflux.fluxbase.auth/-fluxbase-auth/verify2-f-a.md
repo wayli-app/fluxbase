@@ -1,3 +1,10 @@
+---
+title: "verify2FA"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[verify2FA](verify2-f-a.md)
 
 # verify2FA

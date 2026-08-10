@@ -1,3 +1,10 @@
+---
+title: "namespace"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[SubmitJobOptions](index.md)/[namespace](namespace.md)
 
 # namespace

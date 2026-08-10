@@ -1,3 +1,10 @@
+---
+title: "all"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorStatusResponse](index.md)/[all](all.md)
 
 # all

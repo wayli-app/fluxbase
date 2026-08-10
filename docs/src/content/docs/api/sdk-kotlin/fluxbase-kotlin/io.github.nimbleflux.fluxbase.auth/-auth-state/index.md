@@ -1,3 +1,10 @@
+---
+title: "AuthState"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthState](index.md)
 
 # AuthState

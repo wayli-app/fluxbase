@@ -1,3 +1,10 @@
+---
+title: "completedAt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcExecution](index.md)/[completedAt](completed-at.md)
 
 # completedAt

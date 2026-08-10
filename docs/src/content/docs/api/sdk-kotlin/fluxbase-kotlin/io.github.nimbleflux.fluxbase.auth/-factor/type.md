@@ -1,3 +1,10 @@
+---
+title: "type"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[Factor](index.md)/[type](type.md)
 
 # type

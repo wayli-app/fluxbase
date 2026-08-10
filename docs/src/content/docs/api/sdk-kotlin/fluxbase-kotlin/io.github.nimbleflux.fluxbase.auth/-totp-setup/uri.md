@@ -1,3 +1,10 @@
+---
+title: "uri"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TotpSetup](index.md)/[uri](uri.md)
 
 # uri

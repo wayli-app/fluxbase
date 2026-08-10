@@ -1,3 +1,10 @@
+---
+title: "BroadcastCallback"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[BroadcastCallback](index.md)
 
 # BroadcastCallback

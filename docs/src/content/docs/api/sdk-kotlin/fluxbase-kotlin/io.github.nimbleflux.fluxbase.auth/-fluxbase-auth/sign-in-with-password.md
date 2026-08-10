@@ -1,3 +1,10 @@
+---
+title: "signInWithPassword"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[signInWithPassword](sign-in-with-password.md)
 
 # signInWithPassword

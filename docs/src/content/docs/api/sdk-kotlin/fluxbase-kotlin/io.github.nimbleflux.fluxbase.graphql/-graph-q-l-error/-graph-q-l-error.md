@@ -1,3 +1,10 @@
+---
+title: "GraphQLError"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLError](index.md)/[GraphQLError](-graph-q-l-error.md)
 
 # GraphQLError

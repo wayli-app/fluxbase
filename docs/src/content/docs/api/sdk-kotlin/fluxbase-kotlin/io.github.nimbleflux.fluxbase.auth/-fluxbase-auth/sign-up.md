@@ -1,3 +1,10 @@
+---
+title: "signUp"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[signUp](sign-up.md)
 
 # signUp

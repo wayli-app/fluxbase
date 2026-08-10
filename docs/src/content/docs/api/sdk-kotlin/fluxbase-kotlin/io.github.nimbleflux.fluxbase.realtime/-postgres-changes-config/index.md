@@ -1,3 +1,10 @@
+---
+title: "PostgresChangesConfig"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[PostgresChangesConfig](index.md)
 
 # PostgresChangesConfig

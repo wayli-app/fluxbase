@@ -1,3 +1,10 @@
+---
+title: "stDWithin"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[stDWithin](st-d-within.md)
 
 # stDWithin

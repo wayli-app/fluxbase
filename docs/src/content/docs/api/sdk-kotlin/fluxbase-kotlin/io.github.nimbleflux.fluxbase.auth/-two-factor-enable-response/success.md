@@ -1,3 +1,10 @@
+---
+title: "success"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorEnableResponse](index.md)/[success](success.md)
 
 # success

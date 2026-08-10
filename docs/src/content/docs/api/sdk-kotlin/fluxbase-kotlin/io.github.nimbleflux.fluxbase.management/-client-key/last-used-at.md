@@ -1,3 +1,10 @@
+---
+title: "lastUsedAt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ClientKey](index.md)/[lastUsedAt](last-used-at.md)
 
 # lastUsedAt

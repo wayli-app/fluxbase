@@ -1,3 +1,10 @@
+---
+title: "RealtimeChannel"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[RealtimeChannel](index.md)
 
 # RealtimeChannel

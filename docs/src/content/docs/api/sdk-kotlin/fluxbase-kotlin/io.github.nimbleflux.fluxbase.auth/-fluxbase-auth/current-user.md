@@ -1,3 +1,10 @@
+---
+title: "currentUser"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[currentUser](current-user.md)
 
 # currentUser

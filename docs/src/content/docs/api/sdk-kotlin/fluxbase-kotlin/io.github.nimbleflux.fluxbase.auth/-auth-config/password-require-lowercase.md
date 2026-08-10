@@ -1,3 +1,10 @@
+---
+title: "passwordRequireLowercase"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthConfig](index.md)/[passwordRequireLowercase](password-require-lowercase.md)
 
 # passwordRequireLowercase

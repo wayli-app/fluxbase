@@ -1,3 +1,10 @@
+---
+title: "debug"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClientOptions](index.md)/[debug](debug.md)
 
 # debug

@@ -1,3 +1,10 @@
+---
+title: "is_"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[is_](is_.md)
 
 # is_

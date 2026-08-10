@@ -1,3 +1,10 @@
+---
+title: "get"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[FluxbaseTenant](index.md)/[get](get.md)
 
 # get

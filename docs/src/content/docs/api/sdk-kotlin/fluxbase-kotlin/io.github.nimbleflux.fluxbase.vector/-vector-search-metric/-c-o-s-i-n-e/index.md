@@ -1,3 +1,10 @@
+---
+title: "COSINE"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../../index.md)/[VectorSearchMetric](../index.md)/[COSINE](index.md)
 
 # COSINE

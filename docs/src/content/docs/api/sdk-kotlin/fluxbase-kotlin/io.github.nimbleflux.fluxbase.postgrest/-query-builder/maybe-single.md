@@ -1,3 +1,10 @@
+---
+title: "maybeSingle"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[maybeSingle](maybe-single.md)
 
 # maybeSingle

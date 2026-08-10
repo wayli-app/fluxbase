@@ -1,3 +1,10 @@
+---
+title: "operator"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../../index.md)/[QueryBuilder](../index.md)/[Filter](index.md)/[operator](operator.md)
 
 # operator

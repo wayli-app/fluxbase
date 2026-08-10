@@ -1,3 +1,10 @@
+---
+title: "broadcast"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[RealtimeChannel](index.md)/[broadcast](broadcast.md)
 
 # broadcast

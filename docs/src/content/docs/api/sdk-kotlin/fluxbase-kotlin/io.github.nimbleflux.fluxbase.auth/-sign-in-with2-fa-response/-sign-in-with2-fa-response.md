@@ -1,3 +1,10 @@
+---
+title: "SignInWith2FaResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[SignInWith2FaResponse](index.md)/[SignInWith2FaResponse](-sign-in-with2-fa-response.md)
 
 # SignInWith2FaResponse

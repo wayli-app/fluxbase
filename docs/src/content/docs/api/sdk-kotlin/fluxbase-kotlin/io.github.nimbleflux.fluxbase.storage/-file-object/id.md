@@ -1,3 +1,10 @@
+---
+title: "id"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[FileObject](index.md)/[id](id.md)
 
 # id

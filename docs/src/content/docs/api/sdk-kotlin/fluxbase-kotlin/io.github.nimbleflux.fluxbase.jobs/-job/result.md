@@ -1,3 +1,10 @@
+---
+title: "result"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[Job](index.md)/[result](result.md)
 
 # result

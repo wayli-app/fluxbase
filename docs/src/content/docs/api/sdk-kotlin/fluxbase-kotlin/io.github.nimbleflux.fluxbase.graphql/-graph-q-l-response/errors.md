@@ -1,3 +1,10 @@
+---
+title: "errors"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLResponse](index.md)/[errors](errors.md)
 
 # errors

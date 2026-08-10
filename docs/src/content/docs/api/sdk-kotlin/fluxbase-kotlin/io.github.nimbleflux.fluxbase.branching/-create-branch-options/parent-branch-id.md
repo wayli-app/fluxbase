@@ -1,3 +1,10 @@
+---
+title: "parentBranchId"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[CreateBranchOptions](index.md)/[parentBranchId](parent-branch-id.md)
 
 # parentBranchId

@@ -1,3 +1,10 @@
+---
+title: "distances"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[VectorSearchResult](index.md)/[distances](distances.md)
 
 # distances

@@ -1,3 +1,10 @@
+---
+title: "userId"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[SignInWith2FaResponse](index.md)/[userId](user-id.md)
 
 # userId

@@ -1,3 +1,10 @@
+---
+title: "invitedBy"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[Invitation](index.md)/[invitedBy](invited-by.md)
 
 # invitedBy

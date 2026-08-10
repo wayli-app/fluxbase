@@ -1,3 +1,10 @@
+---
+title: "newRecord"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[PostgresChangesPayload](index.md)/[newRecord](new-record.md)
 
 # newRecord

@@ -1,3 +1,10 @@
+---
+title: "embed"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[FluxbaseVector](index.md)/[embed](embed.md)
 
 # embed

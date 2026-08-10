@@ -1,3 +1,10 @@
+---
+title: "RpcInvokeOptions"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcInvokeOptions](index.md)
 
 # RpcInvokeOptions

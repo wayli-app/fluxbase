@@ -113,6 +113,40 @@ tasks.withType<org.jetbrains.dokka.gradle.DokkaTask>().configureEach {
 
 tasks.named<org.jetbrains.dokka.gradle.DokkaTask>("dokkaGfm").configure {
     outputDirectory.set(file("../docs/src/content/docs/api/sdk-kotlin"))
+    // Post-process: inject Starlight frontmatter into every generated .md file.
+    // Dokka GFM output has no frontmatter, but Starlight's content schema requires
+    // a `title` field. This extracts the first H1 heading as the title and prepends
+    // the frontmatter block — matching what starlight-typedoc does for the TS SDK docs.
+    doLast {
+        val outputDir = file("../docs/src/content/docs/api/sdk-kotlin")
+        var processed = 0
+        outputDir.walkTopDown().filter { it.isFile && it.extension == "md" }.forEach { mdFile ->
+            val content = mdFile.readText()
+            // Skip if already has frontmatter (idempotent).
+            if (content.startsWith("---")) return@forEach
+
+            // Extract title from first H1 heading; fall back to filename.
+            val titleMatch = Regex("^#\\s+(.+)$", RegexOption.MULTILINE).find(content)
+            val title = titleMatch?.groupValues?.getOrNull(1)
+                ?.replace("`", "")
+                ?.replace("[\\[\\]]".toRegex(), "")
+                ?.ifBlank { mdFile.nameWithoutExtension }
+                ?: mdFile.nameWithoutExtension
+
+            val frontmatter = buildString {
+                appendLine("---")
+                appendLine("title: \"${title.replace("\"", "\\\"")}\"")
+                appendLine("editUrl: false")
+                appendLine("next: false")
+                appendLine("prev: false")
+                appendLine("---")
+                appendLine()
+            }
+            mdFile.writeText(frontmatter + content)
+            processed++
+        }
+        logger.lifecycle("Injected Starlight frontmatter into $processed Dokka files.")
+    }
 }
 
 // ---- Maven publishing (GitHub Packages) ----

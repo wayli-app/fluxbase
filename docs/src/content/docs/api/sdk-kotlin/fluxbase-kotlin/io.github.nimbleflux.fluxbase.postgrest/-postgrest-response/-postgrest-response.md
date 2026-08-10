@@ -1,3 +1,10 @@
+---
+title: "PostgrestResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[PostgrestResponse](index.md)/[PostgrestResponse](-postgrest-response.md)
 
 # PostgrestResponse

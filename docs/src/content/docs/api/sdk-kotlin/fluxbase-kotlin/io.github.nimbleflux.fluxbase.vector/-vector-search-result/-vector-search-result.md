@@ -1,3 +1,10 @@
+---
+title: "VectorSearchResult"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[VectorSearchResult](index.md)/[VectorSearchResult](-vector-search-result.md)
 
 # VectorSearchResult

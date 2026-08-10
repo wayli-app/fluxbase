@@ -1,3 +1,10 @@
+---
+title: "SIGNED_OUT"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../../index.md)/[AuthChangeEvent](../index.md)/[SIGNED_OUT](index.md)
 
 # SIGNED_OUT

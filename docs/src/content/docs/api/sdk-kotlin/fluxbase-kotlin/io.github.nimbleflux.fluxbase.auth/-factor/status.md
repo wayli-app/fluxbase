@@ -1,3 +1,10 @@
+---
+title: "status"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[Factor](index.md)/[status](status.md)
 
 # status

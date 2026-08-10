@@ -1,3 +1,10 @@
+---
+title: "githubPrUrl"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[Branch](index.md)/[githubPrUrl](github-pr-url.md)
 
 # githubPrUrl

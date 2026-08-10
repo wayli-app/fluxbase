@@ -1,3 +1,10 @@
+---
+title: "ESTIMATED"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../../index.md)/[CountType](../index.md)/[ESTIMATED](index.md)
 
 # ESTIMATED

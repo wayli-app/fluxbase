@@ -1,3 +1,10 @@
+---
+title: "isDefault"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[Tenant](index.md)/[isDefault](is-default.md)
 
 # isDefault

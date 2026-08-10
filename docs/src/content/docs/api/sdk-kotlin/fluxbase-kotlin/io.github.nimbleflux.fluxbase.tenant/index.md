@@ -1,3 +1,10 @@
+---
+title: "Package-level declarations"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase.tenant](index.md)
 
 # Package-level declarations

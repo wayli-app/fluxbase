@@ -1,3 +1,10 @@
+---
+title: "ListBranchesOptions"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[ListBranchesOptions](index.md)/[ListBranchesOptions](-list-branches-options.md)
 
 # ListBranchesOptions

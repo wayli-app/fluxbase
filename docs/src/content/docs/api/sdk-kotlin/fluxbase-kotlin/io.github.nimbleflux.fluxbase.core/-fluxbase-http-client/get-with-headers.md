@@ -1,3 +1,10 @@
+---
+title: "getWithHeaders"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.core](../index.md)/[FluxbaseHttpClient](index.md)/[getWithHeaders](get-with-headers.md)
 
 # getWithHeaders

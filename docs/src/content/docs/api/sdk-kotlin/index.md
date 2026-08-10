@@ -1,3 +1,10 @@
+---
+title: "fluxbase-kotlin"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](index.md)
 
 # fluxbase-kotlin

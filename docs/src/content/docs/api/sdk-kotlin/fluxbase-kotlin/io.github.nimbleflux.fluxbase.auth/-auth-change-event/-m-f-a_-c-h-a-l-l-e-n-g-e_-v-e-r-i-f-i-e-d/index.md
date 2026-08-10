@@ -1,3 +1,10 @@
+---
+title: "MFA_CHALLENGE_VERIFIED"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../../index.md)/[AuthChangeEvent](../index.md)/[MFA_CHALLENGE_VERIFIED](index.md)
 
 # MFA_CHALLENGE_VERIFIED

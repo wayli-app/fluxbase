@@ -1,3 +1,10 @@
+---
+title: "autoRefresh"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClientOptions](index.md)/[autoRefresh](auto-refresh.md)
 
 # autoRefresh

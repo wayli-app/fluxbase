@@ -1,3 +1,10 @@
+---
+title: "line"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLErrorLocation](index.md)/[line](line.md)
 
 # line

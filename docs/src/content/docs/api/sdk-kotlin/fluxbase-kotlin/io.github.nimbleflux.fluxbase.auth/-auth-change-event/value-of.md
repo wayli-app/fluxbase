@@ -1,3 +1,10 @@
+---
+title: "valueOf"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthChangeEvent](index.md)/[valueOf](value-of.md)
 
 # valueOf

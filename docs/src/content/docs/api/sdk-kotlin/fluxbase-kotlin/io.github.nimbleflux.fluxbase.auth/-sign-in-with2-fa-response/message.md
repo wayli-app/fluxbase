@@ -1,3 +1,10 @@
+---
+title: "message"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[SignInWith2FaResponse](index.md)/[message](message.md)
 
 # message

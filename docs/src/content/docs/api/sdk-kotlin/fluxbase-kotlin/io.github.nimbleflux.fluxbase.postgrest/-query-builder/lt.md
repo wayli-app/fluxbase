@@ -1,3 +1,10 @@
+---
+title: "lt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[lt](lt.md)
 
 # lt

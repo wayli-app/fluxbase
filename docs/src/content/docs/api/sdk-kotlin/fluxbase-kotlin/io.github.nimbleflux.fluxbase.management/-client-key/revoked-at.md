@@ -1,3 +1,10 @@
+---
+title: "revokedAt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ClientKey](index.md)/[revokedAt](revoked-at.md)
 
 # revokedAt

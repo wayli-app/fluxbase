@@ -1,3 +1,10 @@
+---
+title: "createdAt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[UserSecretMetadata](index.md)/[createdAt](created-at.md)
 
 # createdAt

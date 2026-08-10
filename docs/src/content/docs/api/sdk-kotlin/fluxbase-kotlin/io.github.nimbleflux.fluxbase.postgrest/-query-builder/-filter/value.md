@@ -1,3 +1,10 @@
+---
+title: "value"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../../index.md)/[QueryBuilder](../index.md)/[Filter](index.md)/[value](value.md)
 
 # value

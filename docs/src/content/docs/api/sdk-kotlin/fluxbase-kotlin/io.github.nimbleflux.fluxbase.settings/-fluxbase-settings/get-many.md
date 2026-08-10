@@ -1,3 +1,10 @@
+---
+title: "getMany"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[FluxbaseSettings](index.md)/[getMany](get-many.md)
 
 # getMany

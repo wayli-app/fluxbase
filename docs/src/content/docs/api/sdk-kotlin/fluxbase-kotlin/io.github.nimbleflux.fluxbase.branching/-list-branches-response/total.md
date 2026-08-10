@@ -1,3 +1,10 @@
+---
+title: "total"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[ListBranchesResponse](index.md)/[total](total.md)
 
 # total

@@ -1,3 +1,10 @@
+---
+title: "revoke"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ClientKeysManager](index.md)/[revoke](revoke.md)
 
 # revoke

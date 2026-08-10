@@ -1,3 +1,10 @@
+---
+title: "rateLimitPerMinute"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ClientKey](index.md)/[rateLimitPerMinute](rate-limit-per-minute.md)
 
 # rateLimitPerMinute

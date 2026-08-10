@@ -1,3 +1,10 @@
+---
+title: "passwordLoginEnabled"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthConfig](index.md)/[passwordLoginEnabled](password-login-enabled.md)
 
 # passwordLoginEnabled

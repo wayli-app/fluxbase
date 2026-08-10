@@ -1,3 +1,10 @@
+---
+title: "progressMessage"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[Job](index.md)/[progressMessage](progress-message.md)
 
 # progressMessage

@@ -1,3 +1,10 @@
+---
+title: "removeHeader"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.core](../index.md)/[FluxbaseHttpClient](index.md)/[removeHeader](remove-header.md)
 
 # removeHeader

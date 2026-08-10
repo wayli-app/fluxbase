@@ -1,3 +1,10 @@
+---
+title: "type"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[Branch](index.md)/[type](type.md)
 
 # type

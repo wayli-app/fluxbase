@@ -1,3 +1,10 @@
+---
+title: "namespace"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.secrets](../index.md)/[SecretSummary](index.md)/[namespace](namespace.md)
 
 # namespace

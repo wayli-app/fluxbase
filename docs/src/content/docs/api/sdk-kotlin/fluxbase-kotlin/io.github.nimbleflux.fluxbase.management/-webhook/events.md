@@ -1,3 +1,10 @@
+---
+title: "events"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[Webhook](index.md)/[events](events.md)
 
 # events

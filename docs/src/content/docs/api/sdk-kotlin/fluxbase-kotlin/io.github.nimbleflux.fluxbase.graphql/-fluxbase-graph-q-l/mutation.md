@@ -1,3 +1,10 @@
+---
+title: "mutation"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[FluxbaseGraphQL](index.md)/[mutation](mutation.md)
 
 # mutation

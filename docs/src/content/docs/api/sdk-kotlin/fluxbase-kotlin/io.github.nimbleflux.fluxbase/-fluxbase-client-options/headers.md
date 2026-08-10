@@ -1,3 +1,10 @@
+---
+title: "headers"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClientOptions](index.md)/[headers](headers.md)
 
 # headers

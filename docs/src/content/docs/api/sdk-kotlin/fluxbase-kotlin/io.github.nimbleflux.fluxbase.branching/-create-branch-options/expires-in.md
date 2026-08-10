@@ -1,3 +1,10 @@
+---
+title: "expiresIn"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[CreateBranchOptions](index.md)/[expiresIn](expires-in.md)
 
 # expiresIn

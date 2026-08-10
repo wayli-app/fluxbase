@@ -1,3 +1,10 @@
+---
+title: "test"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[WebhooksManager](index.md)/[test](test.md)
 
 # test

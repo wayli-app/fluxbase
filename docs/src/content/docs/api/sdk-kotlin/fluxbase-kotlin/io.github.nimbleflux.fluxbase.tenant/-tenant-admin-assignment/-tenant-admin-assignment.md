@@ -1,3 +1,10 @@
+---
+title: "TenantAdminAssignment"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[TenantAdminAssignment](index.md)/[TenantAdminAssignment](-tenant-admin-assignment.md)
 
 # TenantAdminAssignment

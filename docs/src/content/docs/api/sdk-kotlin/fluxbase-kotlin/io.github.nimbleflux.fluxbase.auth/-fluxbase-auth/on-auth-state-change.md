@@ -1,3 +1,10 @@
+---
+title: "onAuthStateChange"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[onAuthStateChange](on-auth-state-change.md)
 
 # onAuthStateChange

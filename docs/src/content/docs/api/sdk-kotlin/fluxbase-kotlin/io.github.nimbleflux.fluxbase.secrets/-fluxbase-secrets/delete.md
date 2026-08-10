@@ -1,3 +1,10 @@
+---
+title: "delete"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.secrets](../index.md)/[FluxbaseSecrets](index.md)/[delete](delete.md)
 
 # delete

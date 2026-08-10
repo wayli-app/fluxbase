@@ -1,3 +1,10 @@
+---
+title: "StorageBucket"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[StorageBucket](index.md)
 
 # StorageBucket

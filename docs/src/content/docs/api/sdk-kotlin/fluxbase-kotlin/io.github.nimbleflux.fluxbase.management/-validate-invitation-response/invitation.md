@@ -1,3 +1,10 @@
+---
+title: "invitation"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ValidateInvitationResponse](index.md)/[invitation](invitation.md)
 
 # invitation

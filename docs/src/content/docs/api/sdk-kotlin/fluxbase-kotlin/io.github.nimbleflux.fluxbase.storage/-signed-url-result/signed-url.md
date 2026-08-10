@@ -1,3 +1,10 @@
+---
+title: "signedUrl"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[SignedUrlResult](index.md)/[signedUrl](signed-url.md)
 
 # signedUrl

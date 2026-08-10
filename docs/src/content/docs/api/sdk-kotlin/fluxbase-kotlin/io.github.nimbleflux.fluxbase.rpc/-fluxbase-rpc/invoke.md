@@ -1,3 +1,10 @@
+---
+title: "invoke"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[FluxbaseRpc](index.md)/[invoke](invoke.md)
 
 # invoke

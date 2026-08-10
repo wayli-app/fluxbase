@@ -1,3 +1,10 @@
+---
+title: "setup2FA"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[setup2FA](setup2-f-a.md)
 
 # setup2FA

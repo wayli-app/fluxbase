@@ -1,3 +1,10 @@
+---
+title: "key"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[UserSecretMetadata](index.md)/[key](key.md)
 
 # key

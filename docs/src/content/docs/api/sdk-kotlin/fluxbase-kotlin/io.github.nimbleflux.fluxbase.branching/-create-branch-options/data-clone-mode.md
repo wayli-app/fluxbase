@@ -1,3 +1,10 @@
+---
+title: "dataCloneMode"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[CreateBranchOptions](index.md)/[dataCloneMode](data-clone-mode.md)
 
 # dataCloneMode

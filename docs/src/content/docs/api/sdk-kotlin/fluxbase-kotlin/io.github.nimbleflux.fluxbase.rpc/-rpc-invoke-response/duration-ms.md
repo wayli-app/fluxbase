@@ -1,3 +1,10 @@
+---
+title: "durationMs"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcInvokeResponse](index.md)/[durationMs](duration-ms.md)
 
 # durationMs

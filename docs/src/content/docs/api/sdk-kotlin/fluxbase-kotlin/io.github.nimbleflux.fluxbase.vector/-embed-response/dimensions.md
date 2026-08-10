@@ -1,3 +1,10 @@
+---
+title: "dimensions"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[EmbedResponse](index.md)/[dimensions](dimensions.md)
 
 # dimensions

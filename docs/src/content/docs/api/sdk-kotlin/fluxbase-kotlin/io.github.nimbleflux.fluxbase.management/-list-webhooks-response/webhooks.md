@@ -1,3 +1,10 @@
+---
+title: "webhooks"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ListWebhooksResponse](index.md)/[webhooks](webhooks.md)
 
 # webhooks

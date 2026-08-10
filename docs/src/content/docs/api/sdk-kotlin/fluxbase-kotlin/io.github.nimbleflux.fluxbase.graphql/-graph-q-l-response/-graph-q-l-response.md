@@ -1,3 +1,10 @@
+---
+title: "GraphQLResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLResponse](index.md)/[GraphQLResponse](-graph-q-l-response.md)
 
 # GraphQLResponse

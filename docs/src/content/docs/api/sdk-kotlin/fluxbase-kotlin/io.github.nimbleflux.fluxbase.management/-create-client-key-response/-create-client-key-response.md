@@ -1,3 +1,10 @@
+---
+title: "CreateClientKeyResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[CreateClientKeyResponse](index.md)/[CreateClientKeyResponse](-create-client-key-response.md)
 
 # CreateClientKeyResponse

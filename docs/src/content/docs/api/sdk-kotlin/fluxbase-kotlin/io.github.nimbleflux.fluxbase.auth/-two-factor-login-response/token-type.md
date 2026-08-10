@@ -1,3 +1,10 @@
+---
+title: "tokenType"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorLoginResponse](index.md)/[tokenType](token-type.md)
 
 # tokenType

@@ -1,3 +1,10 @@
+---
+title: "createSignedUrl"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[StorageBucket](index.md)/[createSignedUrl](create-signed-url.md)
 
 # createSignedUrl

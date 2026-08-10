@@ -1,3 +1,10 @@
+---
+title: "patch"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.core](../index.md)/[FluxbaseHttpClient](index.md)/[patch](patch.md)
 
 # patch

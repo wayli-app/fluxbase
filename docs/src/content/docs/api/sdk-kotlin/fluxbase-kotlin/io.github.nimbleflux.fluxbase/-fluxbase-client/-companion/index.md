@@ -1,3 +1,10 @@
+---
+title: "Companion"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase](../../index.md)/[FluxbaseClient](../index.md)/[Companion](index.md)
 
 # Companion

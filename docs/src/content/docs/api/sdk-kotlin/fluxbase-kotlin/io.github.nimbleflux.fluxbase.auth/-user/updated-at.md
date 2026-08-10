@@ -1,3 +1,10 @@
+---
+title: "updatedAt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[User](index.md)/[updatedAt](updated-at.md)
 
 # updatedAt

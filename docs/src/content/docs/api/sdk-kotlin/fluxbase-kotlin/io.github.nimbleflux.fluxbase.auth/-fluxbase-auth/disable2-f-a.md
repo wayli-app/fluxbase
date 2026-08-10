@@ -1,3 +1,10 @@
+---
+title: "disable2FA"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[disable2FA](disable2-f-a.md)
 
 # disable2FA

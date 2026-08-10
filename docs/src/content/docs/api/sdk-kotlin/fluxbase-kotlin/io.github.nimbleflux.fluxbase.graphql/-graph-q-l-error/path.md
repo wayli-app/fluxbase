@@ -1,3 +1,10 @@
+---
+title: "path"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLError](index.md)/[path](path.md)
 
 # path

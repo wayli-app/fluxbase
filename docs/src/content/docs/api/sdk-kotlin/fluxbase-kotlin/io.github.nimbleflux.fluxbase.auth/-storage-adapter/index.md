@@ -1,3 +1,10 @@
+---
+title: "StorageAdapter"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[StorageAdapter](index.md)
 
 # StorageAdapter

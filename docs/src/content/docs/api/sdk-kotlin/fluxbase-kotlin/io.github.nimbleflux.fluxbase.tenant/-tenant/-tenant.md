@@ -1,3 +1,10 @@
+---
+title: "Tenant"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[Tenant](index.md)/[Tenant](-tenant.md)
 
 # Tenant

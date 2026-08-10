@@ -1,3 +1,10 @@
+---
+title: "TOKEN_REFRESHED"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../../index.md)/[AuthChangeEvent](../index.md)/[TOKEN_REFRESHED](index.md)
 
 # TOKEN_REFRESHED

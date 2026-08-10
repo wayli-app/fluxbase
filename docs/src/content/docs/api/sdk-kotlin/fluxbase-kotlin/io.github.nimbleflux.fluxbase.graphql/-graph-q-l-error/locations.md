@@ -1,3 +1,10 @@
+---
+title: "locations"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLError](index.md)/[locations](locations.md)
 
 # locations

@@ -1,3 +1,10 @@
+---
+title: "FluxbaseJobs"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[FluxbaseJobs](index.md)
 
 # FluxbaseJobs

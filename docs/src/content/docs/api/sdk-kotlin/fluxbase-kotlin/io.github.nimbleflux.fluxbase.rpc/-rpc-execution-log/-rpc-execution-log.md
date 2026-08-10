@@ -1,3 +1,10 @@
+---
+title: "RpcExecutionLog"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcExecutionLog](index.md)/[RpcExecutionLog](-rpc-execution-log.md)
 
 # RpcExecutionLog

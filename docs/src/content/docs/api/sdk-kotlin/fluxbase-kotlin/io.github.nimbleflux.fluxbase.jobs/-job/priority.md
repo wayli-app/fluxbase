@@ -1,3 +1,10 @@
+---
+title: "priority"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[Job](index.md)/[priority](priority.md)
 
 # priority

@@ -1,3 +1,10 @@
+---
+title: "setItem"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[StorageAdapter](index.md)/[setItem](set-item.md)
 
 # setItem

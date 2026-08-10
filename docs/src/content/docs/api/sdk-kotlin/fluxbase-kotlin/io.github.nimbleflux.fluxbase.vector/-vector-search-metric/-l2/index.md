@@ -1,3 +1,10 @@
+---
+title: "L2"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../../index.md)/[VectorSearchMetric](../index.md)/[L2](index.md)
 
 # L2

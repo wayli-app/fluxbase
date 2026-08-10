@@ -1,3 +1,10 @@
+---
+title: "updateToken"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[RealtimeChannel](index.md)/[updateToken](update-token.md)
 
 # updateToken

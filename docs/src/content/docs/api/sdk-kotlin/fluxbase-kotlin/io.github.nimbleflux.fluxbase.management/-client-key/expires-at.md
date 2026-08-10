@@ -1,3 +1,10 @@
+---
+title: "expiresAt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ClientKey](index.md)/[expiresAt](expires-at.md)
 
 # expiresAt

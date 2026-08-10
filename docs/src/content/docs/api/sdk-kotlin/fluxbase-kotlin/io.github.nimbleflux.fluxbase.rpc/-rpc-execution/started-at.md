@@ -1,3 +1,10 @@
+---
+title: "startedAt"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcExecution](index.md)/[startedAt](started-at.md)
 
 # startedAt

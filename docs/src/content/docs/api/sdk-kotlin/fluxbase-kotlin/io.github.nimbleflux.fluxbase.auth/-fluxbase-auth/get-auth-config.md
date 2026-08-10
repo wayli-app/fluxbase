@@ -1,3 +1,10 @@
+---
+title: "getAuthConfig"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[getAuthConfig](get-auth-config.md)
 
 # getAuthConfig

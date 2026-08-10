@@ -1,3 +1,10 @@
+---
+title: "requires2fa"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[SignInWith2FaResponse](index.md)/[requires2fa](requires2fa.md)
 
 # requires2fa

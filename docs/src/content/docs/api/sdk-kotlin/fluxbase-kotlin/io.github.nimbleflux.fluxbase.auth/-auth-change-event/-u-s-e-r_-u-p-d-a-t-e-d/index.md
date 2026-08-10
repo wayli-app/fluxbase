@@ -1,3 +1,10 @@
+---
+title: "USER_UPDATED"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../../index.md)/[AuthChangeEvent](../index.md)/[USER_UPDATED](index.md)
 
 # USER_UPDATED

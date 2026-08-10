@@ -1,3 +1,10 @@
+---
+title: "stOverlaps"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[stOverlaps](st-overlaps.md)
 
 # stOverlaps

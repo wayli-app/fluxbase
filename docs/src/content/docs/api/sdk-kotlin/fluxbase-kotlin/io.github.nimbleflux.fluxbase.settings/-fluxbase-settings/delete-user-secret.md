@@ -1,3 +1,10 @@
+---
+title: "deleteUserSecret"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[FluxbaseSettings](index.md)/[deleteUserSecret](delete-user-secret.md)
 
 # deleteUserSecret

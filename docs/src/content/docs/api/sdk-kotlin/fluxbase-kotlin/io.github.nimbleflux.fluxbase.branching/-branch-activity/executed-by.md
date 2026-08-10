@@ -1,3 +1,10 @@
+---
+title: "executedBy"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[BranchActivity](index.md)/[executedBy](executed-by.md)
 
 # executedBy

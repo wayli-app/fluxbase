@@ -1,3 +1,10 @@
+---
+title: "getOrThrow"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase](index.md)/[getOrThrow](get-or-throw.md)
 
 # getOrThrow

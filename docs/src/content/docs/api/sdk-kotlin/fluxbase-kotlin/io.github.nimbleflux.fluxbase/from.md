@@ -1,3 +1,10 @@
+---
+title: "from"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase](index.md)/[from](from.md)
 
 # from

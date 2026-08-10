@@ -1,3 +1,10 @@
+---
+title: "values"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[ChangeEventType](index.md)/[values](values.md)
 
 # values

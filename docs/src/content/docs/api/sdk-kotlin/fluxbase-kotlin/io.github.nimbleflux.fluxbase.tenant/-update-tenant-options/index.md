@@ -1,3 +1,10 @@
+---
+title: "UpdateTenantOptions"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[UpdateTenantOptions](index.md)
 
 # UpdateTenantOptions

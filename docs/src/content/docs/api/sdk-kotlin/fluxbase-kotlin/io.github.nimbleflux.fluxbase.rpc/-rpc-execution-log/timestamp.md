@@ -1,3 +1,10 @@
+---
+title: "timestamp"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcExecutionLog](index.md)/[timestamp](timestamp.md)
 
 # timestamp

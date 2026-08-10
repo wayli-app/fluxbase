@@ -1,3 +1,10 @@
+---
+title: "refreshSession"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[refreshSession](refresh-session.md)
 
 # refreshSession

@@ -1,3 +1,10 @@
+---
+title: "AUTH_STORAGE_KEY"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase.auth](index.md)/[AUTH_STORAGE_KEY](-a-u-t-h_-s-t-o-r-a-g-e_-k-e-y.md)
 
 # AUTH_STORAGE_KEY

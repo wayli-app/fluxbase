@@ -1,3 +1,10 @@
+---
+title: "createdBy"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[Job](index.md)/[createdBy](created-by.md)
 
 # createdBy

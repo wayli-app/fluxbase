@@ -1,3 +1,10 @@
+---
+title: "column"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLErrorLocation](index.md)/[column](column.md)
 
 # column

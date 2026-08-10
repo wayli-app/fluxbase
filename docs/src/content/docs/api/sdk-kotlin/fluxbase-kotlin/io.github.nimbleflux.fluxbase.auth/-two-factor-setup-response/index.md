@@ -1,3 +1,10 @@
+---
+title: "TwoFactorSetupResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorSetupResponse](index.md)
 
 # TwoFactorSetupResponse

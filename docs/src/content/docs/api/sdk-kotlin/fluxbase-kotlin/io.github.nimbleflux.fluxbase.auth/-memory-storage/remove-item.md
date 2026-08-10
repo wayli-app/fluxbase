@@ -1,3 +1,10 @@
+---
+title: "removeItem"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[MemoryStorage](index.md)/[removeItem](remove-item.md)
 
 # removeItem

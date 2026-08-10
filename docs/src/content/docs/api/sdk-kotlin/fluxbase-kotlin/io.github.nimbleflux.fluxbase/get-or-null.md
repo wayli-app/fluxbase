@@ -1,3 +1,10 @@
+---
+title: "getOrNull"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase](index.md)/[getOrNull](get-or-null.md)
 
 # getOrNull

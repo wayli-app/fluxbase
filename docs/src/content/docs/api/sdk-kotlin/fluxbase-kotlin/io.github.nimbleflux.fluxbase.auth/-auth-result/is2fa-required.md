@@ -1,3 +1,10 @@
+---
+title: "is2faRequired"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthResult](index.md)/[is2faRequired](is2fa-required.md)
 
 # is2faRequired

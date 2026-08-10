@@ -1,3 +1,10 @@
+---
+title: "INNER_PRODUCT"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../../index.md)/[VectorMetric](../index.md)/[INNER_PRODUCT](index.md)
 
 # INNER_PRODUCT

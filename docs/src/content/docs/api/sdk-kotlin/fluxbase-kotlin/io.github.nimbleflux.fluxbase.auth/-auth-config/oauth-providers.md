@@ -1,3 +1,10 @@
+---
+title: "oauthProviders"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthConfig](index.md)/[oauthProviders](oauth-providers.md)
 
 # oauthProviders

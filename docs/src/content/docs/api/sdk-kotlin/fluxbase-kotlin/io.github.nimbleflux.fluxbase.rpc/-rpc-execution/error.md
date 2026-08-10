@@ -1,3 +1,10 @@
+---
+title: "error"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcExecution](index.md)/[error](error.md)
 
 # error

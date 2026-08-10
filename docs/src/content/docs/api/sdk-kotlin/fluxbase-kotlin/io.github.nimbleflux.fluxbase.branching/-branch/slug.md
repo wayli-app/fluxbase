@@ -1,3 +1,10 @@
+---
+title: "slug"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[Branch](index.md)/[slug](slug.md)
 
 # slug

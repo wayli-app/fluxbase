@@ -1,3 +1,10 @@
+---
+title: "PASSWORD_RECOVERY"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../../index.md)/[AuthChangeEvent](../index.md)/[PASSWORD_RECOVERY](index.md)
 
 # PASSWORD_RECOVERY

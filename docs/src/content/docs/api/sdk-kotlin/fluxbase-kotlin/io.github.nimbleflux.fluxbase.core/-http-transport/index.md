@@ -1,3 +1,10 @@
+---
+title: "HttpTransport"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.core](../index.md)/[HttpTransport](index.md)
 
 # HttpTransport

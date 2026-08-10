@@ -1,3 +1,10 @@
+---
+title: "setUserSecret"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[FluxbaseSettings](index.md)/[setUserSecret](set-user-secret.md)
 
 # setUserSecret

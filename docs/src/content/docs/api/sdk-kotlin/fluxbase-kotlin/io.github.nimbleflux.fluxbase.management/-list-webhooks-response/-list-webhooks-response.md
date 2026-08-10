@@ -1,3 +1,10 @@
+---
+title: "ListWebhooksResponse"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ListWebhooksResponse](index.md)/[ListWebhooksResponse](-list-webhooks-response.md)
 
 # ListWebhooksResponse

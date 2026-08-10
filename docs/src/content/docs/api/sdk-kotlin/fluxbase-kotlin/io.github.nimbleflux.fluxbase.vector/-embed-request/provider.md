@@ -1,3 +1,10 @@
+---
+title: "provider"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[EmbedRequest](index.md)/[provider](provider.md)
 
 # provider

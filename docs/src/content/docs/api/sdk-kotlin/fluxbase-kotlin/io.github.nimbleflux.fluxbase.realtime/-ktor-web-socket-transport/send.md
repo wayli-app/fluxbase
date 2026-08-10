@@ -1,3 +1,10 @@
+---
+title: "send"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[KtorWebSocketTransport](index.md)/[send](send.md)
 
 # send

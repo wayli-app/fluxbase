@@ -1,3 +1,10 @@
+---
+title: "line"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[ExecutionLog](index.md)/[line](line.md)
 
 # line

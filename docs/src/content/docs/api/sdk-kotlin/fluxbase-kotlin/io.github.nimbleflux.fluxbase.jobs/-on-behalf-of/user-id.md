@@ -1,3 +1,10 @@
+---
+title: "userId"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[OnBehalfOf](index.md)/[userId](user-id.md)
 
 # userId

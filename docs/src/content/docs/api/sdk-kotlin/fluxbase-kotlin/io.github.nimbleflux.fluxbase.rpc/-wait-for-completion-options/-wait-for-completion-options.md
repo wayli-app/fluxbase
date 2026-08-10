@@ -1,3 +1,10 @@
+---
+title: "WaitForCompletionOptions"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[WaitForCompletionOptions](index.md)/[WaitForCompletionOptions](-wait-for-completion-options.md)
 
 # WaitForCompletionOptions

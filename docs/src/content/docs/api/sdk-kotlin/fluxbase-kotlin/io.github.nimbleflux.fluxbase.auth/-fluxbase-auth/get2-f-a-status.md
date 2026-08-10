@@ -1,3 +1,10 @@
+---
+title: "get2FAStatus"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[get2FAStatus](get2-f-a-status.md)
 
 # get2FAStatus

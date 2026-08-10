@@ -1,3 +1,10 @@
+---
+title: "DELETE"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.core](../../index.md)/[HttpMethod](../index.md)/[DELETE](index.md)
 
 # DELETE

@@ -1,3 +1,10 @@
+---
+title: "exists"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[FluxbaseBranching](index.md)/[exists](exists.md)
 
 # exists

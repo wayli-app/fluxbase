@@ -1,3 +1,10 @@
+---
+title: "FluxbaseFunctions"
+editUrl: false
+next: false
+prev: false
+---
+
 //[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.functions](../index.md)/[FluxbaseFunctions](index.md)
 
 # FluxbaseFunctions
