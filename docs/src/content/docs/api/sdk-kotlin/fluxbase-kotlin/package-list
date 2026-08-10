@@ -163,9 +163,45 @@ $dokka.location:io.github.nimbleflux.fluxbase.core/HttpTransport/request/#io.git
 $dokka.location:io.github.nimbleflux.fluxbase.core/KtorHttpTransport///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.core/-ktor-http-transport/index.md
 $dokka.location:io.github.nimbleflux.fluxbase.core/KtorHttpTransport/KtorHttpTransport/#kotlin.String#kotlinx.serialization.json.Json/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.core/-ktor-http-transport/-ktor-http-transport.md
 $dokka.location:io.github.nimbleflux.fluxbase.core/KtorHttpTransport/request/#io.github.nimbleflux.fluxbase.core.HttpMethod#kotlin.String#kotlin.Any?#kotlin.collections.Map[kotlin.String,kotlin.String]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.core/-ktor-http-transport/request.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/PostgrestResponse///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-postgrest-response/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/PostgrestResponse/PostgrestResponse/#TypeParam(bounds=[kotlin.Any?])?#io.github.nimbleflux.fluxbase.FluxbaseError?#kotlin.Long?#kotlin.Int#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-postgrest-response/-postgrest-response.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/PostgrestResponse/count/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-postgrest-response/count.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/PostgrestResponse/data/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-postgrest-response/data.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/PostgrestResponse/error/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-postgrest-response/error.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/PostgrestResponse/status/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-postgrest-response/status.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/PostgrestResponse/statusText/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-postgrest-response/status-text.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder.Filter///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/-filter/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder.Filter/Filter/#kotlin.String#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/-filter/-filter.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder.Filter/column/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/-filter/column.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder.Filter/operator/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/-filter/operator.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder.Filter/value/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/-filter/value.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/delete/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/delete.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/eq/#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/eq.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/execute/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/execute.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/gt/#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/gt.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/gte/#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/gte.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/ilike/#kotlin.String#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/ilike.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/in/#kotlin.String#kotlin.collections.List[kotlin.Any?]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/in.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/insert/#kotlin.collections.Map[kotlin.String,kotlin.Any?]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/insert.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/is_/#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/is_.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/like/#kotlin.String#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/like.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/limit/#kotlin.Int/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/limit.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/lt/#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/lt.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/lte/#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/lte.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/maybeSingle/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/maybe-single.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/neq/#kotlin.String#kotlin.Any?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/neq.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/offset/#kotlin.Int/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/offset.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/order/#kotlin.String#kotlin.Boolean/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/order.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/range/#kotlin.Int#kotlin.Int/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/range.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/select/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/select.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/single/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/single.md
+$dokka.location:io.github.nimbleflux.fluxbase.postgrest/QueryBuilder/update/#kotlin.collections.Map[kotlin.String,kotlin.Any?]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-query-builder/update.md
 $dokka.location:io.github.nimbleflux.fluxbase////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/index.md
 $dokka.location:io.github.nimbleflux.fluxbase//createFluxbaseClient/#kotlin.String?#kotlin.String?#io.github.nimbleflux.fluxbase.FluxbaseClientOptions#io.github.nimbleflux.fluxbase.core.HttpTransport?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/create-fluxbase-client.md
 $dokka.location:io.github.nimbleflux.fluxbase//fluxbaseResponse/#kotlin.coroutines.SuspendFunction0[TypeParam(bounds=[kotlin.Any?])]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/fluxbase-response.md
+$dokka.location:io.github.nimbleflux.fluxbase//from/io.github.nimbleflux.fluxbase.FluxbaseClient#kotlin.String#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/from.md
 $dokka.location:io.github.nimbleflux.fluxbase//getOrNull/io.github.nimbleflux.fluxbase.FluxbaseResponse[TypeParam(bounds=[kotlin.Any?])]#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/get-or-null.md
 $dokka.location:io.github.nimbleflux.fluxbase//getOrThrow/io.github.nimbleflux.fluxbase.FluxbaseResponse[TypeParam(bounds=[kotlin.Any?])]#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/get-or-throw.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient.Companion///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/-companion/index.md
@@ -204,4 +240,5 @@ $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseResponse/error/#/PointingT
 io.github.nimbleflux.fluxbase
 io.github.nimbleflux.fluxbase.auth
 io.github.nimbleflux.fluxbase.core
+io.github.nimbleflux.fluxbase.postgrest
 

@@ -29,7 +29,7 @@ import kotlinx.serialization.json.Json
  */
 class FluxbaseHttpClient(
     baseUrl: String,
-    private val transport: HttpTransport,
+    internal val transport: HttpTransport,
     private val json: Json = defaultJson,
 ) {
     /** The base URL with any trailing slash removed. */

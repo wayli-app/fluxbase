@@ -122,3 +122,16 @@ fun createFluxbaseClient(
     options: FluxbaseClientOptions = FluxbaseClientOptions(),
     transport: HttpTransport? = null,
 ): FluxbaseClient = FluxbaseClient.create(url, key, options, transport)
+
+/**
+ * Start a PostgREST query against [table]. Uses a reified type parameter so the
+ * kotlinx.serialization serializer is resolved at compile time.
+ *
+ * Usage: `client.from<Trip>("trips").select().eq("user_id", uid).execute()`
+ *
+ * Port of `client.from(table)` in `client.ts:447`.
+ */
+inline fun <reified T> FluxbaseClient.from(table: String, schema: String? = null): io.github.nimbleflux.fluxbase.postgrest.QueryBuilder<T> {
+    val serializer = kotlinx.serialization.serializer<T>()
+    return io.github.nimbleflux.fluxbase.postgrest.QueryBuilder(this.http, serializer, table, schema)
+}

@@ -33,4 +33,5 @@ val (session, error) = client.auth.signInWithPassword("user@example.com", "pw")
 
 | Name | Summary |
 |---|---|
+| [from](../from.md) | [jvm]<br>inline fun &lt;[T](../from.md)&gt; [FluxbaseClient](index.md).[from](../from.md)(table: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), schema: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null): [QueryBuilder](../../io.github.nimbleflux.fluxbase.postgrest/-query-builder/index.md)&lt;[T](../from.md)&gt;<br>Start a PostgREST query against [table](../from.md). Uses a reified type parameter so the kotlinx.serialization serializer is resolved at compile time. |
 | [setTenant](set-tenant.md) | [jvm]<br>fun [setTenant](set-tenant.md)(tenantId: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html))<br>Set the active tenant for multi-tenancy. Sets the `X-FB-Tenant` header. Port of `setTenant()` in `client.ts:567-574`. |
