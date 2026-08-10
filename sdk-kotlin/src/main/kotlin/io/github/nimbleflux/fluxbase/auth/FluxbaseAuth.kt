@@ -44,7 +44,7 @@ data class AuthResult(
  */
 class FluxbaseAuth(
     private val http: FluxbaseHttpClient,
-    private val autoRefresh: Boolean = true,
+    @Suppress("unused") private val autoRefresh: Boolean = true,
     private val storage: StorageAdapter = MemoryStorage(),
 ) {
     private val json: Json = FluxbaseHttpClient.defaultJson

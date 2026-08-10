@@ -1,0 +1,130 @@
+name: SDK Kotlin
+
+on:
+  pull_request:
+    paths:
+      - "sdk-kotlin/**"
+      - ".github/workflows/sdk-kotlin.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "sdk-kotlin/**"
+      - ".github/workflows/sdk-kotlin.yml"
+    tags:
+      - "sdk-kotlin-v*"
+  workflow_dispatch:
+
+jobs:
+  # ---- PR / push to main: lint + unit test + build (no publish) ----
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Lint (detekt)
+        working-directory: sdk-kotlin
+        run: ./gradlew detekt
+
+      - name: Unit tests
+        working-directory: sdk-kotlin
+        run: ./gradlew test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: sdk-kotlin/build/reports/tests/
+
+      - name: Build
+        working-directory: sdk-kotlin
+        run: ./gradlew build
+
+      - name: Generate Dokka docs
+        working-directory: sdk-kotlin
+        run: ./gradlew dokkaGfm
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: sdk-kotlin/build/reports/kover/
+
+  # ---- Tag sdk-kotlin-v*: publish to GitHub Packages + create Release ----
+  publish:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/sdk-kotlin-v')
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#sdk-kotlin-v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # Determine if this is a pre-release (contains -rc.)
+          if [[ "$VERSION" == *-rc.* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Publishing version: $VERSION (prerelease: ${{ steps.version.outputs.prerelease }})"
+
+      - name: Lint + test + build
+        working-directory: sdk-kotlin
+        run: ./gradlew detekt test build -Pversion="${{ steps.version.outputs.version }}"
+
+      - name: Generate Dokka docs
+        working-directory: sdk-kotlin
+        run: ./gradlew dokkaGfm
+
+      - name: Publish to GitHub Packages
+        working-directory: sdk-kotlin
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew publishAllPublicationsToGprRepository -Pversion="${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
+            gh release create "${{ steps.version.outputs.tag }}" \
+              --title "fluxbase-kotlin ${{ steps.version.outputs.version }}" \
+              --notes "Release candidate ${{ steps.version.outputs.version }}" \
+              --prerelease
+          else
+            gh release create "${{ steps.version.outputs.tag }}" \
+              --title "fluxbase-kotlin ${{ steps.version.outputs.version }}" \
+              --notes "Stable release ${{ steps.version.outputs.version }}" \
+              --latest
+          fi

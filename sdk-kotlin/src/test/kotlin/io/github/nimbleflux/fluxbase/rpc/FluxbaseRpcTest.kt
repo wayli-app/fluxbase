@@ -16,7 +16,9 @@ class FluxbaseRpcTest {
 
     @Test
     fun `invoke posts to namespaced rpc endpoint`() = runTest {
-        val recording = RecordingHttp(mockResponseBody = """{"execution_id":"e1","status":"completed","result":{"count":5}}""")
+        val recording = RecordingHttp(
+            mockResponseBody = """{"execution_id":"e1","status":"completed","result":{"count":5}}""",
+        )
         val c = client(recording)
 
         c.rpc.invoke("get-trip-summary", mapOf("trip_id" to "abc"), RpcInvokeOptions(namespace = "wayli"))
@@ -37,7 +39,9 @@ class FluxbaseRpcTest {
 
     @Test
     fun `invoke returns response with result`() = runTest {
-        val recording = RecordingHttp(mockResponseBody = """{"execution_id":"e1","status":"completed","result":{"count":5},"duration_ms":42}""")
+        val recording = RecordingHttp(
+            mockResponseBody = """{"execution_id":"e1","status":"completed","result":{"count":5},"duration_ms":42}""",
+        )
         val c = client(recording)
 
         val result = c.rpc.invoke("count-trips")

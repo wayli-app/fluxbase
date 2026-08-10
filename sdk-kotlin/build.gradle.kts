@@ -8,11 +8,13 @@
  */
 
 plugins {
+    `maven-publish`
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
     alias(libs.plugins.dokka)
+    alias(libs.plugins.mavenPublish)
 }
 
 group = "io.github.nimbleflux"
@@ -111,4 +113,58 @@ tasks.withType<org.jetbrains.dokka.gradle.DokkaTask>().configureEach {
 
 tasks.named<org.jetbrains.dokka.gradle.DokkaTask>("dokkaGfm").configure {
     outputDirectory.set(file("../docs/src/content/docs/api/sdk-kotlin"))
+}
+
+// ---- Maven publishing (GitHub Packages) ----
+// Uses com.vanniktech.maven.publish to handle sources + javadoc JARs, POM metadata,
+// and upload. GitHub Packages needs no GPG signing. Version comes from the git tag
+// (CI passes -Pversion=...); untagged/local builds are "dev".
+//
+// RC tags:  sdk-kotlin-v2026.8.8-rc.1  →  artifact version 2026.8.8-rc.1
+// Stable:   sdk-kotlin-v2026.8.8       →  artifact version 2026.8.8
+mavenPublishing {
+    coordinates(
+        groupId = "io.github.nimbleflux",
+        artifactId = "fluxbase-kotlin",
+        version = project.version.toString(),
+    )
+    pom {
+        name.set("fluxbase-kotlin")
+        description.set("A full-parity Kotlin port of @nimbleflux/fluxbase-sdk for Fluxbase, a self-hostable Supabase-compatible BaaS.")
+        inceptionYear.set("2026")
+        url.set("https://github.com/nimbleflux/fluxbase")
+        licenses {
+            license {
+                name.set("Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+            }
+        }
+        developers {
+            developer {
+                id.set("nimbleflux")
+                name.set("Nimbleflux")
+            }
+        }
+        scm {
+            url.set("https://github.com/nimbleflux/fluxbase")
+            connection.set("scm:git:git://github.com/nimbleflux/fluxbase.git")
+            developerConnection.set("scm:git:ssh://github.com/nimbleflux/fluxbase.git")
+        }
+    }
+}
+
+// GitHub Packages repository — the publish step targets this repo.
+// CI publishes via GITHUB_ACTOR + GITHUB_TOKEN (auto-injected).
+// Local publishing: set gpr.user + gpr.key in ~/.gradle/gradle.properties.
+publishing {
+    repositories {
+        maven {
+            name = "gpr"
+            url = uri("https://maven.pkg.github.com/nimbleflux/fluxbase")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: providers.gradleProperty("gpr.user").orNull
+                password = System.getenv("GITHUB_TOKEN") ?: providers.gradleProperty("gpr.key").orNull
+            }
+        }
+    }
 }

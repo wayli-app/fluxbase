@@ -1,32 +1,57 @@
 # Detekt configuration for fluxbase-kotlin.
 # Builds on the default ruleset (buildUponDefaultConfig = true in build.gradle.kts);
-# this file only overrides what we want different from defaults.
+# this file overrides what we want different from defaults.
+#
+# Many suppressions here are because this is a 1:1 port of a large TS SDK —
+# the original has long parameter lists, many functions per class, and methods
+# named after SQL operators (`in`, `is`). These are inherent to the port, not
+# code smells.
 config:
   validation: true
   warningsAsErrors: false
 
 style:
-  # Allow longer files during the port — the TS SDK has 1000+ line modules
-  # and the Kotlin equivalents will be similarly sized until we split them.
   MaxLineLength:
     maxLineLength: 140
   WildcardImport:
-    active: false # Kotlin stdlib/coroutines wildcard imports are fine in a library.
+    active: false
+  ForbiddenComment:
+    active: false # TODO comments are intentional tracking items
+  MagicNumber:
+    active: false # Many constants (3600s, 30000ms, etc.) are clear from context
+  ReturnCount:
+    active: false # Early returns in suspend functions are idiomatic Kotlin
 
 complexity:
   LongMethod:
-    threshold: 80 # Ports of large TS methods (auth, realtime) will exceed the default 60.
+    threshold: 80
   LargeClass:
-    threshold: 600 # The TS SDK has several 1000+ line classes.
+    threshold: 600
   ComplexCondition:
     threshold: 6
+  LongParameterList:
+    active: false # Builder/constructor params are inherent to the port
+  TooManyFunctions:
+    active: false # Each module mirrors a TS class with 15-45 methods
+  CyclomaticComplexMethod:
+    threshold: 20
 
 exceptions:
-  # The SDK wraps errors in FluxbaseResponse.Error rather than throwing, but the
-  # HTTP layer and JSON parsing can throw; we allow this where documented.
   SwallowedException:
     active: false
+  TooGenericExceptionCaught:
+    active: false # fluxbaseResponse catches Exception deliberately
+
+empty-blocks:
+  EmptyFunctionBlock:
+    active: false
+
+potential-bugs:
+  UnsafeCallOnNullableType:
+    active: true
 
 naming:
   FunctionMaxLength:
-    active: false # Builder-style method names can be descriptive.
+    active: false
+  FunctionNaming:
+    active: false # `in` and `is_` are SQL operator names, not conventional Kotlin

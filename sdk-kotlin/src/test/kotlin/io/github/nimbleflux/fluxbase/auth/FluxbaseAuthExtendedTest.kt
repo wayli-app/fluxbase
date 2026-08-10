@@ -67,7 +67,10 @@ class FluxbaseAuthExtendedTest {
         val auth = FluxbaseAuth(http, autoRefresh = false)
         auth.signIn("user@example.com", "pw")
 
-        val userJson = """{"id":"1","email":"user@example.com","email_verified":true,"role":"user","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z"}"""
+        val userJson = """
+            {"id":"1","email":"user@example.com","email_verified":true,
+             "role":"user","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z"}
+        """.trimIndent()
         recording.mockResponseBody = userJson
         val result = auth.getCurrentUser()
 
@@ -84,7 +87,10 @@ class FluxbaseAuthExtendedTest {
         val auth = FluxbaseAuth(http, autoRefresh = false)
         auth.signIn("user@example.com", "pw")
 
-        val userJson = """{"id":"1","email":"new@example.com","email_verified":true,"role":"user","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-02T00:00:00Z"}"""
+        val userJson = """
+            {"id":"1","email":"new@example.com","email_verified":true,
+             "role":"user","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-02T00:00:00Z"}
+        """.trimIndent()
         recording.mockResponseBody = userJson
         val result = auth.updateUser(mapOf("email" to "new@example.com"))
 
