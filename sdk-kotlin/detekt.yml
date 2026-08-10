@@ -1,0 +1,32 @@
+# Detekt configuration for fluxbase-kotlin.
+# Builds on the default ruleset (buildUponDefaultConfig = true in build.gradle.kts);
+# this file only overrides what we want different from defaults.
+config:
+  validation: true
+  warningsAsErrors: false
+
+style:
+  # Allow longer files during the port — the TS SDK has 1000+ line modules
+  # and the Kotlin equivalents will be similarly sized until we split them.
+  MaxLineLength:
+    maxLineLength: 140
+  WildcardImport:
+    active: false # Kotlin stdlib/coroutines wildcard imports are fine in a library.
+
+complexity:
+  LongMethod:
+    threshold: 80 # Ports of large TS methods (auth, realtime) will exceed the default 60.
+  LargeClass:
+    threshold: 600 # The TS SDK has several 1000+ line classes.
+  ComplexCondition:
+    threshold: 6
+
+exceptions:
+  # The SDK wraps errors in FluxbaseResponse.Error rather than throwing, but the
+  # HTTP layer and JSON parsing can throw; we allow this where documented.
+  SwallowedException:
+    active: false
+
+naming:
+  FunctionMaxLength:
+    active: false # Builder-style method names can be descriptive.

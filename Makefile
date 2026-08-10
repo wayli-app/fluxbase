@@ -576,6 +576,13 @@ docs-build: ## Build static documentation site for production
 	@echo "${YELLOW}Output:${NC} docs/dist/"
 	@echo "${YELLOW}To preview locally:${NC} cd docs && bun run preview"
 
+sdk-kotlin-docs: ## Regenerate Kotlin SDK API docs (Dokka GFM → docs/src/content/docs/api/sdk-kotlin/)
+	@echo "${YELLOW}Generating Kotlin SDK API documentation...${NC}"
+	@cd sdk-kotlin && ./gradlew dokkaGfm
+	@echo "${GREEN}Kotlin SDK docs generated!${NC}"
+	@echo "${YELLOW}Output:${NC} docs/src/content/docs/api/sdk-kotlin/"
+	@echo "${YELLOW}Commit the generated files to update the docs site.${NC}"
+
 docs-check-links: docs-build ## Check documentation for broken links
 	@echo "${YELLOW}Checking documentation for broken links...${NC}"
 	@which lychee > /dev/null 2>&1 || { \
