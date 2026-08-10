@@ -171,6 +171,70 @@ class FluxbaseAuth(
         return { stateListeners.remove(callback) }
     }
 
+    // ---- Session refresh / user management (port of auth.ts) ----
+
+    /**
+     * Refresh the current session using the stored refresh token.
+     * POSTs to `/api/v1/auth/refresh` with `{refresh_token}`.
+     * On success, updates the session and emits `TOKEN_REFRESHED`.
+     *
+     * Port of `refreshSession()` in `auth.ts`.
+     */
+    suspend fun refreshSession(): FluxbaseResponse<AuthSession> =
+        fluxbaseResponse {
+            val current = currentSession ?: return@fluxbaseResponse throw FluxbaseError(message = "No active session")
+            val body = mapOf("refresh_token" to current.refreshToken)
+            val responseText = http.postWithHeaders("/api/v1/auth/refresh", body).body
+            val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
+            val session = AuthSession(
+                user = authResponse.user,
+                accessToken = authResponse.accessToken,
+                refreshToken = authResponse.refreshToken,
+                expiresIn = authResponse.expiresIn,
+                expiresAt = Clock.System.now().toEpochMilliseconds() + authResponse.expiresIn * 1000,
+            )
+            setSessionInternal(session, AuthChangeEvent.TOKEN_REFRESHED)
+            session
+        }
+
+    /**
+     * Get the current user from the server. GETs `/api/v1/auth/user`.
+     * Port of `getCurrentUser()` in `auth.ts`.
+     */
+    suspend fun getCurrentUser(): FluxbaseResponse<User> =
+        fluxbaseResponse {
+            http.get("/api/v1/auth/user")
+        }
+
+    /**
+     * Update the user's attributes. PATCHes `/api/v1/auth/user`.
+     * Port of `updateUser()` in `auth.ts`.
+     */
+    suspend fun updateUser(attributes: Map<String, Any>): FluxbaseResponse<User> =
+        fluxbaseResponse {
+            http.patch("/api/v1/auth/user", attributes)
+        }
+
+    /**
+     * Get the server's auth configuration (signup enabled, OAuth providers,
+     * password rules). GETs `/api/v1/auth/config`.
+     * Port of `getAuthConfig()` in `auth.ts`.
+     */
+    suspend fun getAuthConfig(): FluxbaseResponse<AuthConfig> =
+        fluxbaseResponse {
+            http.get("/api/v1/auth/config")
+        }
+
+    /**
+     * Send a password reset email. POSTs `/api/v1/auth/password/reset`.
+     * Port of `sendPasswordReset()` in `auth.ts`.
+     */
+    suspend fun sendPasswordReset(email: String): FluxbaseResponse<Unit> =
+        fluxbaseResponse {
+            http.postWithHeaders("/api/v1/auth/password/reset", mapOf("email" to email))
+            Unit
+        }
+
     // ---- 2FA (port of `auth.ts:640-744`) ----
 
     /** POST `/api/v1/auth/2fa/setup` → returns TOTP secret + QR code. */
