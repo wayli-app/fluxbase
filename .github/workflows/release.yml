@@ -30,6 +30,7 @@ name: Release
 #   - Publish Docker image: Build and push the main Fluxbase Docker image
 #   - Publish docs Docker image: Build and push the documentation site image
 #   - Publish NPM SDK packages: Publish TypeScript and React SDK packages to NPM
+#   - Publish Kotlin SDK: Publish fluxbase-kotlin to GitHub Packages (Maven)
 #   - Publish Go module: Notify pkg.go.dev to index the new Go module version
 #   - Publish Helm chart: Package and publish Helm chart to GHCR and GitHub Pages
 #   - Publish Postgres images: Build and push fluxbase-postgres images for all supported versions
@@ -96,6 +97,11 @@ on:
         default: true
       publish_helm:
         description: "Publish Helm chart"
+        required: false
+        type: boolean
+        default: true
+      publish_kotlin_sdk:
+        description: "Publish Kotlin SDK to GitHub Packages"
         required: false
         type: boolean
         default: true
@@ -1379,6 +1385,36 @@ jobs:
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-kotlin-sdk:
+    name: Publish Kotlin SDK to GitHub Packages
+    needs: get-version
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_kotlin_sdk
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Lint + test + build
+        working-directory: sdk-kotlin
+        run: ./gradlew detekt test build -Pversion="${{ needs.get-version.outputs.version }}"
+
+      - name: Publish to GitHub Packages
+        working-directory: sdk-kotlin
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew publishAllPublicationsToGprRepository -Pversion="${{ needs.get-version.outputs.version }}"
 
   publish-go-module:
     name: Publish Go Module
