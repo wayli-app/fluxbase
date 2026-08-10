@@ -6,4 +6,6 @@
 
 | Name |
 |---|
+| [io.github.nimbleflux.fluxbase](fluxbase-kotlin/io.github.nimbleflux.fluxbase/index.md) |
+| [io.github.nimbleflux.fluxbase.auth](fluxbase-kotlin/io.github.nimbleflux.fluxbase.auth/index.md) |
 | [io.github.nimbleflux.fluxbase.core](fluxbase-kotlin/io.github.nimbleflux.fluxbase.core/index.md) |
