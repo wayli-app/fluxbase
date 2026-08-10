@@ -58,6 +58,16 @@ class FluxbaseClient internal constructor(
     val storage: io.github.nimbleflux.fluxbase.storage.FluxbaseStorage,
     /** RPC module — namespaced stored procedures. */
     val rpc: io.github.nimbleflux.fluxbase.rpc.FluxbaseRpc,
+    /** GraphQL module. */
+    val graphql: io.github.nimbleflux.fluxbase.graphql.FluxbaseGraphQL,
+    /** Vector embedding + similarity search. */
+    val vector: io.github.nimbleflux.fluxbase.vector.FluxbaseVector,
+    /** Database branching (admin). */
+    val branching: io.github.nimbleflux.fluxbase.branching.FluxbaseBranching,
+    /** Multi-tenancy management (admin). */
+    val tenant: io.github.nimbleflux.fluxbase.tenant.FluxbaseTenant,
+    /** Client keys, webhooks, invitations. */
+    val management: io.github.nimbleflux.fluxbase.management.FluxbaseManagement,
 ) {
     /**
      * Set the active tenant for multi-tenancy. Sets the `X-FB-Tenant` header.
@@ -150,8 +160,16 @@ class FluxbaseClient internal constructor(
             val settings = io.github.nimbleflux.fluxbase.settings.FluxbaseSettings(http)
             val storage = io.github.nimbleflux.fluxbase.storage.FluxbaseStorage(http)
             val rpc = io.github.nimbleflux.fluxbase.rpc.FluxbaseRpc(http)
+            val graphql = io.github.nimbleflux.fluxbase.graphql.FluxbaseGraphQL(http)
+            val vector = io.github.nimbleflux.fluxbase.vector.FluxbaseVector(http)
+            val branching = io.github.nimbleflux.fluxbase.branching.FluxbaseBranching(http)
+            val tenant = io.github.nimbleflux.fluxbase.tenant.FluxbaseTenant(http)
+            val management = io.github.nimbleflux.fluxbase.management.FluxbaseManagement(http)
 
-            return FluxbaseClient(http, auth, functions, jobs, secrets, settings, storage, rpc)
+            return FluxbaseClient(
+                http, auth, functions, jobs, secrets, settings, storage, rpc,
+                graphql, vector, branching, tenant, management,
+            )
         }
     }
 }
