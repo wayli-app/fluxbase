@@ -322,6 +322,53 @@ $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/close/
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/connect/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/connect.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/isConnected/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/is-connected.md
 $dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/send/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/send.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/FluxbaseRpc///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/FluxbaseRpc/FluxbaseRpc/#io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/-fluxbase-rpc.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/FluxbaseRpc/getLogs/#kotlin.String#kotlin.Int?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/get-logs.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/FluxbaseRpc/getStatus/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/get-status.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/FluxbaseRpc/invoke/#kotlin.String#kotlin.collections.Map[kotlin.String,kotlin.Any?]?#io.github.nimbleflux.fluxbase.rpc.RpcInvokeOptions/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/invoke.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/FluxbaseRpc/list/#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/list.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/FluxbaseRpc/waitForCompletion/#kotlin.String#io.github.nimbleflux.fluxbase.rpc.WaitForCompletionOptions/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/wait-for-completion.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/RpcExecution/#kotlin.String#kotlin.String#kotlinx.serialization.json.JsonElement?#kotlin.String?#kotlin.String?#kotlin.String?#kotlin.Long?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/-rpc-execution.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/completedAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/completed-at.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/durationMs/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/duration-ms.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/error/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/error.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/id/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/id.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/result/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/result.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/startedAt/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/started-at.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecution/status/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution/status.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecutionLog///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution-log/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecutionLog/RpcExecutionLog/#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution-log/-rpc-execution-log.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecutionLog/level/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution-log/level.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecutionLog/message/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution-log/message.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcExecutionLog/timestamp/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-execution-log/timestamp.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeOptions///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-options/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeOptions/RpcInvokeOptions/#kotlin.String#kotlin.Boolean#kotlin.Long?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-options/-rpc-invoke-options.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeOptions/async/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-options/async.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeOptions/namespace/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-options/namespace.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeOptions/timeout/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-options/timeout.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse/RpcInvokeResponse/#kotlin.String?#kotlin.String#kotlinx.serialization.json.JsonElement?#kotlin.Long?#kotlin.Long?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/-rpc-invoke-response.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse/durationMs/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/duration-ms.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse/error/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/error.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse/executionId/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/execution-id.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse/result/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/result.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse/rowsReturned/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/rows-returned.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcInvokeResponse/status/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-invoke-response/status.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcProcedureSummary///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-procedure-summary/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcProcedureSummary/RpcProcedureSummary/#kotlin.String#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-procedure-summary/-rpc-procedure-summary.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcProcedureSummary/description/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-procedure-summary/description.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcProcedureSummary/name/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-procedure-summary/name.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcProcedureSummary/namespace/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-procedure-summary/namespace.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/RpcProcedureSummary/returnType/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-rpc-procedure-summary/return-type.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/WaitForCompletionOptions///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-wait-for-completion-options/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/WaitForCompletionOptions/WaitForCompletionOptions/#kotlin.Long#kotlin.Long#kotlin.Long#kotlin.Function1[io.github.nimbleflux.fluxbase.rpc.RpcExecution,kotlin.Unit]?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-wait-for-completion-options/-wait-for-completion-options.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/WaitForCompletionOptions/initialIntervalMs/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-wait-for-completion-options/initial-interval-ms.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/WaitForCompletionOptions/maxIntervalMs/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-wait-for-completion-options/max-interval-ms.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/WaitForCompletionOptions/maxWaitMs/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-wait-for-completion-options/max-wait-ms.md
+$dokka.location:io.github.nimbleflux.fluxbase.rpc/WaitForCompletionOptions/onProgress/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/-wait-for-completion-options/on-progress.md
 $dokka.location:io.github.nimbleflux.fluxbase.secrets////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/index.md
 $dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/index.md
 $dokka.location:io.github.nimbleflux.fluxbase.secrets/FluxbaseSecrets/FluxbaseSecrets/#io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/-fluxbase-secrets.md
@@ -400,6 +447,7 @@ $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/channel/#kotlin.Str
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/functions/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/functions.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/http/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/http.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/jobs/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/jobs.md
+$dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/rpc/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/rpc.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/secrets/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/secrets.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/setTenant/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/set-tenant.md
 $dokka.location:io.github.nimbleflux.fluxbase/FluxbaseClient/settings/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/-fluxbase-client/settings.md
@@ -438,6 +486,7 @@ io.github.nimbleflux.fluxbase.functions
 io.github.nimbleflux.fluxbase.jobs
 io.github.nimbleflux.fluxbase.postgrest
 io.github.nimbleflux.fluxbase.realtime
+io.github.nimbleflux.fluxbase.rpc
 io.github.nimbleflux.fluxbase.secrets
 io.github.nimbleflux.fluxbase.settings
 io.github.nimbleflux.fluxbase.storage

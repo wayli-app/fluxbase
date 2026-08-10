@@ -13,6 +13,7 @@
 | [io.github.nimbleflux.fluxbase.jobs](fluxbase-kotlin/io.github.nimbleflux.fluxbase.jobs/index.md) |
 | [io.github.nimbleflux.fluxbase.postgrest](fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/index.md) |
 | [io.github.nimbleflux.fluxbase.realtime](fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/index.md) |
+| [io.github.nimbleflux.fluxbase.rpc](fluxbase-kotlin/io.github.nimbleflux.fluxbase.rpc/index.md) |
 | [io.github.nimbleflux.fluxbase.secrets](fluxbase-kotlin/io.github.nimbleflux.fluxbase.secrets/index.md) |
 | [io.github.nimbleflux.fluxbase.settings](fluxbase-kotlin/io.github.nimbleflux.fluxbase.settings/index.md) |
 | [io.github.nimbleflux.fluxbase.storage](fluxbase-kotlin/io.github.nimbleflux.fluxbase.storage/index.md) |

@@ -56,6 +56,8 @@ class FluxbaseClient internal constructor(
     val settings: io.github.nimbleflux.fluxbase.settings.FluxbaseSettings,
     /** Storage module — file upload/download/list. */
     val storage: io.github.nimbleflux.fluxbase.storage.FluxbaseStorage,
+    /** RPC module — namespaced stored procedures. */
+    val rpc: io.github.nimbleflux.fluxbase.rpc.FluxbaseRpc,
 ) {
     /**
      * Set the active tenant for multi-tenancy. Sets the `X-FB-Tenant` header.
@@ -147,8 +149,9 @@ class FluxbaseClient internal constructor(
             val secrets = io.github.nimbleflux.fluxbase.secrets.FluxbaseSecrets(http)
             val settings = io.github.nimbleflux.fluxbase.settings.FluxbaseSettings(http)
             val storage = io.github.nimbleflux.fluxbase.storage.FluxbaseStorage(http)
+            val rpc = io.github.nimbleflux.fluxbase.rpc.FluxbaseRpc(http)
 
-            return FluxbaseClient(http, auth, functions, jobs, secrets, settings, storage)
+            return FluxbaseClient(http, auth, functions, jobs, secrets, settings, storage, rpc)
         }
     }
 }
