@@ -383,8 +383,8 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 	switch msg.Type {
 	case MessageTypeSubscribe:
 		// Check if this is a broadcast-only channel (no table required)
-		isAdminChannel := len(msg.Channel) >= 15 && msg.Channel[:15] == "realtime:admin:"
-		isFluxbaseChannel := len(msg.Channel) >= 9 && msg.Channel[:9] == "fluxbase:"
+		isAdminChannel := isAdminChannel(msg.Channel)
+		isFluxbaseChannel := isFluxbaseChannel(msg.Channel)
 
 		if isAdminChannel || isFluxbaseChannel {
 			// Admin channels require admin role
@@ -422,26 +422,7 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		}
 
 		// Extract subscription details from either direct fields or config object
-		var event, schema, table, filter string
-
-		if len(msg.Config) > 0 {
-			// New format: { type: "subscribe", channel: "...", config: { event, schema, table, filter } }
-			var config PostgresChangesConfig
-			if err := json.Unmarshal(msg.Config, &config); err == nil {
-				event = config.Event
-				schema = config.Schema
-				table = config.Table
-				filter = config.Filter
-			}
-		}
-		// Fall back to legacy format fields if config wasn't parsed
-		if table == "" {
-			// Legacy format: { type: "subscribe", event, schema, table, filter }
-			event = msg.Event
-			schema = msg.Schema
-			table = msg.Table
-			filter = msg.Filter
-		}
+		event, schema, table, filter := parsePostgresChangesConfig(msg)
 
 		// Validate table is provided
 		if table == "" {
@@ -461,15 +442,7 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			return
 		}
 
-		// Default schema to "public"
-		if schema == "" {
-			schema = "public"
-		}
-
-		// Default event to "*" (all events)
-		if event == "" {
-			event = "*"
-		}
+		// schema defaults to "public" and event to "*" via parsePostgresChangesConfig.
 
 		// Get user's role and claims from connection
 		role, claims := conn.GetRoleAndClaims()
@@ -618,7 +591,7 @@ func (h *RealtimeHandler) handleBroadcast(conn *Connection, msg ClientMessage) {
 	}
 
 	// Check if this is an admin channel subscription (read-only)
-	if len(msg.Channel) >= 15 && msg.Channel[:15] == "realtime:admin:" {
+	if isAdminChannel(msg.Channel) {
 		// Admin channels require admin role and are subscribe-only (no broadcasting)
 		if conn.Role != "admin" && conn.Role != "instance_admin" && conn.Role != "service_role" {
 			_ = conn.SendMessage(ServerMessage{
@@ -880,39 +853,8 @@ func (h *RealtimeHandler) handleAccessToken(conn *Connection, msg ClientMessage)
 
 // handleSubscribeLogs processes execution log subscription requests
 func (h *RealtimeHandler) handleSubscribeLogs(conn *Connection, msg ClientMessage) {
-	// Extract execution_id and type from config or payload
-	var executionID, executionType string
-
-	// Try to parse config first (SDK sends { execution_id, type } in config)
-	if len(msg.Config) > 0 {
-		var logConfig LogSubscriptionConfig
-		if err := json.Unmarshal(msg.Config, &logConfig); err == nil {
-			executionID = logConfig.ExecutionID
-			executionType = logConfig.Type
-		}
-
-		// Also try legacy format (schema/table fields)
-		if executionID == "" {
-			var pgConfig PostgresChangesConfig
-			if err := json.Unmarshal(msg.Config, &pgConfig); err == nil {
-				executionID = pgConfig.Schema
-				executionType = pgConfig.Table
-			}
-		}
-	}
-
-	// Fall back to payload if config didn't have it
-	if executionID == "" && len(msg.Payload) > 0 {
-		var payload map[string]interface{}
-		if err := json.Unmarshal(msg.Payload, &payload); err == nil {
-			if v, ok := payload["execution_id"].(string); ok {
-				executionID = v
-			}
-			if v, ok := payload["type"].(string); ok {
-				executionType = v
-			}
-		}
-	}
+	// Extract execution_id and type from config or payload (pure helper).
+	executionID, executionType := parseLogSubscription(msg)
 
 	// Validate execution_id is provided
 	if executionID == "" {

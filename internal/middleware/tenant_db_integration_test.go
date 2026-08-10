@@ -178,8 +178,8 @@ func TestTenantDBMiddleware_Integration_SeparateDBTenant_SetsPool(t *testing.T) 
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: env.storage,
-		Router:  env.router,
+		Repository: env.storage,
+		Router:     env.router,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		capturedPool = GetTenantPool(c)
@@ -221,8 +221,8 @@ func TestTenantDBMiddleware_DefaultTenant_NoPool(t *testing.T) {
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: env.storage,
-		Router:  env.router,
+		Repository: env.storage,
+		Router:     env.router,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		capturedPool = GetTenantPool(c)
@@ -254,8 +254,8 @@ func TestTenantDBMiddleware_InstanceAdmin_SeparateDBTenant(t *testing.T) {
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: env.storage,
-		Router:  env.router,
+		Repository: env.storage,
+		Router:     env.router,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		capturedPool = GetTenantPool(c)
@@ -291,8 +291,8 @@ func TestTenantDBMiddleware_InstanceAdmin_DefaultTenant(t *testing.T) {
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: env.storage,
-		Router:  env.router,
+		Repository: env.storage,
+		Router:     env.router,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		capturedPool = GetTenantPool(c)
@@ -347,8 +347,8 @@ func TestTenantDBMiddleware_JWTSource_SeparateDBTenant(t *testing.T) {
 		return c.Next()
 	})
 	app.Use(TenantDBMiddleware(TenantDBConfig{
-		Storage: env.storage,
-		Router:  env.router,
+		Repository: env.storage,
+		Router:     env.router,
 	}))
 	app.Get("/test", func(c fiber.Ctx) error {
 		capturedPool = GetTenantPool(c)

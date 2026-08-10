@@ -93,7 +93,7 @@ func setupDashboardAuthTestServer(t *testing.T) (*fiber.App, *DashboardAuthHandl
 		},
 	})
 
-	handler := NewDashboardAuthHandler(dashboardAuth, jwtManager, db, nil, nil, "http://localhost:3000", "", nil)
+	handler := NewDashboardAuthHandler(dashboardAuth, jwtManager, db, nil, nil, "http://localhost:3000", nil, nil)
 
 	dashboard := app.Group("/dashboard/auth")
 	dashboard.Post("/login", handler.Login)

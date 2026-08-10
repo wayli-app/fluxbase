@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestAdminSession_ListSessions_Integration tests listing all admin sessions
 func TestAdminSession_ListSessions_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -53,7 +53,7 @@ func TestAdminSession_ListSessions_Integration(t *testing.T) {
 
 // TestAdminSession_ListSessions_Pagination_Integration tests pagination for session listing
 func TestAdminSession_ListSessions_Pagination_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -79,12 +79,19 @@ func TestAdminSession_ListSessions_Pagination_Integration(t *testing.T) {
 	assert.Equal(t, float64(2), result["limit"])
 	assert.Equal(t, float64(0), result["offset"])
 
-	sessions := result["sessions"].([]interface{})
-	count := int(result["count"].(float64))
+	sessions, _ := result["sessions"].([]interface{})
+	// Guard the type assertion: if "count" is missing/nil the response shape
+	// differs from expected, but that should be an assertion failure, not a panic
+	// that aborts the entire test package (killing coverage for all other tests).
+	count := 0
+	if countVal, ok := result["count"].(float64); ok {
+		count = int(countVal)
+	}
 
-	// Should return at most 2 sessions
+	// Should return at most 2 sessions with limit=2
 	assert.LessOrEqual(t, count, 2, "Should return at most 2 sessions with limit=2")
 	assert.Equal(t, count, len(sessions), "Count should match sessions array length")
+	assert.NotNil(t, result["count"], "response should include count field")
 
 	// Get second page
 	resp2 := tc.NewRequest("GET", "/api/v1/admin/auth/sessions?limit=2&offset=2").
@@ -101,7 +108,7 @@ func TestAdminSession_ListSessions_Pagination_Integration(t *testing.T) {
 
 // TestAdminSession_RevokeSession_Integration tests revoking a specific session
 func TestAdminSession_RevokeSession_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -152,7 +159,7 @@ func TestAdminSession_RevokeSession_Integration(t *testing.T) {
 
 // TestAdminSession_RevokeSession_NotFound_Integration tests revoking a non-existent session
 func TestAdminSession_RevokeSession_NotFound_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -174,7 +181,7 @@ func TestAdminSession_RevokeSession_NotFound_Integration(t *testing.T) {
 
 // TestAdminSession_RevokeUserSessions_Integration tests revoking all sessions for a user
 func TestAdminSession_RevokeUserSessions_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -228,7 +235,7 @@ func TestAdminSession_RevokeUserSessions_Integration(t *testing.T) {
 
 // TestAdminSession_Unauthorized_Integration tests that regular users cannot access admin session endpoints
 func TestAdminSession_Unauthorized_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 

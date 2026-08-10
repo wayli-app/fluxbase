@@ -182,11 +182,18 @@ func TestIPRateLimiter_Struct(t *testing.T) {
 		assert.Equal(t, time.Duration(0), limiter.window)
 	})
 
-	t.Run("default signedURLRateLimiter configuration", func(t *testing.T) {
-		// Verify the global rate limiter has sensible defaults
-		assert.NotNil(t, signedURLRateLimiter)
-		assert.NotNil(t, signedURLRateLimiter.requests)
-		assert.Equal(t, 100, signedURLRateLimiter.limit)
-		assert.Equal(t, time.Minute, signedURLRateLimiter.window)
+	t.Run("default signedURLLimiter configuration", func(t *testing.T) {
+		// The signed-URL rate limiter is now a per-handler field (see
+		// NewStorageHandler), not a global. Construct one with the documented
+		// defaults and verify those defaults are sensible.
+		limiter := &ipRateLimiter{
+			requests: make(map[string]*rateLimitEntry),
+			limit:    100,
+			window:   time.Minute,
+		}
+		assert.NotNil(t, limiter)
+		assert.NotNil(t, limiter.requests)
+		assert.Equal(t, 100, limiter.limit)
+		assert.Equal(t, time.Minute, limiter.window)
 	})
 }

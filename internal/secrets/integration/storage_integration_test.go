@@ -14,12 +14,12 @@ import (
 
 	"github.com/nimbleflux/fluxbase/internal/crypto"
 	"github.com/nimbleflux/fluxbase/internal/secrets"
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestSecretsStorage_CreateSecret_Integration tests creating encrypted secrets
 func TestSecretsStorage_CreateSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -155,7 +155,7 @@ func TestSecretsStorage_CreateSecret_Integration(t *testing.T) {
 
 // TestSecretsStorage_GetSecret_Integration tests retrieving secret metadata
 func TestSecretsStorage_GetSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -232,7 +232,7 @@ func TestSecretsStorage_GetSecret_Integration(t *testing.T) {
 
 // TestSecretsStorage_ListSecrets_Integration tests listing secrets with filters
 func TestSecretsStorage_ListSecrets_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -296,7 +296,7 @@ func TestSecretsStorage_ListSecrets_Integration(t *testing.T) {
 
 // TestSecretsStorage_UpdateSecret_Integration tests updating secrets
 func TestSecretsStorage_UpdateSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -399,7 +399,7 @@ func TestSecretsStorage_UpdateSecret_Integration(t *testing.T) {
 
 // TestSecretsStorage_DeleteSecret_Integration tests deleting secrets
 func TestSecretsStorage_DeleteSecret_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -425,7 +425,7 @@ func TestSecretsStorage_DeleteSecret_Integration(t *testing.T) {
 
 // TestSecretsStorage_Versions_Integration tests version history and rollback
 func TestSecretsStorage_Versions_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -497,7 +497,7 @@ func TestSecretsStorage_Versions_Integration(t *testing.T) {
 
 // TestSecretsStorage_GetSecretsForNamespace_Integration tests retrieving decrypted secrets for a namespace
 func TestSecretsStorage_GetSecretsForNamespace_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -563,7 +563,7 @@ func TestSecretsStorage_GetSecretsForNamespace_Integration(t *testing.T) {
 
 // TestSecretsStorage_GetStats_Integration tests statistics gathering
 func TestSecretsStorage_GetStats_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -610,7 +610,7 @@ func TestSecretsStorage_GetStats_Integration(t *testing.T) {
 
 // TestSecretsStorage_EncryptionDecryption_Integration tests actual encryption/decryption
 func TestSecretsStorage_EncryptionDecryption_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")
@@ -710,7 +710,7 @@ func TestSecretsStorage_EncryptionDecryption_Integration(t *testing.T) {
 
 // TestSecretsStorage_VersionEncryption_Integration tests that versions store encrypted values
 func TestSecretsStorage_VersionEncryption_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "secrets")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "secrets")
 	defer tc.CleanupTestData()
 
 	encryptionKey := []byte("12345678901234567890123456789012")

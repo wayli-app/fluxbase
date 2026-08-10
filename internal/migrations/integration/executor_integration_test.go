@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nimbleflux/fluxbase/internal/migrations"
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // randomString generates a random string for test isolation
@@ -25,7 +25,7 @@ func randomString(length int) string {
 }
 
 // cleanupTestMigrations removes all test migrations from the database
-func cleanupTestMigrations(t *testing.T, tc *testutil.IntegrationTestContext, namespace string) {
+func cleanupTestMigrations(t *testing.T, tc *e2e.IntegrationTestContext, namespace string) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -36,7 +36,7 @@ func cleanupTestMigrations(t *testing.T, tc *testutil.IntegrationTestContext, na
 // TestMigrationsExecutor_ApplyPendingMigrations_AppliesInOrder verifies that
 // pending migrations are applied in the correct order (sorted by name)
 func TestMigrationsExecutor_ApplyPendingMigrations_AppliesInOrder(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -138,7 +138,7 @@ func TestMigrationsExecutor_ApplyPendingMigrations_AppliesInOrder(t *testing.T) 
 
 // TestMigrationsExecutor_ApplyMigration_Single_Migration applies a single migration
 func TestMigrationsExecutor_ApplyMigration_Single_Migration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -194,7 +194,7 @@ func TestMigrationsExecutor_ApplyMigration_Single_Migration(t *testing.T) {
 
 // TestMigrationsExecutor_ApplyMigration_AlreadyApplied skips already applied migrations
 func TestMigrationsExecutor_ApplyMigration_AlreadyApplied(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -237,7 +237,7 @@ func TestMigrationsExecutor_ApplyMigration_AlreadyApplied(t *testing.T) {
 
 // TestMigrationsExecutor_RollbackMigration_RollsBackChanges verifies rollback functionality
 func TestMigrationsExecutor_RollbackMigration_RollsBackChanges(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -298,7 +298,7 @@ func TestMigrationsExecutor_RollbackMigration_RollsBackChanges(t *testing.T) {
 
 // TestMigrationsExecutor_RollbackMigration_NoDownSQL fails when no rollback SQL exists
 func TestMigrationsExecutor_RollbackMigration_NoDownSQL(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -333,7 +333,7 @@ func TestMigrationsExecutor_RollbackMigration_NoDownSQL(t *testing.T) {
 
 // TestMigrationsExecutor_ApplyMigration_InvalidSQL_FailsGracefully handles SQL errors
 func TestMigrationsExecutor_ApplyMigration_InvalidSQL_FailsGracefully(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -378,7 +378,7 @@ func TestMigrationsExecutor_ApplyMigration_InvalidSQL_FailsGracefully(t *testing
 // TestMigrationsExecutor_ApplyPendingMigrations_StopsOnFirstError verifies that
 // applying pending migrations stops when one fails
 func TestMigrationsExecutor_ApplyPendingMigrations_StopsOnFirstError(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -446,7 +446,7 @@ func TestMigrationsExecutor_ApplyPendingMigrations_StopsOnFirstError(t *testing.
 
 // TestMigrationsExecutor_RollbackMigration_NotApplied fails when migration not applied
 func TestMigrationsExecutor_RollbackMigration_NotApplied(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -477,7 +477,7 @@ func TestMigrationsExecutor_RollbackMigration_NotApplied(t *testing.T) {
 
 // TestMigrationsExecutor_ConcurrentMigrations_PreventsRaceConditions tests concurrent migration safety
 func TestMigrationsExecutor_ConcurrentMigrations_PreventsRaceConditions(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -547,7 +547,7 @@ func TestMigrationsExecutor_ConcurrentMigrations_PreventsRaceConditions(t *testi
 
 // TestMigrationsExecutor_ExecutionHistory_TracksDuration verifies execution time tracking
 func TestMigrationsExecutor_ExecutionHistory_TracksDuration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -597,7 +597,7 @@ func TestMigrationsExecutor_ExecutionHistory_TracksDuration(t *testing.T) {
 
 // TestMigrationsExecutor_UpdateMigration_ResetFailedMigration tests updating and retrying failed migrations
 func TestMigrationsExecutor_UpdateMigration_ResetFailedMigration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -660,7 +660,7 @@ func TestMigrationsExecutor_UpdateMigration_ResetFailedMigration(t *testing.T) {
 
 // TestMigrationsExecutor_DeleteMigration_PendingOnly verifies only pending migrations can be deleted
 func TestMigrationsExecutor_DeleteMigration_PendingOnly(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -715,7 +715,7 @@ func TestMigrationsExecutor_DeleteMigration_PendingOnly(t *testing.T) {
 
 // TestMigrationsExecutor_MultipleNamespaces_Isolated verifies namespace isolation
 func TestMigrationsExecutor_MultipleNamespaces_Isolated(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()

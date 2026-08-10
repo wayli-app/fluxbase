@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestBranching_ListBranches_Integration tests listing all branches
 func TestBranching_ListBranches_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -45,7 +45,7 @@ func TestBranching_ListBranches_Integration(t *testing.T) {
 
 // TestBranching_GetActiveBranch_Integration tests getting the active branch
 func TestBranching_GetActiveBranch_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -73,7 +73,7 @@ func TestBranching_GetActiveBranch_Integration(t *testing.T) {
 
 // TestBranching_CreateBranch_Disabled_Integration tests that branch creation fails when branching is disabled
 func TestBranching_CreateBranch_Disabled_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -102,7 +102,7 @@ func TestBranching_CreateBranch_Disabled_Integration(t *testing.T) {
 
 // TestBranching_CreateBranch_MissingName_Integration tests branch creation without name
 func TestBranching_CreateBranch_MissingName_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -131,7 +131,7 @@ func TestBranching_CreateBranch_MissingName_Integration(t *testing.T) {
 
 // TestBranching_Unauthorized_Integration tests that non-admin users cannot access branch endpoints
 func TestBranching_Unauthorized_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -160,7 +160,7 @@ func TestBranching_Unauthorized_Integration(t *testing.T) {
 
 // TestBranching_GetPoolStats_Integration tests getting connection pool statistics
 func TestBranching_GetPoolStats_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 

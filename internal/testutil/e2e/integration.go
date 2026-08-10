@@ -1,7 +1,12 @@
 //go:build integration && !no_e2e
 
-// Package testutil provides shared test utilities and mocks for unit testing.
-package testutil
+// Package e2e provides a shared integration-test context that embeds the E2E
+// test infrastructure from package test (github.com/nimbleflux/fluxbase/test).
+//
+// It lives in a subpackage of testutil so that internal packages can import
+// testutil (for mocks, which are cycle-free) without pulling in package test,
+// which would create an import cycle (test -> internal/auth -> testutil).
+package e2e
 
 import (
 	"fmt"

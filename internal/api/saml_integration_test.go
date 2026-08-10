@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestSAMLProvider_ListProviders_Integration tests listing all SAML providers
 func TestSAMLProvider_ListProviders_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -36,7 +36,7 @@ func TestSAMLProvider_ListProviders_Integration(t *testing.T) {
 
 // TestSAMLProvider_ValidateMetadata_Integration tests validating SAML metadata
 func TestSAMLProvider_ValidateMetadata_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -61,7 +61,7 @@ func TestSAMLProvider_ValidateMetadata_Integration(t *testing.T) {
 
 // TestSAMLProvider_ValidateMetadata_MissingInput_Integration tests validating SAML metadata with missing input
 func TestSAMLProvider_ValidateMetadata_MissingInput_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -83,7 +83,7 @@ func TestSAMLProvider_ValidateMetadata_MissingInput_Integration(t *testing.T) {
 
 // TestSAMLProvider_CreateProvider_Integration tests creating a SAML provider
 func TestSAMLProvider_CreateProvider_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -110,7 +110,7 @@ func TestSAMLProvider_CreateProvider_Integration(t *testing.T) {
 
 // TestSAMLProvider_CreateProvider_MissingMetadata_Integration tests creating a SAML provider without metadata
 func TestSAMLProvider_CreateProvider_MissingMetadata_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 
@@ -137,7 +137,7 @@ func TestSAMLProvider_CreateProvider_MissingMetadata_Integration(t *testing.T) {
 
 // TestSAMLProvider_Unauthorized_Integration tests that non-admin users cannot access SAML endpoints
 func TestSAMLProvider_Unauthorized_Integration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "api")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
 	defer tc.Close()
 	defer tc.CleanupTestData()
 

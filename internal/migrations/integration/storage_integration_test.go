@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nimbleflux/fluxbase/internal/migrations"
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // TestMigrationsStorage_CreateAndGet verifies creating and retrieving migrations
 func TestMigrationsStorage_CreateAndGet(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -63,7 +63,7 @@ func TestMigrationsStorage_CreateAndGet(t *testing.T) {
 
 // TestMigrationsStorage_ListMigrations_FiltersByStatus verifies listing migrations with status filter
 func TestMigrationsStorage_ListMigrations_FiltersByStatus(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -123,7 +123,7 @@ func TestMigrationsStorage_ListMigrations_FiltersByStatus(t *testing.T) {
 
 // TestMigrationsStorage_UpdateMigration_ModifiesPendingMigrations verifies updating pending migrations
 func TestMigrationsStorage_UpdateMigration_ModifiesPendingMigrations(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -162,7 +162,7 @@ func TestMigrationsStorage_UpdateMigration_ModifiesPendingMigrations(t *testing.
 
 // TestMigrationsStorage_UpdateMigration_CannotModifyApplied verifies applied migrations cannot be updated
 func TestMigrationsStorage_UpdateMigration_CannotModifyApplied(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -196,7 +196,7 @@ func TestMigrationsStorage_UpdateMigration_CannotModifyApplied(t *testing.T) {
 
 // TestMigrationsStorage_DeleteMigration_RemovesPendingMigration verifies deleting pending migrations
 func TestMigrationsStorage_DeleteMigration_RemovesPendingMigration(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -231,7 +231,7 @@ func TestMigrationsStorage_DeleteMigration_RemovesPendingMigration(t *testing.T)
 
 // TestMigrationsStorage_UpdateMigrationStatus_TransitionsStatus verifies status transitions
 func TestMigrationsStorage_UpdateMigrationStatus_TransitionsStatus(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -275,7 +275,7 @@ func TestMigrationsStorage_UpdateMigrationStatus_TransitionsStatus(t *testing.T)
 
 // TestMigrationsStorage_LogExecution_CreatesAuditTrail verifies execution logging
 func TestMigrationsStorage_LogExecution_CreatesAuditTrail(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -328,7 +328,7 @@ func TestMigrationsStorage_LogExecution_CreatesAuditTrail(t *testing.T) {
 
 // TestMigrationsStorage_GetExecutionLogs_ReturnsMostRecent verifies log ordering and limiting
 func TestMigrationsStorage_GetExecutionLogs_ReturnsMostRecent(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -375,7 +375,7 @@ func TestMigrationsStorage_GetExecutionLogs_ReturnsMostRecent(t *testing.T) {
 
 // TestMigrationsStorage_LogExecutionWithError captures error messages
 func TestMigrationsStorage_LogExecutionWithError(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -422,7 +422,7 @@ func TestMigrationsStorage_LogExecutionWithError(t *testing.T) {
 
 // TestMigrationsStorage_UniqueNamespaceNameConstraint enforces unique constraint
 func TestMigrationsStorage_UniqueNamespaceNameConstraint(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -457,7 +457,7 @@ func TestMigrationsStorage_UniqueNamespaceNameConstraint(t *testing.T) {
 
 // TestMigrationsStorage_CascadeDelete deletes execution logs when migration is deleted
 func TestMigrationsStorage_CascadeDelete(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -506,7 +506,7 @@ func TestMigrationsStorage_CascadeDelete(t *testing.T) {
 
 // TestMigrationsStorage_VersionAutoIncrement auto-increments version numbers
 func TestMigrationsStorage_VersionAutoIncrement(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -538,7 +538,7 @@ func TestMigrationsStorage_VersionAutoIncrement(t *testing.T) {
 
 // TestMigrationsStorage_UpdateMigration_ResetStatusToPending allows resetting failed migrations
 func TestMigrationsStorage_UpdateMigration_ResetStatusToPending(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()
@@ -581,7 +581,7 @@ func TestMigrationsStorage_UpdateMigration_ResetStatusToPending(t *testing.T) {
 
 // TestMigrationsStorage_UpdateMigration_InvalidStatusUpdate rejects invalid status updates
 func TestMigrationsStorage_UpdateMigration_InvalidStatusUpdate(t *testing.T) {
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "migrations")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "migrations")
 	defer tc.Close()
 
 	ctx := context.Background()

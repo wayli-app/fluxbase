@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nimbleflux/fluxbase/internal/extensions"
-	"github.com/nimbleflux/fluxbase/internal/testutil"
+	"github.com/nimbleflux/fluxbase/internal/testutil/e2e"
 )
 
 // setupExtensionsTest creates a test service and performs initial setup
-func setupExtensionsTest(t *testing.T) (*testutil.IntegrationTestContext, *extensions.Service) {
+func setupExtensionsTest(t *testing.T) (*e2e.IntegrationTestContext, *extensions.Service) {
 	t.Helper()
 
-	tc := testutil.NewIntegrationTestContextWithNamespace(t, "extensions")
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "extensions")
 	service := extensions.NewService(tc.DB)
 
 	// Ensure the extensions tables exist
@@ -60,7 +60,7 @@ func setupExtensionsTest(t *testing.T) (*testutil.IntegrationTestContext, *exten
 }
 
 // cleanupExtensionsTest removes test data from the database
-func cleanupExtensionsTest(t *testing.T, tc *testutil.IntegrationTestContext) {
+func cleanupExtensionsTest(t *testing.T, tc *e2e.IntegrationTestContext) {
 	t.Helper()
 
 	ctx := context.Background()
