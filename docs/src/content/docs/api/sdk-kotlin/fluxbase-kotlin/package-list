@@ -228,6 +228,48 @@ $dokka.location:io.github.nimbleflux.fluxbase.postgrest/VectorMetric/entries/#/P
 $dokka.location:io.github.nimbleflux.fluxbase.postgrest/VectorMetric/operator/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-vector-metric/operator.md
 $dokka.location:io.github.nimbleflux.fluxbase.postgrest/VectorMetric/valueOf/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-vector-metric/value-of.md
 $dokka.location:io.github.nimbleflux.fluxbase.postgrest/VectorMetric/values/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.postgrest/-vector-metric/values.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/BroadcastCallback///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-broadcast-callback/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventCallback///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-callback/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType.DELETE///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/-d-e-l-e-t-e/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType.INSERT///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/-i-n-s-e-r-t/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType.UPDATE///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/-u-p-d-a-t-e/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/entries/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/entries.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/valueOf/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/value-of.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/values/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/values.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/ChangeEventType/wildcard/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-change-event-type/wildcard.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig/PostgresChangesConfig/#kotlin.String#kotlin.String#kotlin.String?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/-postgres-changes-config.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig/event/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/event.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig/filter/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/filter.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig/schema/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/schema.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesConfig/table/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-config/table.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/PostgresChangesPayload/#kotlin.String#kotlin.String?#kotlin.String?#kotlin.String?#kotlinx.serialization.json.JsonElement?#kotlinx.serialization.json.JsonElement?#kotlin.String?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/-postgres-changes-payload.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/commitTimestamp/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/commit-timestamp.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/errors/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/errors.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/eventType/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/event-type.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/new/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/new.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/newRecord/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/new-record.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/old/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/old.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/oldRecord/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/old-record.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/schema/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/schema.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/PostgresChangesPayload/table/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-postgres-changes-payload/table.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/RealtimeChannel/#kotlin.String#kotlin.String#kotlin.String?#io.github.nimbleflux.fluxbase.realtime.WebSocketTransport#kotlin.coroutines.CoroutineContext/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/-realtime-channel.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/broadcast/#kotlin.String#kotlin.collections.Map[kotlin.String,kotlin.Any?]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/broadcast.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/isSubscribed/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/is-subscribed.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/on/#kotlin.String#io.github.nimbleflux.fluxbase.realtime.PostgresChangesConfig?#kotlin.Function1[io.github.nimbleflux.fluxbase.realtime.PostgresChangesPayload,kotlin.Unit]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/on.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/onBroadcast/#kotlin.String#kotlin.Function1[kotlinx.serialization.json.JsonElement,kotlin.Unit]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/on-broadcast.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/subscribe/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/subscribe.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/unsubscribe/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/unsubscribe.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/RealtimeChannel/updateToken/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-realtime-channel/update-token.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport///PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/index.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/close/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/close.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/connect/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/connect.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/isConnected/#/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/is-connected.md
+$dokka.location:io.github.nimbleflux.fluxbase.realtime/WebSocketTransport/send/#kotlin.String/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/send.md
 $dokka.location:io.github.nimbleflux.fluxbase////PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/index.md
 $dokka.location:io.github.nimbleflux.fluxbase//createFluxbaseClient/#kotlin.String?#kotlin.String?#io.github.nimbleflux.fluxbase.FluxbaseClientOptions#io.github.nimbleflux.fluxbase.core.HttpTransport?/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/create-fluxbase-client.md
 $dokka.location:io.github.nimbleflux.fluxbase//fluxbaseResponse/#kotlin.coroutines.SuspendFunction0[TypeParam(bounds=[kotlin.Any?])]/PointingToDeclaration/fluxbase-kotlin/io.github.nimbleflux.fluxbase/fluxbase-response.md
@@ -271,4 +313,5 @@ io.github.nimbleflux.fluxbase
 io.github.nimbleflux.fluxbase.auth
 io.github.nimbleflux.fluxbase.core
 io.github.nimbleflux.fluxbase.postgrest
+io.github.nimbleflux.fluxbase.realtime
 
