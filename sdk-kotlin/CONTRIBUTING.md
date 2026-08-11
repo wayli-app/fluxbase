@@ -118,9 +118,14 @@ and ensure each `it(...)` block has a matching Kotlin `@Test`.
 
 ## Publishing
 
-See the main plan: tagged releases publish to GitHub Packages.
-- **RC**: `git tag sdk-kotlin-v2026.8.8-rc.1` → pre-release artifact.
-- **Stable**: `git tag sdk-kotlin-v2026.8.8` → stable artifact.
+The Kotlin artifact is published to GitHub Packages (`io.github.nimbleflux:fluxbase-kotlin`)
+as part of the **main Fluxbase release** — there is no separate Kotlin tag scheme.
+
+- The release workflow (`.github/workflows/release.yml`) fires on the main `v*` tag.
+- The `publish_kotlin_sdk` input toggle (default on) runs the `publish-kotlin-sdk`
+  job, which builds and uploads the artifact with `-Pversion=<main-tag-version>`.
+- To skip Kotlin publishing on a release where it didn't change, set
+  `publish_kotlin_sdk=false` when triggering the release.
 - Dev consumption is via composite build (no publish needed).
 
 ## Known issues to fix upstream

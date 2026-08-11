@@ -151,11 +151,12 @@ tasks.named<org.jetbrains.dokka.gradle.DokkaTask>("dokkaGfm").configure {
 
 // ---- Maven publishing (GitHub Packages) ----
 // Uses com.vanniktech.maven.publish to handle sources + javadoc JARs, POM metadata,
-// and upload. GitHub Packages needs no GPG signing. Version comes from the git tag
-// (CI passes -Pversion=...); untagged/local builds are "dev".
+// and upload. GitHub Packages needs no GPG signing.
 //
-// RC tags:  sdk-kotlin-v2026.8.8-rc.1  →  artifact version 2026.8.8-rc.1
-// Stable:   sdk-kotlin-v2026.8.8       →  artifact version 2026.8.8
+// Versioning: there is no separate Kotlin tag. The artifact is published as part of
+// the main Fluxbase release — release.yml's publish-kotlin-sdk job passes
+// -Pversion=<main-tag-version>; untagged/local builds are "dev".
+// See CONTRIBUTING.md §Publishing.
 mavenPublishing {
     coordinates(
         groupId = "io.github.nimbleflux",

@@ -58,6 +58,20 @@ class RealtimeChannel(
     private var heartbeatJob: Job? = null
     private var reconnectAttempts = 0
 
+    /**
+     * Optional callback invoked when the server sends an `error` message.
+     * Set this to surface subscription/server errors to application code.
+     */
+    var onError: ((JsonObject) -> Unit)? = null
+
+    /**
+     * The subscription id assigned by the server once a subscription is
+     * acknowledged. Null until the first `ack` arrives. Port of the TS
+     * `pendingAcks`/subscription tracking in `realtime.ts`.
+     */
+    internal var subscriptionId: String? = null
+        private set
+
     /** Whether this channel is actively subscribed. */
     val isSubscribed: Boolean get() = transport.isConnected
 
@@ -103,11 +117,24 @@ class RealtimeChannel(
                 handleMessage(messageText)
             }
         }
-        // Wait a tick for connection to establish, then send subscribes + start heartbeat.
-        delay(100)
+        // Wait for the transport to finish its WS handshake before subscribing.
+        // (For the fake transport [isConnected] is set synchronously; for the real
+        // Ktor transport it flips once the socket opens — see [KtorWebSocketTransport].)
+        awaitConnected()
         if (transport.isConnected) {
             sendSubscribeMessages()
             startHeartbeat()
+        }
+    }
+
+    /**
+     * Block until [transport.isConnected] becomes true or [timeoutMs] elapses.
+     * Replaces a fixed `delay(100)` that was too short for real-world handshakes.
+     */
+    private suspend fun awaitConnected(timeoutMs: Long = 10_000) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (!transport.isConnected && System.currentTimeMillis() < deadline) {
+            delay(50)
         }
     }
 
@@ -165,8 +192,17 @@ class RealtimeChannel(
             "postgres_changes" -> handlePostgresChanges(message["payload"]?.jsonObject)
             "broadcast" -> handleBroadcast(message)
             "heartbeat" -> { /* no-op — we send our own */ }
-            "ack", "error" -> { /* TODO: track subscription_id / error */ }
+            "ack" -> handleAck(message)
+            "error" -> onError?.invoke(message)
         }
+    }
+
+    /**
+     * Handle a server `ack` message. Port of the ack handling in `realtime.ts:788-796`.
+     * Records the server-assigned [subscriptionId] when present.
+     */
+    private fun handleAck(message: JsonObject) {
+        subscriptionId = message["subscription_id"]?.jsonPrimitive?.contentOrNull
     }
 
     private fun handlePostgresChanges(payload: JsonObject?) {
@@ -244,9 +280,23 @@ class RealtimeChannel(
         transport.close()
     }
 
-    /** Update the auth token (for refresh). Reconnects with the new token. */
+    /**
+     * Update the auth token (e.g. after a JWT refresh). If the socket is open,
+     * pushes an `access_token` message so the server refreshes auth context
+     * without a reconnect; otherwise the new token is used on the next connect.
+     *
+     * Port of `updateToken()` in `realtime.ts:1037-1090`. Note the TS version
+     * additionally waits for an ack and reconnects on a 5s timeout; this Kotlin
+     * port propagates the token immediately and relies on [onError] / reconnect
+     * handling if the server rejects it.
+     */
     suspend fun updateToken(newToken: String) {
+        if (token == newToken) return
         token = newToken
-        // TODO: send {type:"access_token", token} and wait for ack, or reconnect.
+        if (!transport.isConnected) return
+        send(buildJsonObject {
+            put("type", "access_token")
+            put("token", newToken)
+        })
     }
 }

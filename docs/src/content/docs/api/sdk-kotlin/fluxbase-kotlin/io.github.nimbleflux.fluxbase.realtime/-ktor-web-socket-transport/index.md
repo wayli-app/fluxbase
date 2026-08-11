@@ -14,9 +14,9 @@ class [KtorWebSocketTransport](index.md) : [WebSocketTransport](../-web-socket-t
 
 Ktor-backed [WebSocketTransport](../-web-socket-transport/index.md) — the production WebSocket implementation for JVM/Android.
 
-Uses Ktor's WebSocket client to connect to Fluxbase's `/realtime` endpoint. The actual Ktor WS session is established on [connect](connect.md) and messages are received as a Flow of JSON text.
+Connects to Fluxbase's `/realtime` endpoint via Ktor's WebSocket client (OkHttp engine). The connection is established eagerly on an internal Dispatchers.IO scope when [connect](connect.md) is called; inbound text frames are bridged onto the returned Flow, which [RealtimeChannel](../-realtime-channel/index.md) collects. Outbound messages are sent via [send](send.md) once the session handshake completes (observable via [isConnected](is-connected.md)).
 
-TODO: implement the full Ktor WebSocket session (connect, send, receive, close) once the integration test infrastructure is in place. For now this is a placeholder that throws on connect — tests use FakeWebSocketTransport.
+The protocol itself (subscribe/heartbeat/postgres_changes/broadcast) lives in [RealtimeChannel](../-realtime-channel/index.md); this class is purely the transport seam — the same SPI tests fake with FakeWebSocketTransport.
 
 ## Constructors
 
@@ -28,7 +28,7 @@ TODO: implement the full Ktor WebSocket session (connect, send, receive, close) 
 
 | Name | Summary |
 |---|---|
-| [isConnected](is-connected.md) | [jvm]<br>open override var [isConnected](is-connected.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html)<br>Whether the transport is currently connected. |
+| [isConnected](is-connected.md) | [jvm]<br>@[Volatile](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.jvm/-volatile/index.html)<br>open override var [isConnected](is-connected.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html)<br>Whether the transport is currently connected. |
 
 ## Functions
 

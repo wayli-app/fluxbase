@@ -184,7 +184,9 @@ class FluxbaseAuth(
         fluxbaseResponse {
             val current = currentSession ?: return@fluxbaseResponse throw FluxbaseError(message = "No active session")
             val body = mapOf("refresh_token" to current.refreshToken)
-            val responseText = http.postWithHeaders("/api/v1/auth/refresh", body).body
+            // Bypass the 401-retry path so a refresh whose own token is expired
+            // can't recurse into another refresh.
+            val responseText = http.postWithoutRetry("/api/v1/auth/refresh", body).body
             val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
             val session = AuthSession(
                 user = authResponse.user,

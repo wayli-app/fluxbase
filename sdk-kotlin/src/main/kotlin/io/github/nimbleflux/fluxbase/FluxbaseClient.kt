@@ -132,7 +132,7 @@ class FluxbaseClient internal constructor(
                 ?: System.getenv("FLUXBASE_ANON_KEY")
                 ?: error("Fluxbase key is required (pass it or set FLUXBASE_ANON_KEY)")
 
-            val resolvedTransport = transport ?: KtorHttpTransport(resolvedUrl)
+            val resolvedTransport = transport ?: KtorHttpTransport(resolvedUrl, timeoutMillis = options.timeout)
 
             // The HTTP client holds apikey + Authorization headers.
             // In TS, the constructor sets `apikey: key, Authorization: Bearer key`.
@@ -153,6 +153,13 @@ class FluxbaseClient internal constructor(
                 autoRefresh = options.autoRefresh,
                 storage = if (options.persist) options.storage else MemoryStorage(),
             )
+
+            // Wire the 401 auto-refresh-retry: any request that returns 401 triggers
+            // a single refreshSession() (deduped across concurrent requests), then a
+            // single retry with the new token. Skipped when autoRefresh is disabled.
+            if (options.autoRefresh) {
+                http.setRefreshTokenCallback { auth.refreshSession().data?.accessToken }
+            }
 
             val functions = io.github.nimbleflux.fluxbase.functions.FluxbaseFunctions(http)
             val jobs = io.github.nimbleflux.fluxbase.jobs.FluxbaseJobs(http)

@@ -32,7 +32,7 @@ data class HttpResponse(
  * This mirrors the TS SDK's separation where `FluxbaseFetch` wraps `global.fetch()`
  * and tests inject a fake object with the same method shape.
  */
-fun interface HttpTransport {
+interface HttpTransport {
     /**
      * Perform an HTTP [method] request to [path] (relative to the base URL).
      * [body] is a pre-serialized value (will be JSON-encoded by the transport)
@@ -45,6 +45,19 @@ fun interface HttpTransport {
         body: Any?,
         headers: Map<String, String>,
     ): HttpResponse
+
+    /**
+     * Perform an HTTP [method] request and return the response body as raw bytes
+     * — the binary-safe path used by [FluxbaseHttpClient.getBytes] (e.g. storage
+     * downloads). Unlike [request], the body never passes through a text/charset
+     * decode, so non-UTF-8 bytes (images, archives) survive intact. Mirrors the
+     * TS SDK's `getBlob` in `sdk/src/fetch.ts`.
+     */
+    suspend fun requestBytes(
+        method: HttpMethod,
+        path: String,
+        headers: Map<String, String>,
+    ): ByteArray
 }
 
 /**

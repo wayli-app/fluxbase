@@ -112,16 +112,15 @@ class StorageBucket(
     }
 
     /**
-     * Download a file. GETs `/api/v1/storage/{bucket}/{path}`.
+     * Download a file as raw bytes. GETs `/api/v1/storage/{bucket}/{path}`.
      * Port of `download()` in `storage.ts:368`.
+     *
+     * Uses the binary-safe [FluxbaseHttpClient.getBytes] path, so non-text payloads
+     * (images, archives) survive intact — the response body never passes through a
+     * charset decode.
      */
     suspend fun download(path: String): FluxbaseResponse<ByteArray> = fluxbaseResponse {
-        val response = http.transport.request(HttpMethod.GET, "$basePath/$path", null, http.defaultHeaders.toMap())
-        // The transport returns body as a String; for binary we need raw bytes.
-        // The KtorHttpTransport will need a getBytes method for this; for now
-        // we return the body string's UTF-8 bytes (works for text/JSON; binary
-        // support will be added when the Wayli app's media pipeline needs it).
-        response.body.toByteArray()
+        http.getBytes("$basePath/$path")
     }
 
     /**

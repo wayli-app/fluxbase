@@ -48,6 +48,7 @@ jvm
 | Name | Summary |
 |---|---|
 | [isSubscribed](is-subscribed.md) | [jvm]<br>val [isSubscribed](is-subscribed.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html)<br>Whether this channel is actively subscribed. |
+| [onError](on-error.md) | [jvm]<br>var [onError](on-error.md): (JsonObject) -&gt; [Unit](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-unit/index.html)?<br>Optional callback invoked when the server sends an `error` message. Set this to surface subscription/server errors to application code. |
 
 ## Functions
 
@@ -58,4 +59,4 @@ jvm
 | [onBroadcast](on-broadcast.md) | [jvm]<br>fun [onBroadcast](on-broadcast.md)(event: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), callback: [BroadcastCallback](../-broadcast-callback/index.md)): [RealtimeChannel](index.md)<br>Register a callback for broadcast events. Port of `channel.on("broadcast", {event}, cb)` in `realtime.ts`. |
 | [subscribe](subscribe.md) | [jvm]<br>suspend fun [subscribe](subscribe.md)()<br>Subscribe to the channel — connects the WebSocket and sends subscribe messages. Port of `subscribe()` in `realtime.ts:540-617`. |
 | [unsubscribe](unsubscribe.md) | [jvm]<br>suspend fun [unsubscribe](unsubscribe.md)()<br>Unsubscribe and close the connection. Port of `unsubscribe()` in `realtime.ts`. |
-| [updateToken](update-token.md) | [jvm]<br>suspend fun [updateToken](update-token.md)(newToken: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html))<br>Update the auth token (for refresh). Reconnects with the new token. |
+| [updateToken](update-token.md) | [jvm]<br>suspend fun [updateToken](update-token.md)(newToken: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html))<br>Update the auth token (e.g. after a JWT refresh). If the socket is open, pushes an `access_token` message so the server refreshes auth context without a reconnect; otherwise the new token is used on the next connect. |

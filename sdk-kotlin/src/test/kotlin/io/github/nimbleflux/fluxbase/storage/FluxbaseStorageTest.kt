@@ -63,6 +63,29 @@ class FluxbaseStorageTest {
     }
 
     @Test
+    fun `download preserves binary bytes that are not valid utf-8`() = runTest {
+        // JPEG SOI (FF D8) + APP0/JFIF marker (FF E0 00 10 4A 46 49 46) — invalid
+        // UTF-8 that a String round-trip (bodyAsText → toByteArray) would corrupt.
+        // Proves download uses the binary-safe transport path (requestBytes).
+        val imageBytes = byteArrayOf(
+            0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(),
+            0x00, 0x10, 0x4A, 0x46, 0x49, 0x46,
+        )
+        val recording = RecordingHttp(mockResponseBytes = imageBytes)
+        val c = client(recording)
+
+        val result = c.storage.from("trip-images").download("avatar.jpg")
+
+        assertEquals("GET", recording.lastMethod)
+        assertTrue(recording.lastPath!!.contains("/api/v1/storage/trip-images/avatar.jpg"))
+        assertNull(result.error)
+        assertTrue(
+            result.data!!.contentEquals(imageBytes),
+            "downloaded bytes must match the original binary exactly (no charset decode)",
+        )
+    }
+
+    @Test
     fun `createSignedUrl posts to sign endpoint`() = runTest {
         val recording = RecordingHttp(mockResponseBody = """{"signed_url":"https://example.com/signed"}""")
         val c = client(recording)
