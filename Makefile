@@ -1,4 +1,4 @@
-.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk build clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full db-grants deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
+.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk ensure-sdks build clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full db-grants deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
 
 # Variables
 BINARY_NAME=fluxbase-server
@@ -95,6 +95,7 @@ dev: ## Fast dev: backend + frontend (skips admin build, uses Vite HMR at :5050)
 		cd sdk && unset NODE_OPTIONS && bun install; \
 	fi
 	@$(MAKE) ensure-embedded-sdk
+	@$(MAKE) ensure-sdks
 	@if [ ! -d "admin/node_modules" ]; then \
 		echo "${YELLOW}Installing admin UI dependencies...${NC}"; \
 		cd admin && unset NODE_OPTIONS && bun install; \
@@ -133,6 +134,26 @@ ensure-embedded-sdk:
 		echo "${GREEN}Embedded SDK up to date, skipping generation${NC}"; \
 	fi
 
+ensure-sdks:
+	@for pkg in sdk sdk-react; do \
+		if [ ! -d "$$pkg/node_modules" ]; then \
+			echo "${YELLOW}Installing $$pkg dependencies...${NC}"; \
+			( cd $$pkg && unset NODE_OPTIONS && bun install ); \
+		fi; \
+	done
+	@if [ ! -f "sdk/dist/index.js" ] || [ -n "$$(find sdk/src -newer sdk/dist/index.js -type f 2>/dev/null | head -1)" ]; then \
+		echo "${YELLOW}Building TypeScript SDK (tsup)...${NC}"; \
+		cd sdk && unset NODE_OPTIONS && bun run build; \
+	else \
+		echo "${GREEN}TypeScript SDK up to date, skipping build${NC}"; \
+	fi
+	@if [ ! -f "sdk-react/dist/index.mjs" ] || [ -n "$$(find sdk-react/src -newer sdk-react/dist/index.mjs -type f 2>/dev/null | head -1)" ]; then \
+		echo "${YELLOW}Building React SDK (tsup)...${NC}"; \
+		cd sdk-react && unset NODE_OPTIONS && bun run build; \
+	else \
+		echo "${GREEN}React SDK up to date, skipping build${NC}"; \
+	fi
+
 dev-full: ## Full build + run (builds admin UI with type-check, slower)
 	@echo "${YELLOW}Starting Fluxbase with full admin UI build...${NC}"
 	@lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
@@ -147,6 +168,7 @@ dev-full: ## Full build + run (builds admin UI with type-check, slower)
 		echo "${YELLOW}Installing admin UI dependencies...${NC}"; \
 		cd admin && unset NODE_OPTIONS && bun install; \
 	fi
+	@$(MAKE) ensure-sdks
 	@echo "${YELLOW}Building admin UI...${NC}"
 	@cd admin && unset NODE_OPTIONS && bun run build
 	@rm -rf internal/adminui/dist
@@ -166,6 +188,7 @@ version: ## Show version information
 build: ## Build production binary with embedded admin UI
 	@echo "${YELLOW}Generating embedded SDK for job runtime...${NC}"
 	@cd sdk && unset NODE_OPTIONS && bun run generate:embedded-sdk
+	@$(MAKE) ensure-sdks
 	@echo "${YELLOW}Building admin UI...${NC}"
 	@cd admin && unset NODE_OPTIONS && bun run build
 	@rm -rf internal/adminui/dist

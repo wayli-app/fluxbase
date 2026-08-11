@@ -51,7 +51,7 @@ A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase
 git clone https://github.com/nimbleflux/fluxbase.git
 cd fluxbase
 
-# Build the binary
+# Build the binary (also builds the TypeScript + React SDKs and admin UI)
 make build
 
 # Or run in development mode (backend + admin UI)
@@ -61,6 +61,8 @@ make dev
 For Docker-based deployment, see the [deployment guide](https://fluxbase.eu/deployment/overview/).
 
 ### SDKs
+
+`make build` and `make dev` build the TypeScript and React SDKs automatically (rebuilding only when their sources change). Build them manually for standalone development or to test the published artifacts:
 
 ```bash
 # TypeScript SDK
