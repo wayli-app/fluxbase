@@ -1,10 +1,17 @@
-.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk ensure-sdks build clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full db-grants deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
+.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk ensure-sdks build build-lite build-full clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full db-grants deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
 
 # Variables
 BINARY_NAME=fluxbase-server
 CLI_BINARY_NAME=fluxbase
 MAIN_PATH=cmd/fluxbase/main.go
 CLI_MAIN_PATH=cli/main.go
+
+# Go build tags. Default enables Tesseract OCR (needs libtesseract + leptonica).
+# Override to suit your host:
+#   make build BUILD_TAGS=""            -> lite: no C media deps, OCR/vips stubs
+#   make build BUILD_TAGS="ocr vips"    -> full: OCR + libvips image transforms
+# See: docs/src/content/docs/getting-started/building-from-source.md
+BUILD_TAGS ?= ocr
 
 # Version variables
 VERSION := $(shell cat VERSION)
@@ -16,6 +23,20 @@ LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Bui
 DOCKER_REGISTRY ?= ghcr.io
 DOCKER_ORG ?= nimbleflux
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(DOCKER_ORG)/fluxbase
+
+# macOS Homebrew keg detection — leptonica and vips are keg-only, so their
+# pkgconfig files are not in the default search path. Prepend the keg dirs so
+# CGO finds the C headers right after `brew install tesseract leptonica vips`.
+# Without this, `make build` fails with: 'leptonica/allheaders.h' file not found.
+# Non-existent dirs in PKG_CONFIG_PATH are ignored by pkg-config, so this is
+# harmless if a formula isn't installed.
+UNAME_S := $(shell uname -s 2>/dev/null)
+ifeq ($(UNAME_S),Darwin)
+BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
+ifdef BREW_PREFIX
+export PKG_CONFIG_PATH := $(BREW_PREFIX)/opt/leptonica/lib/pkgconfig:$(BREW_PREFIX)/opt/tesseract/lib/pkgconfig:$(BREW_PREFIX)/opt/vips/lib/pkgconfig:$(PKG_CONFIG_PATH)
+endif
+endif
 
 # Database connection variables
 # These can be overridden via environment variables or make command line
@@ -195,8 +216,14 @@ build: ## Build production binary with embedded admin UI
 	@cp -r admin/dist internal/adminui/dist
 	@echo "${YELLOW}Building ${BINARY_NAME} v$(VERSION)...${NC}"
 	@mkdir -p build/
-	@go build -tags "ocr" -ldflags="$(LDFLAGS)" -o build/${BINARY_NAME} ${MAIN_PATH}
-	@echo "${GREEN}Build complete: ${BINARY_NAME} v$(VERSION)${NC}"
+	@go build -tags "$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o build/${BINARY_NAME} ${MAIN_PATH}
+	@echo "${GREEN}Build complete: ${BINARY_NAME} v$(VERSION) (tags: $(BUILD_TAGS))${NC}"
+
+build-lite: ## Build WITHOUT OCR/vips (no C media deps required; features self-disable at runtime)
+	@$(MAKE) build BUILD_TAGS=""
+
+build-full: ## Build with OCR AND image transforms (tags: ocr vips) — needs tesseract/leptonica/libvips
+	@$(MAKE) build BUILD_TAGS="ocr vips"
 
 clean: ## Clean build artifacts
 	@echo "${YELLOW}Cleaning...${NC}"
