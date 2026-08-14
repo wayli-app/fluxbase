@@ -90,13 +90,22 @@ fails with:
 tessbridge.cpp:5:10: fatal error: 'leptonica/allheaders.h' file not found
 ```
 
-The Fluxbase **Makefile handles this automatically**: on macOS it detects
-Homebrew and prepends the keg `pkgconfig` directories to `PKG_CONFIG_PATH` for
-you. As long as you build via `make build`, you do **not** need to set any
+The Fluxbase **Makefile handles this automatically**. On macOS it detects
+Homebrew and wires up _both_ ways the bindings discover the libraries:
+
+- It prepends the keg `pkgconfig` directories to `PKG_CONFIG_PATH`. This is
+  what **`govips`** (the `vips` tag) needs, since it reads pkg-config.
+- It also sets `CGO_CPPFLAGS` / `CGO_CXXFLAGS` / `CGO_LDFLAGS` to the keg
+  include and library directories. This is required for **`gosseract`** (the
+  `ocr` tag), which does **not** use pkg-config — it hardcodes the
+  Intel-Homebrew paths (`/usr/local/...`), and on Apple Silicon the kegs live
+  under `/opt/homebrew/opt/...` instead.
+
+As long as you build via `make build`, you do **not** need to set any
 environment variables manually, and opening a new terminal won't break the
 build.
 
-If you invoke `go build` directly (bypassing the Makefile), set the path
+If you invoke `go build` directly (bypassing the Makefile), set the paths
 yourself — see [Manual environment setup](#manual-environment-setup-macos)
 below.
 
@@ -156,29 +165,36 @@ make build-full
 
 ## Manual environment setup (macOS)
 
-Only needed if you call `go build` directly instead of `make build`.
+Only needed if you call `go build` directly instead of `make build` (the
+Makefile does all of this for you automatically). The two media bindings
+discover their libraries differently, so you may need both kinds of setup:
 
-Add the keg-only `pkgconfig` directories to `PKG_CONFIG_PATH`. This works on
-both Apple Silicon (`/opt/homebrew`) and Intel (`/usr/local`) Macs because it
-uses `brew --prefix`:
+**For OCR** (`gosseract`, the `ocr` tag) — gosseract does **not** use
+pkg-config; it hardcodes the Intel-Homebrew paths, so `PKG_CONFIG_PATH` has no
+effect on it. Point CGO at the keg include/library directories directly (works
+on Apple Silicon and Intel because it uses `brew --prefix`):
 
 ```bash
 # ~/.zshrc or ~/.bashrc
-export PKG_CONFIG_PATH="$(brew --prefix leptonica)/lib/pkgconfig:$(brew --prefix tesseract)/lib/pkgconfig:$(brew --prefix vips)/lib/pkgconfig:$PKG_CONFIG_PATH"
-```
-
-Then verify CGO can see the libraries:
-
-```bash
-pkg-config --cflags --libs lept tesseract   # should print -I and -L flags
-```
-
-If you still get header errors after that, point CGO at the include/library
-paths explicitly:
-
-```bash
-export CGO_CFLAGS="-I$(brew --prefix leptonica)/include -I$(brew --prefix tesseract)/include"
+export CGO_CPPFLAGS="-I$(brew --prefix leptonica)/include -I$(brew --prefix tesseract)/include"
+export CGO_CXXFLAGS="-I$(brew --prefix leptonica)/include -I$(brew --prefix tesseract)/include"
 export CGO_LDFLAGS="-L$(brew --prefix leptonica)/lib -L$(brew --prefix tesseract)/lib"
+```
+
+> `gosseract` compiles a C++ bridge (`tessbridge.cpp`), so the include flags
+> must be in `CGO_CPPFLAGS` / `CGO_CXXFLAGS` — not only `CGO_CFLAGS`.
+
+**For image transforms** (`govips`, the `vips` tag) — govips **does** use
+pkg-config, so add the keg `pkgconfig` directory to the search path:
+
+```bash
+export PKG_CONFIG_PATH="$(brew --prefix vips)/lib/pkgconfig:$PKG_CONFIG_PATH"
+```
+
+Verify CGO can see the libraries:
+
+```bash
+pkg-config --cflags --libs vips   # should print -I and -L flags (vips tag)
 ```
 
 ## Troubleshooting
@@ -187,11 +203,12 @@ export CGO_LDFLAGS="-L$(brew --prefix leptonica)/lib -L$(brew --prefix tesseract
 
 The `ocr` build tag is set but Leptonica's headers aren't on the search path.
 
-- **Building with `make build`** — make sure `brew install leptonica` succeeded
-  and you're on macOS (the Makefile auto-detects the keg path). Run
-  `make help` to confirm, or re-run `make build`.
-- **Building with `go build` directly** — set `PKG_CONFIG_PATH` as described in
-  [Manual environment setup](#manual-environment-setup-macos).
+- **Building with `make build`** — make sure
+  `brew install tesseract leptonica` succeeded. The Makefile sets the CGO
+  include/library paths for you, so this should just work — re-run `make build`.
+- **Building with `go build` directly** — `gosseract` ignores `PKG_CONFIG_PATH`,
+  so you must set `CGO_CPPFLAGS` / `CGO_CXXFLAGS` / `CGO_LDFLAGS` yourself, as
+  described in [Manual environment setup](#manual-environment-setup-macos).
 - **Don't need OCR?** — build lite and skip the C libraries entirely:
   `make build-lite`.
 

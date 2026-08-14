@@ -24,17 +24,27 @@ DOCKER_REGISTRY ?= ghcr.io
 DOCKER_ORG ?= nimbleflux
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(DOCKER_ORG)/fluxbase
 
-# macOS Homebrew keg detection — leptonica and vips are keg-only, so their
-# pkgconfig files are not in the default search path. Prepend the keg dirs so
-# CGO finds the C headers right after `brew install tesseract leptonica vips`.
+# macOS Homebrew keg detection. Leptonica/tesseract/vips are keg-only, so their
+# headers/libs/pkgconfig files are not in the default search path. Two mechanisms
+# are needed, because the bindings discover them differently:
+#   * govips (the `vips` tag) uses pkg-config, so PKG_CONFIG_PATH suffices.
+#   * gosseract (the `ocr` tag) does NOT use pkg-config — it hardcodes
+#     -I/usr/local/include and -L/usr/local/lib (Intel Homebrew) via #cgo. On
+#     Apple Silicon the kegs live under $(BREW_PREFIX)/opt/<pkg>, so we point
+#     CGO at those dirs directly via CGO_CPPFLAGS/CGO_CXXFLAGS/CGO_LDFLAGS.
 # Without this, `make build` fails with: 'leptonica/allheaders.h' file not found.
-# Non-existent dirs in PKG_CONFIG_PATH are ignored by pkg-config, so this is
-# harmless if a formula isn't installed.
+# Extra/unused -I and -L dirs are ignored by the compiler/linker, so this is
+# harmless when a formula or build tag isn't in use.
 UNAME_S := $(shell uname -s 2>/dev/null)
 ifeq ($(UNAME_S),Darwin)
 BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
 ifdef BREW_PREFIX
 export PKG_CONFIG_PATH := $(BREW_PREFIX)/opt/leptonica/lib/pkgconfig:$(BREW_PREFIX)/opt/tesseract/lib/pkgconfig:$(BREW_PREFIX)/opt/vips/lib/pkgconfig:$(PKG_CONFIG_PATH)
+BREW_CGO_INCLUDES := -I$(BREW_PREFIX)/opt/leptonica/include -I$(BREW_PREFIX)/opt/tesseract/include -I$(BREW_PREFIX)/opt/vips/include
+BREW_CGO_LIBDIRS  := -L$(BREW_PREFIX)/opt/leptonica/lib -L$(BREW_PREFIX)/opt/tesseract/lib -L$(BREW_PREFIX)/opt/vips/lib
+export CGO_CPPFLAGS := $(BREW_CGO_INCLUDES) $(CGO_CPPFLAGS)
+export CGO_CXXFLAGS := $(BREW_CGO_INCLUDES) $(CGO_CXXFLAGS)
+export CGO_LDFLAGS  := $(BREW_CGO_LIBDIRS) $(CGO_LDFLAGS)
 endif
 endif
 
