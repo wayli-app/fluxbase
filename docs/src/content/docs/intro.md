@@ -131,7 +131,10 @@ WebSocket-based AI chatbot integration:
 ### Prerequisites
 
 - Go 1.25+ (for building from source)
-- PostgreSQL 15+
+- PostgreSQL 16+ (with pgvector)
+
+For the full build dependency list (including the macOS/Linux C libraries that
+`make build` needs for OCR), see [Building from Source](./getting-started/building-from-source/).
 
 ### Quick Install
 
@@ -143,11 +146,11 @@ chmod +x fluxbase
 # Or use Docker
 docker run -p 8080:8080 ghcr.io/nimbleflux/fluxbase:latest
 
-# Or build from source
+# Or build from source (needs Go + system C libs — see the guide)
 git clone https://github.com/nimbleflux/fluxbase.git
 cd fluxbase
 make build
-./fluxbase
+./build/fluxbase-server
 ```
 
 ### Your First API

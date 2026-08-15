@@ -1,10 +1,17 @@
-.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk ensure-sdks build clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full db-grants deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
+.PHONY: help dev dev-full ensure-embed-placeholder ensure-embedded-sdk ensure-sdks build build-lite build-full clean fmt lint test migrate-up migrate-down migrate-create db-reset db-reset-full db-grants deps setup-dev install-hooks uninstall-hooks docs docs-build docs-check-links version docker-build docker-push release cli cli-install cli-completions viz-deps viz-deps-svg viz-internal viz-callgraph viz-callgraph-svg viz-uml viz-uml-api viz-uml-auth viz-module-deps viz-all test-cleanup test-cli
 
 # Variables
 BINARY_NAME=fluxbase-server
 CLI_BINARY_NAME=fluxbase
 MAIN_PATH=cmd/fluxbase/main.go
 CLI_MAIN_PATH=cli/main.go
+
+# Go build tags. Default enables Tesseract OCR (needs libtesseract + leptonica).
+# Override to suit your host:
+#   make build BUILD_TAGS=""            -> lite: no C media deps, OCR/vips stubs
+#   make build BUILD_TAGS="ocr vips"    -> full: OCR + libvips image transforms
+# See: docs/src/content/docs/getting-started/building-from-source.md
+BUILD_TAGS ?= ocr
 
 # Version variables
 VERSION := $(shell cat VERSION)
@@ -16,6 +23,30 @@ LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Bui
 DOCKER_REGISTRY ?= ghcr.io
 DOCKER_ORG ?= nimbleflux
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(DOCKER_ORG)/fluxbase
+
+# macOS Homebrew keg detection. Leptonica/tesseract/vips are keg-only, so their
+# headers/libs/pkgconfig files are not in the default search path. Two mechanisms
+# are needed, because the bindings discover them differently:
+#   * govips (the `vips` tag) uses pkg-config, so PKG_CONFIG_PATH suffices.
+#   * gosseract (the `ocr` tag) does NOT use pkg-config — it hardcodes
+#     -I/usr/local/include and -L/usr/local/lib (Intel Homebrew) via #cgo. On
+#     Apple Silicon the kegs live under $(BREW_PREFIX)/opt/<pkg>, so we point
+#     CGO at those dirs directly via CGO_CPPFLAGS/CGO_CXXFLAGS/CGO_LDFLAGS.
+# Without this, `make build` fails with: 'leptonica/allheaders.h' file not found.
+# Extra/unused -I and -L dirs are ignored by the compiler/linker, so this is
+# harmless when a formula or build tag isn't in use.
+UNAME_S := $(shell uname -s 2>/dev/null)
+ifeq ($(UNAME_S),Darwin)
+BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
+ifdef BREW_PREFIX
+export PKG_CONFIG_PATH := $(BREW_PREFIX)/opt/leptonica/lib/pkgconfig:$(BREW_PREFIX)/opt/tesseract/lib/pkgconfig:$(BREW_PREFIX)/opt/vips/lib/pkgconfig:$(PKG_CONFIG_PATH)
+BREW_CGO_INCLUDES := -I$(BREW_PREFIX)/opt/leptonica/include -I$(BREW_PREFIX)/opt/tesseract/include -I$(BREW_PREFIX)/opt/vips/include
+BREW_CGO_LIBDIRS  := -L$(BREW_PREFIX)/opt/leptonica/lib -L$(BREW_PREFIX)/opt/tesseract/lib -L$(BREW_PREFIX)/opt/vips/lib
+export CGO_CPPFLAGS := $(BREW_CGO_INCLUDES) $(CGO_CPPFLAGS)
+export CGO_CXXFLAGS := $(BREW_CGO_INCLUDES) $(CGO_CXXFLAGS)
+export CGO_LDFLAGS  := $(BREW_CGO_LIBDIRS) $(CGO_LDFLAGS)
+endif
+endif
 
 # Database connection variables
 # These can be overridden via environment variables or make command line
@@ -195,8 +226,14 @@ build: ## Build production binary with embedded admin UI
 	@cp -r admin/dist internal/adminui/dist
 	@echo "${YELLOW}Building ${BINARY_NAME} v$(VERSION)...${NC}"
 	@mkdir -p build/
-	@go build -tags "ocr" -ldflags="$(LDFLAGS)" -o build/${BINARY_NAME} ${MAIN_PATH}
-	@echo "${GREEN}Build complete: ${BINARY_NAME} v$(VERSION)${NC}"
+	@go build -tags "$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o build/${BINARY_NAME} ${MAIN_PATH}
+	@echo "${GREEN}Build complete: ${BINARY_NAME} v$(VERSION) (tags: $(BUILD_TAGS))${NC}"
+
+build-lite: ## Build WITHOUT OCR/vips (no C media deps required; features self-disable at runtime)
+	@$(MAKE) build BUILD_TAGS=""
+
+build-full: ## Build with OCR AND image transforms (tags: ocr vips) — needs tesseract/leptonica/libvips
+	@$(MAKE) build BUILD_TAGS="ocr vips"
 
 clean: ## Clean build artifacts
 	@echo "${YELLOW}Cleaning...${NC}"

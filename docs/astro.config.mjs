@@ -281,6 +281,7 @@ export default defineConfig({
           items: [
             { label: "Introduction", link: "/intro/" },
             { label: "Quick Start", link: "/getting-started/quick-start/" },
+            { label: "Building from Source", link: "/getting-started/building-from-source/" },
             { label: "Developer Guide", link: "/guides/developer-guide/" },
           ],
         },

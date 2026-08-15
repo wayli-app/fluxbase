@@ -58,6 +58,13 @@ make build
 make dev
 ```
 
+> **macOS note:** `make build` enables the Tesseract OCR feature, which needs
+> the Leptonica C headers. Install them with `brew install tesseract leptonica`
+> — the Makefile handles the Homebrew keg paths automatically. To build without
+> any C media dependencies, use `make build-lite`. See
+> [Building from Source](https://fluxbase.eu/getting-started/building-from-source/)
+> for full macOS/Linux instructions and troubleshooting.
+
 For Docker-based deployment, see the [deployment guide](https://fluxbase.eu/deployment/overview/).
 
 ### SDKs

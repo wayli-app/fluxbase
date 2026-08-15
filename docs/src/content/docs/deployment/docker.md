@@ -335,6 +335,10 @@ AWS_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Build from Source
 
+> This section covers building the **Docker image** from source. To build a
+> **native binary** (no Docker) on macOS or Linux instead, see
+> [Building from Source](../getting-started/building-from-source/).
+
 ```bash
 # Clone the repository
 git clone https://github.com/nimbleflux/fluxbase.git
