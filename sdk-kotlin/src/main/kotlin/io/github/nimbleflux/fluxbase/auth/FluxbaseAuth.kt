@@ -59,6 +59,12 @@ class FluxbaseAuth(
 
     private val stateListeners = mutableListOf<(AuthState) -> Unit>()
 
+    companion object {
+        /** Stored while an OAuth flow is in flight (TS: auth.ts:62-63). */
+        internal const val OAUTH_PROVIDER_KEY = "fluxbase.auth.oauth_provider"
+        internal const val OAUTH_REDIRECT_URI_KEY = "fluxbase.auth.oauth_redirect_uri"
+    }
+
     init {
         // Restore session from storage (mirrors `auth.ts:172-187`).
         restoreSession()
@@ -106,6 +112,83 @@ class FluxbaseAuth(
     /** Alias for [signIn] — Supabase-compatible method name. */
     suspend fun signInWithPassword(email: String, password: String): FluxbaseResponse<AuthResult> =
         signIn(email, password)
+
+    // ---- OAuth ----
+
+    /**
+     * List the app-login-enabled OAuth providers.
+     * GETs `/api/v1/auth/oauth/providers`. Port of `getOAuthProviders()` (auth.ts:913).
+     */
+    suspend fun getOAuthProviders(): FluxbaseResponse<List<OAuthProviderInfo>> = fluxbaseResponse {
+        val responseText = http.getWithHeaders("/api/v1/auth/oauth/providers").body
+        json.decodeFromString(OAuthProvidersResponse.serializer(), responseText).providers
+    }
+
+    /**
+     * Get the authorization URL for [provider] to open in a system browser.
+     * GETs `/api/v1/auth/oauth/{provider}/authorize`. Port of `getOAuthUrl()` (auth.ts:923).
+     *
+     * The provider and [OAuthOptions.redirectUri] are remembered (storage) for
+     * the matching [exchangeCodeForSession] call.
+     */
+    suspend fun getOAuthUrl(
+        provider: String,
+        options: OAuthOptions = OAuthOptions(),
+    ): FluxbaseResponse<OAuthUrlResponse> = fluxbaseResponse {
+        val params = buildList {
+            options.redirectTo?.let { add("redirect_to=${encode(it)}") }
+            options.redirectUri?.let { add("redirect_uri=${encode(it)}") }
+            if (options.scopes.isNotEmpty()) {
+                add("scopes=${encode(options.scopes.joinToString(","))}")
+            }
+        }
+        val query = if (params.isEmpty()) "" else "?" + params.joinToString("&")
+        val responseText = http.getWithHeaders("/api/v1/auth/oauth/$provider/authorize$query").body
+
+        // Remember for exchangeCodeForSession (mirrors the TS storage keys).
+        storage.setItem(OAUTH_PROVIDER_KEY, provider)
+        options.redirectUri?.let { storage.setItem(OAUTH_REDIRECT_URI_KEY, it) }
+
+        json.decodeFromString(OAuthUrlResponse.serializer(), responseText)
+    }
+
+    /**
+     * Exchange the OAuth authorization code (from the deep-link/callback)
+     * for a session and establish it. GETs
+     * `/api/v1/auth/oauth/{provider}/callback?code&state&redirect_uri`.
+     * Port of `exchangeCodeForSession()` (auth.ts:955).
+     *
+     * Requires a preceding [getOAuthUrl] call (for the stored provider).
+     */
+    suspend fun exchangeCodeForSession(code: String, state: String? = null): FluxbaseResponse<AuthResult> =
+        fluxbaseResponse {
+            val provider = storage.getItem(OAUTH_PROVIDER_KEY)
+                ?: throw FluxbaseAuthException("No OAuth provider found. Call getOAuthUrl first.")
+            val redirectUri = storage.getItem(OAUTH_REDIRECT_URI_KEY)
+
+            val params = buildList {
+                add("code=$code")
+                state?.let { add("state=$it") }
+                redirectUri?.let { add("redirect_uri=${encode(it)}") }
+            }
+            val responseText = http.getWithHeaders("/api/v1/auth/oauth/$provider/callback?${params.joinToString("&")}").body
+
+            storage.removeItem(OAUTH_PROVIDER_KEY)
+            storage.removeItem(OAUTH_REDIRECT_URI_KEY)
+
+            val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
+            val session = AuthSession(
+                user = authResponse.user,
+                accessToken = authResponse.accessToken,
+                refreshToken = authResponse.refreshToken,
+                expiresIn = authResponse.expiresIn,
+                expiresAt = Clock.System.now().toEpochMilliseconds() + authResponse.expiresIn * 1000,
+            )
+            setSessionInternal(session, AuthChangeEvent.SIGNED_IN)
+            AuthResult(user = session.user, session = session)
+        }
+
+    private fun encode(s: String): String = java.net.URLEncoder.encode(s, "UTF-8")
 
     /**
      * Sign up with email and password.
