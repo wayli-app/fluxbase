@@ -19,13 +19,21 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 )
 
+// providerOAuthConfig bundles an OAuth2 client config with the provider's
+// configured redirect URL allowlist (used to validate redirect_uri overrides).
+type providerOAuthConfig struct {
+	Config       *oauth2.Config
+	RedirectURLs []string
+}
+
 // getProviderConfig retrieves OAuth configuration from database
 // Supports tenant-specific providers with fallback to platform-level providers
-func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName string, tenantID string) (*oauth2.Config, error) {
+func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName string, tenantID string) (*providerOAuthConfig, error) {
 	// SECURITY: Only allow providers that enable app login
 	// Priority: tenant-specific provider > platform-level provider
 
-	var clientID, clientSecret, redirectURL string
+	var clientID, clientSecret string
+	var redirectURLs []string
 	var scopes []string
 	var authURL, tokenURL *string
 	var isCustom bool
@@ -34,7 +42,8 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 
 	// Priority: tenant-specific provider > platform-level provider
 	query := `
-		SELECT client_id, client_secret, redirect_url, scopes,
+		SELECT client_id, client_secret,
+		       COALESCE(NULLIF(redirect_urls, ARRAY[]::text[]), ARRAY[redirect_url]) AS redirect_urls, scopes,
 		       authorization_url, token_url, is_custom, allow_app_login,
 		       COALESCE(is_encrypted, false) AS is_encrypted
 		FROM platform.oauth_providers
@@ -48,7 +57,7 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 		tenantUUID = tenantID
 	}
 	err := h.db.QueryRow(ctx, query, providerName, tenantUUID).Scan(
-		&clientID, &clientSecret, &redirectURL, &scopes,
+		&clientID, &clientSecret, &redirectURLs, &scopes,
 		&authURL, &tokenURL, &isCustom, &allowAppLogin, &isEncrypted,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -72,11 +81,11 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 		clientSecret = decryptedSecret
 	}
 
-	// Build OAuth2 config
+	// Build OAuth2 config (default redirect URL is the first configured entry)
 	config := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		RedirectURL:  redirectURL,
+		RedirectURL:  firstRedirectURL(redirectURLs),
 		Scopes:       scopes,
 	}
 
@@ -90,7 +99,15 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 		config.Endpoint = h.getStandardEndpoint(providerName)
 	}
 
-	return config, nil
+	return &providerOAuthConfig{Config: config, RedirectURLs: redirectURLs}, nil
+}
+
+// firstRedirectURL returns the first entry of a redirect URL list, or "" if empty.
+func firstRedirectURL(urls []string) string {
+	if len(urls) > 0 {
+		return urls[0]
+	}
+	return ""
 }
 
 // getStandardEndpoint returns OAuth endpoints for standard providers
@@ -362,21 +379,23 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 // since the user already has a stored token from a previous OAuth flow
 func (h *OAuthHandler) getProviderConfigForToken(ctx context.Context, providerName string) (*oauth2.Config, error) {
 	query := `
-		SELECT client_id, client_secret, redirect_url, scopes,
+		SELECT client_id, client_secret,
+		       COALESCE(NULLIF(redirect_urls, ARRAY[]::text[]), ARRAY[redirect_url]) AS redirect_urls, scopes,
 		       authorization_url, token_url, is_custom,
 		       COALESCE(is_encrypted, false) AS is_encrypted
 		FROM platform.oauth_providers
 		WHERE provider_name = $1 AND enabled = TRUE
 	`
 
-	var clientID, clientSecret, redirectURL string
+	var clientID, clientSecret string
+	var redirectURLs []string
 	var scopes []string
 	var authURL, tokenURL *string
 	var isCustom bool
 	var isEncrypted bool
 
 	err := h.db.QueryRow(ctx, query, providerName).Scan(
-		&clientID, &clientSecret, &redirectURL, &scopes,
+		&clientID, &clientSecret, &redirectURLs, &scopes,
 		&authURL, &tokenURL, &isCustom, &isEncrypted,
 	)
 
@@ -399,7 +418,7 @@ func (h *OAuthHandler) getProviderConfigForToken(ctx context.Context, providerNa
 	config := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		RedirectURL:  redirectURL,
+		RedirectURL:  firstRedirectURL(redirectURLs),
 		Scopes:       scopes,
 	}
 

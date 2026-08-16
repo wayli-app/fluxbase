@@ -473,32 +473,6 @@ Settings module for reading public application settings (respects RLS policies)
 
 Storage module for file operations
 
-## RPC
-
-### rpc
-
-> **rpc**: `CallableRPC`
-
-RPC module for calling PostgreSQL functions - Supabase compatible
-
-Can be called directly (Supabase-style) or access methods like invoke(), list(), getStatus()
-
-#### Example
-
-```typescript
-// Supabase-style direct call (uses 'default' namespace)
-const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
-
-// With full options
-const { data, error } = await client.rpc.invoke('get_user_orders', { user_id: '123' }, {
-  namespace: 'custom',
-  async: true
-})
-
-// List available procedures
-const { data: procedures } = await client.rpc.list()
-```
-
 ## Realtime
 
 ### channel()
@@ -558,6 +532,35 @@ Promise resolving to status
 ```typescript
 const channel = client.channel('room-1')
 await client.removeChannel(channel)
+```
+
+## RPC
+
+### rpc
+
+> **rpc**: `CallableRPC`
+
+RPC module for calling PostgreSQL functions - Supabase compatible
+
+Can be called directly (Supabase-style) or access methods like invoke(), list(), getStatus()
+
+#### Example
+
+```typescript
+// Supabase-style direct call (uses 'default' namespace)
+const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
+
+// With a custom namespace (shorthand for rpc.invoke)
+const { data, error } = await client.rpc('get_orders', { id: 1 }, { namespace: 'myapp' })
+
+// With full options
+const { data, error } = await client.rpc.invoke('get_user_orders', { user_id: '123' }, {
+  namespace: 'custom',
+  async: true
+})
+
+// List available procedures
+const { data: procedures } = await client.rpc.list()
 ```
 
 ## Vector Search

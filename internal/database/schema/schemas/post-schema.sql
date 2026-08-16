@@ -86,6 +86,23 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ============================================================================
+-- OAUTH PROVIDERS MIGRATION — multiple redirect URLs
+-- redirect_urls is the source of truth (allowlist); redirect_url keeps
+-- mirroring the first entry for backward compatibility.
+-- ============================================================================
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='platform' AND table_name='oauth_providers' AND column_name='redirect_urls') THEN
+        ALTER TABLE platform.oauth_providers ADD COLUMN redirect_urls text[] DEFAULT ARRAY[]::text[] NOT NULL;
+    END IF;
+    UPDATE platform.oauth_providers
+    SET redirect_urls = ARRAY[redirect_url]
+    WHERE redirect_urls = ARRAY[]::text[] AND redirect_url IS NOT NULL AND redirect_url <> '';
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'OAuth providers redirect_urls migration: %', SQLERRM;
+END $$;
+
+-- ============================================================================
 -- PLATFORM SCHEMA POLICIES (reference auth.users and auth.uid())
 -- ============================================================================
 

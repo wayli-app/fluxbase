@@ -23,6 +23,8 @@ func (h *OpenAPIHandler) addAdminEndpoints(spec *OpenAPISpec) {
 			"client_id":     map[string]string{"type": "string"},
 			"enabled":       map[string]string{"type": "boolean"},
 			"allowed_roles": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}},
+			"redirect_url":  map[string]string{"type": "string", "description": "First configured redirect URL (backward compat)"},
+			"redirect_urls": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}, "description": "Allowed OAuth redirect URLs (allowlist); first entry is the default"},
 		},
 	}
 
@@ -290,6 +292,8 @@ func (h *OpenAPIHandler) addAdminEndpoints(spec *OpenAPISpec) {
 								"client_id":     map[string]string{"type": "string"},
 								"client_secret": map[string]string{"type": "string"},
 								"enabled":       map[string]string{"type": "boolean"},
+								"redirect_url":  map[string]string{"type": "string"},
+								"redirect_urls": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}},
 							},
 						},
 					},
@@ -353,6 +357,8 @@ func (h *OpenAPIHandler) addAdminEndpoints(spec *OpenAPISpec) {
 								"client_id":     map[string]string{"type": "string"},
 								"client_secret": map[string]string{"type": "string"},
 								"enabled":       map[string]string{"type": "boolean"},
+								"redirect_url":  map[string]string{"type": "string"},
+								"redirect_urls": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}},
 							},
 						},
 					},

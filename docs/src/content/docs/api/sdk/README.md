@@ -5,10 +5,6 @@ prev: false
 title: "@nimbleflux/fluxbase-sdk"
 ---
 
-## AI
-
-- [FluxbaseKnowledgeBase](/api/sdk/classes/fluxbaseknowledgebase/)
-
 ## Admin
 
 - [FluxbaseAdminAI](/api/sdk/classes/fluxbaseadminai/)
@@ -17,6 +13,10 @@ title: "@nimbleflux/fluxbase-sdk"
 - [FluxbaseAdminMigrations](/api/sdk/classes/fluxbaseadminmigrations/)
 - [FluxbaseAdminRPC](/api/sdk/classes/fluxbaseadminrpc/)
 - [ServiceKeysManager](/api/sdk/classes/servicekeysmanager/)
+
+## AI
+
+- [FluxbaseKnowledgeBase](/api/sdk/classes/fluxbaseknowledgebase/)
 
 ## Branching
 

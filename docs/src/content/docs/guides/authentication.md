@@ -74,7 +74,8 @@ const { data: signInData, error: signInError } = await client.auth.signIn({
 });
 if (signInError) throw signInError;
 
-const { data: currentUser, error: userError } = await client.auth.getCurrentUser();
+const { data: currentUser, error: userError } =
+  await client.auth.getCurrentUser();
 if (userError) throw userError;
 
 const { error: signOutError } = await client.auth.signOut();
@@ -83,15 +84,15 @@ if (signOutError) throw signOutError;
 
 ## Core Authentication Methods
 
-| Method                   | Purpose                  | Parameters                           |
-| ------------------------ | ------------------------ | ------------------------------------ |
-| `signUp()`               | Create new account       | `email`, `password`, `options.data?` |
-| `signIn()`               | Sign in with credentials | `email`, `password`                  |
-| `signOut()`              | End current session      | None                                 |
-| `getCurrentUser()`       | Get authenticated user   | None                                 |
-| `getSession()`           | Get session details      | None                                 |
-| `sendPasswordReset()`    | Request password reset   | `email`                              |
-| `resetPassword()`        | Confirm password reset   | `token`, `newPassword`               |
+| Method                | Purpose                  | Parameters                           |
+| --------------------- | ------------------------ | ------------------------------------ |
+| `signUp()`            | Create new account       | `email`, `password`, `options.data?` |
+| `signIn()`            | Sign in with credentials | `email`, `password`                  |
+| `signOut()`           | End current session      | None                                 |
+| `getCurrentUser()`    | Get authenticated user   | None                                 |
+| `getSession()`        | Get session details      | None                                 |
+| `sendPasswordReset()` | Request password reset   | `email`                              |
+| `resetPassword()`     | Confirm password reset   | `token`, `newPassword`               |
 
 **Example:**
 
@@ -114,7 +115,8 @@ const { data: signInData, error: signInError } = await client.auth.signIn({
 });
 if (signInError) throw signInError;
 
-const { data: currentUser, error: userError } = await client.auth.getCurrentUser();
+const { data: currentUser, error: userError } =
+  await client.auth.getCurrentUser();
 if (userError) throw userError;
 
 const { error: signOutError } = await client.auth.signOut();
@@ -127,7 +129,10 @@ if (signOutError) throw signOutError;
 const { error } = await client.auth.sendPasswordReset("user@example.com");
 if (error) throw error;
 
-const { error: resetError } = await client.auth.resetPassword("reset-token-from-email", "NewSecurePassword123");
+const { error: resetError } = await client.auth.resetPassword(
+  "reset-token-from-email",
+  "NewSecurePassword123",
+);
 if (resetError) throw resetError;
 ```
 
@@ -142,15 +147,53 @@ if (error) throw error;
 
 **Supported providers:** Google, GitHub, Microsoft, Apple, GitLab, Bitbucket, Facebook, Twitter/X, LinkedIn
 
-**Configuration:**
+**Configuration (config file):**
 
 ```yaml
 oauth_providers:
   - name: google
     client_id: "your-client-id"
     client_secret: "your-client-secret"
-    redirect_url: "http://localhost:8080/api/v1/auth/callback/google"
+    # Optional: additional allowed callback URLs beyond the default
+    # ({base_url}/api/v1/auth/oauth/google/callback)
+    redirect_urls:
+      - "https://custom-domain.com/api/v1/auth/oauth/google/callback"
 ```
+
+**Configuration (Admin API):**
+
+OAuth providers managed through the admin API or dashboard accept a list of
+redirect URLs via `redirect_urls`. The first URL is the default used when
+initiating a login; every URL in the list must also be registered with the
+OAuth provider. The legacy single `redirect_url` field remains supported and is
+treated as a single-element list (in responses it mirrors the first entry of
+`redirect_urls`).
+
+```typescript
+// Create a provider with multiple callback URLs (e.g., multiple domains)
+await client.admin.oauth.providers.createProvider({
+  provider_name: "google",
+  display_name: "Google",
+  enabled: true,
+  client_id: "your-client-id",
+  client_secret: "your-client-secret",
+  redirect_urls: [
+    "https://app.example.com/api/v1/auth/oauth/google/callback",
+    "https://custom-domain.com/api/v1/auth/oauth/google/callback",
+  ],
+  scopes: ["openid", "email", "profile"],
+  is_custom: false,
+});
+```
+
+:::note[Allowlist enforcement]
+When an SDK passes an explicit `redirect_uri` to
+`/api/v1/auth/oauth/:provider/authorize` or the callback, it must exactly match
+one of the provider's configured redirect URLs (relative paths are resolved
+against the server base URL); otherwise the request is rejected with
+`400 INVALID_REDIRECT_URI`. Requests without an explicit `redirect_uri` always
+use the first configured URL.
+:::
 
 **Usage:**
 
@@ -177,13 +220,22 @@ const { data: setupData, error: setupError } = await client.auth.setup2FA();
 if (setupError) throw setupError;
 const { id, type, totp } = setupData;
 
-const { error: verifyError } = await client.auth.verify2FA({ user_id: "user-id", code: "123456" });
+const { error: verifyError } = await client.auth.verify2FA({
+  user_id: "user-id",
+  code: "123456",
+});
 if (verifyError) throw verifyError;
 
-const { data: signInData, error: signInError } = await client.auth.signIn({ email, password });
+const { data: signInData, error: signInError } = await client.auth.signIn({
+  email,
+  password,
+});
 if (signInError) throw signInError;
 if (signInData.requires_2fa) {
-  const { error: codeError } = await client.auth.verify2FA({ user_id: signInData.user.id, code: "123456" });
+  const { error: codeError } = await client.auth.verify2FA({
+    user_id: signInData.user.id,
+    code: "123456",
+  });
   if (codeError) throw codeError;
 }
 
@@ -268,7 +320,10 @@ await client.management.clientKeys.revoke(key_id);
 Service keys bypass Row-Level Security. Use only in backend services.
 
 ```typescript
-const adminClient = createClient("http://localhost:8080", process.env.FLUXBASE_SERVICE_ROLE_KEY);
+const adminClient = createClient(
+  "http://localhost:8080",
+  process.env.FLUXBASE_SERVICE_ROLE_KEY,
+);
 
 // Bypasses RLS
 const allUsers = await adminClient.from("users").select("*");

@@ -125,7 +125,8 @@ type OAuthProvider struct {
 	ClientID            string              `json:"client_id"`
 	ClientSecret        string              `json:"client_secret,omitempty"` // Omitted in GET responses
 	HasSecret           bool                `json:"has_secret"`              // Indicates if a client secret is set
-	RedirectURL         string              `json:"redirect_url"`
+	RedirectURL         string              `json:"redirect_url"`            // First entry of redirect_urls (backward compat)
+	RedirectURLs        []string            `json:"redirect_urls"`           // Full redirect URL allowlist
 	Scopes              []string            `json:"scopes"`
 	IsCustom            bool                `json:"is_custom"`
 	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
@@ -150,7 +151,8 @@ type CreateOAuthProviderRequest struct {
 	Enabled             bool                `json:"enabled"`
 	ClientID            string              `json:"client_id"`
 	ClientSecret        string              `json:"client_secret"`
-	RedirectURL         string              `json:"redirect_url"`
+	RedirectURL         string              `json:"redirect_url,omitempty"`  // Legacy single redirect URL
+	RedirectURLs        []string            `json:"redirect_urls,omitempty"` // Takes precedence over redirect_url
 	Scopes              []string            `json:"scopes"`
 	IsCustom            bool                `json:"is_custom"`
 	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
@@ -170,7 +172,8 @@ type UpdateOAuthProviderRequest struct {
 	Enabled             *bool               `json:"enabled,omitempty"`
 	ClientID            *string             `json:"client_id,omitempty"`
 	ClientSecret        *string             `json:"client_secret,omitempty"`
-	RedirectURL         *string             `json:"redirect_url,omitempty"`
+	RedirectURL         *string             `json:"redirect_url,omitempty"`  // Legacy single redirect URL (sets list to [value])
+	RedirectURLs        *[]string           `json:"redirect_urls,omitempty"` // Takes precedence over redirect_url
 	Scopes              []string            `json:"scopes,omitempty"`
 	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
 	TokenURL            *string             `json:"token_url,omitempty"`
@@ -217,7 +220,8 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c fiber.Ctx) error {
 	}
 
 	query := `
-		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
+		SELECT id, provider_name, display_name, enabled, client_id,
+		       COALESCE(NULLIF(redirect_urls, ARRAY[]::text[]), ARRAY[redirect_url]) AS redirect_urls, scopes,
 		       is_custom, authorization_url, token_url, user_info_url,
 		       revocation_endpoint, end_session_endpoint,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
@@ -242,7 +246,7 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c fiber.Ctx) error {
 		var requiredClaimsJSON, deniedClaimsJSON []byte
 		err := rows.Scan(
 			&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
-			&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
+			&p.RedirectURLs, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
 			&p.TokenURL, &p.UserInfoURL, &p.RevocationEndpoint, &p.EndSessionEndpoint,
 			&p.AllowDashboardLogin, &p.AllowAppLogin,
 			&requiredClaimsJSON, &deniedClaimsJSON,
@@ -251,6 +255,9 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c fiber.Ctx) error {
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan OAuth provider")
 			continue
+		}
+		if len(p.RedirectURLs) > 0 {
+			p.RedirectURL = p.RedirectURLs[0]
 		}
 		// Unmarshal RBAC fields
 		if requiredClaimsJSON != nil {
@@ -300,6 +307,7 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c fiber.Ctx) error {
 			ClientID:            cp.ClientID,
 			HasSecret:           cp.ClientSecret != "",
 			RedirectURL:         redirectURL,
+			RedirectURLs:        resolveConfigRedirectURLs(cp, redirectURL),
 			Scopes:              cp.Scopes,
 			IsCustom:            cp.IssuerURL != "",
 			AllowDashboardLogin: cp.AllowDashboardLogin,
@@ -331,7 +339,8 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c fiber.Ctx) error {
 	}
 
 	query := `
-		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
+		SELECT id, provider_name, display_name, enabled, client_id,
+		       COALESCE(NULLIF(redirect_urls, ARRAY[]::text[]), ARRAY[redirect_url]) AS redirect_urls, scopes,
 		       is_custom, authorization_url, token_url, user_info_url,
 		       revocation_endpoint, end_session_endpoint,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
@@ -346,7 +355,7 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c fiber.Ctx) error {
 	var requiredClaimsJSON, deniedClaimsJSON []byte
 	err = h.db.QueryRow(ctx, query, providerID).Scan(
 		&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
-		&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
+		&p.RedirectURLs, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
 		&p.TokenURL, &p.UserInfoURL, &p.RevocationEndpoint, &p.EndSessionEndpoint,
 		&p.AllowDashboardLogin, &p.AllowAppLogin,
 		&requiredClaimsJSON, &deniedClaimsJSON,
@@ -359,6 +368,9 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c fiber.Ctx) error {
 	if err != nil {
 		log.Error().Err(err).Str("id", id).Msg("Failed to get OAuth provider")
 		return SendInternalError(c, "Failed to retrieve OAuth provider")
+	}
+	if len(p.RedirectURLs) > 0 {
+		p.RedirectURL = p.RedirectURLs[0]
 	}
 
 	// Unmarshal RBAC fields
@@ -389,8 +401,21 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c fiber.Ctx) error {
 	}
 
 	// Validate required fields
-	if req.DisplayName == "" || req.ClientID == "" || req.ClientSecret == "" || req.RedirectURL == "" {
-		return SendBadRequest(c, "Missing required fields: display_name, client_id, client_secret, redirect_url", ErrCodeMissingField)
+	if req.DisplayName == "" || req.ClientID == "" || req.ClientSecret == "" {
+		return SendBadRequest(c, "Missing required fields: display_name, client_id, client_secret", ErrCodeMissingField)
+	}
+
+	// Resolve redirect URLs: redirect_urls takes precedence over the legacy redirect_url
+	redirectURLs := req.RedirectURLs
+	if len(redirectURLs) == 0 && req.RedirectURL != "" {
+		redirectURLs = []string{req.RedirectURL}
+	}
+	if len(redirectURLs) == 0 {
+		return SendBadRequest(c, "Missing required fields: redirect_urls (or redirect_url)", ErrCodeMissingField)
+	}
+	redirectURLs, err := normalizeRedirectURLs(redirectURLs)
+	if err != nil {
+		return SendBadRequest(c, err.Error(), ErrCodeInvalidInput)
 	}
 
 	// For custom providers, require custom URLs
@@ -441,11 +466,11 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c fiber.Ctx) error {
 	query := `
 		INSERT INTO platform.oauth_providers (
 			provider_name, display_name, enabled, client_id, client_secret,
-			redirect_url, scopes, is_custom, authorization_url, token_url,
+			redirect_url, redirect_urls, scopes, is_custom, authorization_url, token_url,
 			user_info_url, revocation_endpoint, end_session_endpoint,
 			allow_dashboard_login, allow_app_login, required_claims, denied_claims,
 			created_by, updated_by, is_encrypted
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, true)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, true)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -457,7 +482,7 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c fiber.Ctx) error {
 			return tx.QueryRow(
 				ctx, query,
 				req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, encryptedSecret,
-				req.RedirectURL, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
+				redirectURLs[0], redirectURLs, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
 				req.UserInfoURL, req.RevocationEndpoint, req.EndSessionEndpoint,
 				allowDashboardLogin, allowAppLogin, requiredClaimsJSON, deniedClaimsJSON, userID,
 			).Scan(&id, &createdAt, &updatedAt)
@@ -466,7 +491,7 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c fiber.Ctx) error {
 		err = h.db.QueryRow(
 			ctx, query,
 			req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, encryptedSecret,
-			req.RedirectURL, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
+			redirectURLs[0], redirectURLs, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
 			req.UserInfoURL, req.RevocationEndpoint, req.EndSessionEndpoint,
 			allowDashboardLogin, allowAppLogin, requiredClaimsJSON, deniedClaimsJSON, userID,
 		).Scan(&id, &createdAt, &updatedAt)
@@ -508,7 +533,7 @@ func (h *OAuthProviderHandler) UpdateOAuthProvider(c fiber.Ctx) error {
 
 	// Validate that at least one field is provided
 	if req.DisplayName == nil && req.Enabled == nil && req.ClientID == nil &&
-		req.ClientSecret == nil && req.RedirectURL == nil && req.Scopes == nil &&
+		req.ClientSecret == nil && req.RedirectURL == nil && req.RedirectURLs == nil && req.Scopes == nil &&
 		req.AuthorizationURL == nil && req.TokenURL == nil && req.UserInfoURL == nil &&
 		req.RevocationEndpoint == nil && req.EndSessionEndpoint == nil &&
 		req.AllowDashboardLogin == nil && req.AllowAppLogin == nil &&
@@ -554,9 +579,27 @@ func (h *OAuthProviderHandler) UpdateOAuthProvider(c fiber.Ctx) error {
 		args = append(args, true)
 		argPos++
 	}
-	if req.RedirectURL != nil {
+	// Redirect URLs: redirect_urls takes precedence when both are provided;
+	// the legacy redirect_url column is kept in sync with the first entry
+	if req.RedirectURLs != nil || req.RedirectURL != nil {
+		var redirectURLs []string
+		if req.RedirectURLs != nil {
+			redirectURLs = *req.RedirectURLs
+		} else {
+			redirectURLs = []string{*req.RedirectURL}
+		}
+		if len(redirectURLs) == 0 {
+			return SendBadRequest(c, "At least one redirect URL is required", ErrCodeInvalidInput)
+		}
+		redirectURLs, normErr := normalizeRedirectURLs(redirectURLs)
+		if normErr != nil {
+			return SendBadRequest(c, normErr.Error(), ErrCodeInvalidInput)
+		}
+		updates = append(updates, fmt.Sprintf("redirect_urls = $%d", argPos))
+		args = append(args, redirectURLs)
+		argPos++
 		updates = append(updates, fmt.Sprintf("redirect_url = $%d", argPos))
-		args = append(args, *req.RedirectURL)
+		args = append(args, redirectURLs[0])
 		argPos++
 	}
 	if req.Scopes != nil {

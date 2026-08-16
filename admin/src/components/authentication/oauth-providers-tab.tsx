@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Key, Loader2, X, Check, AlertCircle, Settings } from "lucide-react";
+import {
+  Key,
+  Loader2,
+  X,
+  Check,
+  AlertCircle,
+  Settings,
+  Plus,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   oauthProviderApi,
@@ -51,6 +59,10 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [editRedirectUrls, setEditRedirectUrls] = useState<string[]>([]);
+  const [additionalRedirectUrls, setAdditionalRedirectUrls] = useState<
+    string[]
+  >([]);
   const [allowDashboardLogin, setAllowDashboardLogin] = useState(false);
   const [allowAppLogin, setAllowAppLogin] = useState(true);
   const [requiredClaims, setRequiredClaims] = useState<
@@ -139,6 +151,8 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
     setIsDiscovering(false);
     setClientId("");
     setClientSecret("");
+    setEditRedirectUrls([]);
+    setAdditionalRedirectUrls([]);
     setAllowDashboardLogin(false);
     setAllowAppLogin(true);
     setRequiredClaims({});
@@ -151,6 +165,13 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
     setCustomProviderName(provider.display_name);
     setClientId(provider.client_id);
     setClientSecret("");
+    setEditRedirectUrls(
+      provider.redirect_urls?.length
+        ? [...provider.redirect_urls]
+        : provider.redirect_url
+          ? [provider.redirect_url]
+          : [],
+    );
     setAllowDashboardLogin(provider.allow_dashboard_login);
     setAllowAppLogin(provider.allow_app_login);
     setRequiredClaims(provider.required_claims || {});
@@ -167,19 +188,32 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
     if (onProviderTest) {
       onProviderTest(provider);
     } else {
+      const redirectUrl =
+        provider.redirect_urls?.[0] ?? provider.redirect_url ?? "";
       const authUrl = provider.is_custom
         ? provider.authorization_url
-        : `https://accounts.google.com/o/oauth2/v2/auth?client_id=${provider.client_id}&redirect_uri=${encodeURIComponent(provider.redirect_url)}&response_type=code&scope=${provider.scopes.join(" ")}`;
+        : `https://accounts.google.com/o/oauth2/v2/auth?client_id=${provider.client_id}&redirect_uri=${encodeURIComponent(redirectUrl)}&response_type=code&scope=${provider.scopes.join(" ")}`;
       window.open(authUrl, "_blank", "width=500,height=600");
       toast.success("Test authentication window opened");
     }
   };
 
-  const handleCreateProvider = () => {
-    const isCustom = selectedProvider === "custom";
-    const providerName = isCustom
+  const getCreateProviderName = () =>
+    selectedProvider === "custom"
       ? customProviderName.toLowerCase().replace(/\s+/g, "_")
       : selectedProvider;
+
+  const getCreateDefaultRedirectUrl = () =>
+    `${window.location.origin}/api/v1/auth/oauth/${getCreateProviderName() || "custom"}/callback`;
+
+  const handleCreateProvider = () => {
+    const isCustom = selectedProvider === "custom";
+    const providerName = getCreateProviderName();
+    const defaultRedirectUrl = getCreateDefaultRedirectUrl();
+
+    const additionalUrls = additionalRedirectUrls
+      .map((url) => url.trim())
+      .filter((url) => url !== "" && url !== defaultRedirectUrl);
 
     const data: CreateOAuthProviderRequest = {
       provider_name: providerName,
@@ -189,7 +223,7 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
       enabled: true,
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_url: `${window.location.origin}/api/v1/auth/oauth/${providerName}/callback`,
+      redirect_urls: [defaultRedirectUrl, ...additionalUrls],
       scopes: ["openid", "email", "profile"],
       is_custom: isCustom,
       allow_dashboard_login: allowDashboardLogin,
@@ -213,10 +247,19 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
   const handleUpdateProvider = () => {
     if (!editingProvider) return;
 
+    const redirectUrls = editRedirectUrls
+      .map((url) => url.trim())
+      .filter((url) => url !== "");
+    if (redirectUrls.length === 0) {
+      toast.error("At least one redirect URL is required");
+      return;
+    }
+
     const data: UpdateOAuthProviderRequest = {
       display_name: editingProvider.display_name,
       enabled: editingProvider.enabled,
       client_id: clientId,
+      redirect_urls: redirectUrls,
       allow_dashboard_login: allowDashboardLogin,
       allow_app_login: allowAppLogin,
       ...(clientSecret && { client_secret: clientSecret }),
@@ -373,10 +416,21 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
                           <div className="col-span-2">
                             <Label className="text-muted-foreground">
                               Redirect URL
+                              {(provider.redirect_urls?.length ?? 0) > 1 && "s"}
                             </Label>
-                            <p className="font-mono text-xs break-all">
-                              {provider.redirect_url}
-                            </p>
+                            {(provider.redirect_urls?.length
+                              ? provider.redirect_urls
+                              : provider.redirect_url
+                                ? [provider.redirect_url]
+                                : []
+                            ).map((url) => (
+                              <p
+                                key={url}
+                                className="font-mono text-xs break-all"
+                              >
+                                {url}
+                              </p>
+                            ))}
                           </div>
                           {provider.is_custom && (
                             <>
@@ -668,20 +722,66 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="redirectUrl">Redirect URL</Label>
+              <Label htmlFor="redirectUrl">Default Redirect URL</Label>
               <Input
                 id="redirectUrl"
-                value={
-                  selectedProvider === "custom"
-                    ? `${window.location.origin}/api/v1/auth/oauth/${customProviderName.toLowerCase().replace(/\s+/g, "_") || "custom"}/callback`
-                    : `${window.location.origin}/api/v1/auth/oauth/${selectedProvider}/callback`
-                }
+                value={getCreateDefaultRedirectUrl()}
                 readOnly
                 className="font-mono text-xs"
               />
               <p className="text-muted-foreground text-xs">
                 Use this URL in your OAuth provider configuration
               </p>
+              <div className="mt-1 space-y-2">
+                <Label>Additional Redirect URLs (Optional)</Label>
+                <p className="text-muted-foreground text-xs">
+                  Extra allowed callback URLs (e.g., custom domains). Each URL
+                  must also be registered with the OAuth provider.
+                </p>
+                <div className="space-y-2">
+                  {additionalRedirectUrls.map((url, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        value={url}
+                        onChange={(e) => {
+                          const next = [...additionalRedirectUrls];
+                          next[index] = e.target.value;
+                          setAdditionalRedirectUrls(next);
+                        }}
+                        className="font-mono text-xs"
+                        placeholder="https://custom-domain.com/api/v1/auth/oauth/{provider}/callback"
+                        aria-label={`Additional redirect URL ${index + 1}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          setAdditionalRedirectUrls(
+                            additionalRedirectUrls.filter(
+                              (_, i) => i !== index,
+                            ),
+                          )
+                        }
+                        aria-label={`Remove additional redirect URL ${index + 1}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setAdditionalRedirectUrls([...additionalRedirectUrls, ""])
+                    }
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add URL
+                  </Button>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-3 border-t pt-4">
@@ -861,13 +961,51 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
               </p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="editRedirectUrl">Redirect URL</Label>
-              <Input
-                id="editRedirectUrl"
-                value={editingProvider?.redirect_url || ""}
-                readOnly
-                className="bg-muted font-mono text-xs"
-              />
+              <Label>Redirect URLs</Label>
+              <p className="text-muted-foreground text-xs">
+                Allowed OAuth callback URLs. The first URL is the default; each
+                URL must also be registered with the provider.
+              </p>
+              <div className="space-y-2">
+                {editRedirectUrls.map((url, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={url}
+                      onChange={(e) => {
+                        const next = [...editRedirectUrls];
+                        next[index] = e.target.value;
+                        setEditRedirectUrls(next);
+                      }}
+                      className="bg-muted font-mono text-xs"
+                      placeholder="https://app.example.com/api/v1/auth/oauth/{provider}/callback"
+                      aria-label={`Redirect URL ${index + 1}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() =>
+                        setEditRedirectUrls(
+                          editRedirectUrls.filter((_, i) => i !== index),
+                        )
+                      }
+                      disabled={editRedirectUrls.length <= 1}
+                      aria-label={`Remove redirect URL ${index + 1}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditRedirectUrls([...editRedirectUrls, ""])}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add URL
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3 border-t pt-4">

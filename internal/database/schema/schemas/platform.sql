@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS oauth_providers (
     client_id text NOT NULL,
     client_secret text NOT NULL,
     redirect_url text NOT NULL,
+    redirect_urls text[] DEFAULT ARRAY[]::text[] NOT NULL,
     scopes text[] DEFAULT ARRAY[]::text[],
     enabled boolean DEFAULT true,
     is_custom boolean DEFAULT false,
@@ -192,6 +193,8 @@ CREATE TABLE IF NOT EXISTS oauth_providers (
     CONSTRAINT oauth_providers_provider_name_tenant_id_key UNIQUE (provider_name, tenant_id)
 );
 
+
+COMMENT ON COLUMN platform.oauth_providers.redirect_urls IS 'Allowed OAuth redirect URIs (allowlist). First element is the default and mirrors redirect_url.';
 
 COMMENT ON COLUMN platform.oauth_providers.allow_dashboard_login IS 'Allow this provider for dashboard admin SSO login';
 

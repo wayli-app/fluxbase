@@ -151,19 +151,23 @@ try {
 
 ### getMany()
 
-> **getMany**(`keys`): `Promise`\<`Record`\<`string`, `any`\>\>
+> **getMany**(`keys?`, `options?`): `Promise`\<`Record`\<`string`, `any`\>\>
 
-Get multiple settings' values by keys
+Get multiple settings' values by keys, or all settings under a namespace.
 
-Fetches multiple settings in a single request.
+Fetches multiple settings in a single request, avoiding a separate
+per-key request (each of which would 404 when the key is unset).
 Only returns settings the user has permission to read based on RLS policies.
-Settings the user can't access will be omitted from the result (no error thrown).
+Settings the user can't access — or that don't exist — are omitted from the
+result (no error thrown, no existence leak).
 
 #### Parameters
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `keys` | `string`[] | Array of setting keys to fetch |
+| Parameter | Type | Default value | Description |
+| ------ | ------ | ------ | ------ |
+| `keys` | `string`[] | `[]` | Array of setting keys to fetch (omit/empty to use prefix only) |
+| `options?` | \{ `prefix?`: `string`; \} | `undefined` | Optional. `prefix` fetches every visible key under a namespace (e.g. `'wayli.'`). The prefix must end with a `.`. When both `keys` and `prefix` are given, returns the intersection. |
+| `options.prefix?` | `string` | `undefined` | - |
 
 #### Returns
 
@@ -174,17 +178,15 @@ Promise resolving to object mapping keys to values
 #### Example
 
 ```typescript
+// Fetch specific keys
 const values = await client.settings.getMany([
   'features.beta_enabled',  // public - will be returned
   'features.dark_mode',      // public - will be returned
   'internal.api_key'         // secret - will be omitted
 ])
-console.log(values)
-// {
-//   'features.beta_enabled': { enabled: true },
-//   'features.dark_mode': { enabled: false }
-//   // 'internal.api_key' is omitted (no error)
-// }
+
+// Fetch an entire namespace in one call
+const wayli = await client.settings.getMany([], { prefix: 'wayli.' })
 ```
 
 ***

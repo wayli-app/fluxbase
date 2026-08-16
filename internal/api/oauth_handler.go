@@ -148,17 +148,26 @@ func (h *OAuthHandler) Authorize(c fiber.Ctx) error {
 		return err
 	}
 
-	oauthConfig, err := h.getProviderConfig(ctx, providerName, tenantID)
+	providerCfg, err := h.getProviderConfig(ctx, providerName, tenantID)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Str("tenant_id", tenantID).Msg("Failed to get OAuth provider config")
 		return SendBadRequest(c, fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName), "PROVIDER_NOT_CONFIGURED")
 	}
+	oauthConfig := providerCfg.Config
 
 	// Override redirect URL if custom redirect_uri is provided
 	if redirectURI != "" {
 		// Build full URL if relative path is provided
 		if redirectURI[0] == '/' {
 			redirectURI = h.baseURL + redirectURI
+		}
+		// SECURITY: the override must match one of the configured redirect URLs
+		if !matchRedirectURL(providerCfg.RedirectURLs, redirectURI, h.baseURL) {
+			log.Warn().
+				Str("provider", providerName).
+				Str("redirect_uri", redirectURI).
+				Msg("Rejected redirect_uri not present in provider's configured redirect URLs")
+			return SendBadRequest(c, "Redirect URI is not in the provider's configured redirect URLs", "INVALID_REDIRECT_URI")
 		}
 		oauthConfig.RedirectURL = redirectURI
 	}

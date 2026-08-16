@@ -127,6 +127,101 @@ func TestOAuthProvider_CreateProvider_CustomWithoutURLs_Integration(t *testing.T
 	assert.Contains(t, result["error"], "Custom providers require")
 }
 
+// TestOAuthProvider_CreateProvider_MultipleRedirectURLs_Integration tests creating a provider
+// with a redirect_urls list and verifying response shape and update semantics
+func TestOAuthProvider_CreateProvider_MultipleRedirectURLs_Integration(t *testing.T) {
+	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")
+	defer tc.Close()
+	defer tc.CleanupTestData()
+
+	adminEmail := randomEmail()
+	_, adminToken := tc.CreateDashboardAdminUser(adminEmail, "password123")
+
+	// Create with a redirect_urls list (new format)
+	resp := tc.NewRequest("POST", "/api/v1/admin/oauth/providers").
+		WithAuth(adminToken).
+		WithBody(map[string]interface{}{
+			"provider_name":     "test_multi_redirect",
+			"display_name":      "Test Multi Redirect",
+			"client_id":         "test-client-id",
+			"client_secret":     "test-client-secret",
+			"redirect_urls":     []string{"http://localhost:3000/api/v1/auth/oauth/test_multi_redirect/callback", "https://custom.example.com/api/v1/auth/oauth/test_multi_redirect/callback"},
+			"is_custom":         true,
+			"authorization_url": "https://example.com/oauth/authorize",
+			"token_url":         "https://example.com/oauth/token",
+			"user_info_url":     "https://example.com/oauth/userinfo",
+		}).
+		Send().
+		AssertStatus(201)
+
+	var created map[string]interface{}
+	resp.JSON(&created)
+	providerID, _ := created["id"].(string)
+	assert.NotEmpty(t, providerID)
+
+	// Clean up the provider at the end of the test
+	defer func() {
+		if providerID != "" {
+			_ = tc.NewRequest("DELETE", "/api/v1/admin/oauth/providers/"+providerID).
+				WithAuth(adminToken).
+				Send()
+		}
+	}()
+
+	// Fetch and verify both response fields
+	getResp := tc.NewRequest("GET", "/api/v1/admin/oauth/providers/"+providerID).
+		WithAuth(adminToken).
+		Send().
+		AssertStatus(200)
+
+	var provider map[string]interface{}
+	getResp.JSON(&provider)
+	assert.Equal(t, "http://localhost:3000/api/v1/auth/oauth/test_multi_redirect/callback", provider["redirect_url"],
+		"redirect_url should mirror the first entry of redirect_urls")
+	assert.Equal(t, []interface{}{
+		"http://localhost:3000/api/v1/auth/oauth/test_multi_redirect/callback",
+		"https://custom.example.com/api/v1/auth/oauth/test_multi_redirect/callback",
+	}, provider["redirect_urls"])
+
+	// Update via redirect_urls (list replaces the whole set)
+	tc.NewRequest("PUT", "/api/v1/admin/oauth/providers/"+providerID).
+		WithAuth(adminToken).
+		WithBody(map[string]interface{}{
+			"redirect_urls": []string{"https://only.example.com/api/v1/auth/oauth/test_multi_redirect/callback"},
+		}).
+		Send().
+		AssertStatus(200)
+
+	getResp2 := tc.NewRequest("GET", "/api/v1/admin/oauth/providers/"+providerID).
+		WithAuth(adminToken).
+		Send().
+		AssertStatus(200)
+
+	var updated map[string]interface{}
+	getResp2.JSON(&updated)
+	assert.Equal(t, "https://only.example.com/api/v1/auth/oauth/test_multi_redirect/callback", updated["redirect_url"])
+	assert.Equal(t, []interface{}{"https://only.example.com/api/v1/auth/oauth/test_multi_redirect/callback"}, updated["redirect_urls"])
+
+	// Legacy single redirect_url update still works and becomes a one-element list
+	tc.NewRequest("PUT", "/api/v1/admin/oauth/providers/"+providerID).
+		WithAuth(adminToken).
+		WithBody(map[string]interface{}{
+			"redirect_url": "http://legacy.example.com/callback",
+		}).
+		Send().
+		AssertStatus(200)
+
+	getResp3 := tc.NewRequest("GET", "/api/v1/admin/oauth/providers/"+providerID).
+		WithAuth(adminToken).
+		Send().
+		AssertStatus(200)
+
+	var legacyUpdated map[string]interface{}
+	getResp3.JSON(&legacyUpdated)
+	assert.Equal(t, "http://legacy.example.com/callback", legacyUpdated["redirect_url"])
+	assert.Equal(t, []interface{}{"http://legacy.example.com/callback"}, legacyUpdated["redirect_urls"])
+}
+
 // TestOAuthProvider_Unauthorized_Integration tests that non-admin users cannot access OAuth provider endpoints
 func TestOAuthProvider_Unauthorized_Integration(t *testing.T) {
 	tc := e2e.NewIntegrationTestContextWithNamespace(t, "api")

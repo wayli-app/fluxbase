@@ -25,7 +25,7 @@ await oauth.createProvider({
   enabled: true,
   client_id: 'your-client-id',
   client_secret: 'your-client-secret',
-  redirect_url: 'https://yourapp.com/auth/callback',
+  redirect_urls: ['https://yourapp.com/auth/callback'],
   scopes: ['user:email', 'read:user'],
   is_custom: false
 })
@@ -89,7 +89,10 @@ const result = await client.admin.oauth.createProvider({
   enabled: true,
   client_id: process.env.GITHUB_CLIENT_ID,
   client_secret: process.env.GITHUB_CLIENT_SECRET,
-  redirect_url: 'https://yourapp.com/auth/callback',
+  redirect_urls: [
+    'https://yourapp.com/api/v1/auth/oauth/github/callback',
+    'https://custom-domain.com/api/v1/auth/oauth/github/callback'
+  ],
   scopes: ['user:email', 'read:user'],
   is_custom: false
 })
@@ -105,7 +108,7 @@ await client.admin.oauth.createProvider({
   enabled: true,
   client_id: 'client-id',
   client_secret: 'client-secret',
-  redirect_url: 'https://yourapp.com/auth/callback',
+  redirect_urls: ['https://yourapp.com/auth/callback'],
   scopes: ['openid', 'profile', 'email', 'offline_access'],
   is_custom: true,
   authorization_url: 'https://sso.example.com/oauth/authorize',
@@ -240,7 +243,7 @@ const provider = await client.admin.oauth.getProvider('provider-uuid')
 
 console.log('Provider:', provider.display_name)
 console.log('Scopes:', provider.scopes.join(', '))
-console.log('Redirect URL:', provider.redirect_url)
+console.log('Redirect URLs:', provider.redirect_urls.join(', '))
 ```
 
 ***
@@ -304,10 +307,13 @@ await client.admin.oauth.updateProvider('provider-id', {
 ```
 
 ```typescript
-// Update scopes and redirect URL
+// Update scopes and redirect URLs
 await client.admin.oauth.updateProvider('provider-id', {
   scopes: ['user:email', 'read:user', 'read:org'],
-  redirect_url: 'https://newdomain.com/auth/callback'
+  redirect_urls: [
+    'https://newdomain.com/auth/callback',
+    'https://alt.newdomain.com/auth/callback'
+  ]
 })
 ```
 

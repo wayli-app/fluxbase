@@ -21,6 +21,7 @@ OAuth provider configuration
 | <a id="is_custom"></a> `is_custom` | `boolean` |
 | <a id="provider_name"></a> `provider_name` | `string` |
 | <a id="redirect_url"></a> `redirect_url` | `string` |
+| <a id="redirect_urls"></a> `redirect_urls` | `string`[] |
 | <a id="scopes"></a> `scopes` | `string`[] |
 | <a id="token_url"></a> `token_url?` | `string` |
 | <a id="updated_at"></a> `updated_at` | `string` |

@@ -584,6 +584,53 @@ const { data, error } = await client.admin.ai.unlinkKnowledgeBase('chatbot-uuid'
 
 ***
 
+### updateChatbot()
+
+> **updateChatbot**(`id`, `updates`): `Promise`\<\{ `data`: [`AIChatbot`](/api/sdk/interfaces/aichatbot/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Update a chatbot's configuration (partial update).
+
+Only the provided fields are changed; omitted fields are left untouched.
+For limit/budget fields, 0 means "unlimited". Changes take effect on the
+next request (limits are read fresh from the database per message).
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `id` | `string` | Chatbot ID |
+| `updates` | \{ `allow_unauthenticated?`: `boolean`; `conversation_ttl_hours?`: `number`; `daily_request_limit?`: `number`; `daily_token_budget?`: `number`; `description?`: `string`; `enabled?`: `boolean`; `is_public?`: `boolean`; `max_conversation_turns?`: `number`; `max_tokens?`: `number`; `persist_conversations?`: `boolean`; `provider_id?`: `string` \| `null`; `rate_limit_per_minute?`: `number`; `temperature?`: `number`; \} | Fields to update (all optional) |
+| `updates.allow_unauthenticated?` | `boolean` | - |
+| `updates.conversation_ttl_hours?` | `number` | - |
+| `updates.daily_request_limit?` | `number` | - |
+| `updates.daily_token_budget?` | `number` | - |
+| `updates.description?` | `string` | - |
+| `updates.enabled?` | `boolean` | - |
+| `updates.is_public?` | `boolean` | - |
+| `updates.max_conversation_turns?` | `number` | - |
+| `updates.max_tokens?` | `number` | - |
+| `updates.persist_conversations?` | `boolean` | - |
+| `updates.provider_id?` | `string` \| `null` | - |
+| `updates.rate_limit_per_minute?` | `number` | - |
+| `updates.temperature?` | `number` | - |
+
+#### Returns
+
+`Promise`\<\{ `data`: [`AIChatbot`](/api/sdk/interfaces/aichatbot/) \| `null`; `error`: `Error` \| `null`; \}\>
+
+Promise resolving to { data, error } tuple with the updated chatbot
+
+#### Example
+
+```typescript
+const { data, error } = await client.admin.ai.updateChatbot('uuid', {
+  daily_request_limit: 500,   // 0 = unlimited
+  daily_token_budget: 200000, // 0 = unlimited
+})
+```
+
+***
+
 ### updateChatbotKnowledgeBase()
 
 > **updateChatbotKnowledgeBase**(`chatbotId`, `knowledgeBaseId`, `updates`): `Promise`\<\{ `data`: [`ChatbotKnowledgeBaseLink`](/api/sdk/interfaces/chatbotknowledgebaselink/) \| `null`; `error`: `Error` \| `null`; \}\>
