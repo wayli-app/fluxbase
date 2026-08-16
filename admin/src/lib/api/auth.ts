@@ -447,6 +447,7 @@ export interface OAuthProviderConfig {
   client_secret?: string;
   has_secret: boolean;
   redirect_url: string;
+  redirect_urls: string[];
   scopes: string[];
   is_custom: boolean;
   authorization_url?: string;
@@ -468,7 +469,8 @@ export interface CreateOAuthProviderRequest {
   enabled: boolean;
   client_id: string;
   client_secret: string;
-  redirect_url: string;
+  redirect_url?: string;
+  redirect_urls?: string[];
   scopes: string[];
   is_custom: boolean;
   authorization_url?: string;
@@ -484,6 +486,7 @@ export interface UpdateOAuthProviderRequest {
   client_id?: string;
   client_secret?: string;
   redirect_url?: string;
+  redirect_urls?: string[];
   scopes?: string[];
   authorization_url?: string;
   token_url?: string;

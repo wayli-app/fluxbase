@@ -130,6 +130,10 @@ func TestOAuthProvider_Struct(t *testing.T) {
 			"client_id": "github-client-id",
 			"has_secret": true,
 			"redirect_url": "https://app.example.com/auth/github/callback",
+			"redirect_urls": [
+				"https://app.example.com/auth/github/callback",
+				"https://custom.example.com/auth/github/callback"
+			],
 			"scopes": ["read:user", "user:email"],
 			"is_custom": false,
 			"allow_dashboard_login": true,
@@ -146,6 +150,10 @@ func TestOAuthProvider_Struct(t *testing.T) {
 		assert.True(t, provider.Enabled)
 		assert.True(t, provider.HasSecret)
 		assert.False(t, provider.IsCustom)
+		assert.Equal(t, []string{
+			"https://app.example.com/auth/github/callback",
+			"https://custom.example.com/auth/github/callback",
+		}, provider.RedirectURLs)
 	})
 }
 
@@ -239,6 +247,30 @@ func TestCreateOAuthProviderRequest_Struct(t *testing.T) {
 		assert.NotNil(t, req.TokenURL)
 		assert.NotNil(t, req.UserInfoURL)
 	})
+
+	t.Run("JSON deserialization with redirect_urls list", func(t *testing.T) {
+		jsonData := `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"enabled": true,
+			"client_id": "google-client-id",
+			"client_secret": "GOCSPX-secret",
+			"redirect_urls": [
+				"https://app.example.com/api/v1/auth/oauth/google/callback",
+				"https://custom.example.com/api/v1/auth/oauth/google/callback"
+			],
+			"scopes": ["openid", "email", "profile"],
+			"is_custom": false
+		}`
+
+		var req CreateOAuthProviderRequest
+		err := json.Unmarshal([]byte(jsonData), &req)
+		require.NoError(t, err)
+
+		assert.Empty(t, req.RedirectURL)
+		assert.Len(t, req.RedirectURLs, 2)
+		assert.Equal(t, "https://app.example.com/api/v1/auth/oauth/google/callback", req.RedirectURLs[0])
+	})
 }
 
 // =============================================================================
@@ -299,6 +331,23 @@ func TestUpdateOAuthProviderRequest_Struct(t *testing.T) {
 		assert.True(t, *req.Enabled)
 		assert.Nil(t, req.ClientID)
 		assert.Nil(t, req.ClientSecret)
+	})
+
+	t.Run("JSON deserialization with redirect_urls list", func(t *testing.T) {
+		jsonData := `{
+			"redirect_urls": [
+				"https://app.example.com/api/v1/auth/oauth/google/callback",
+				"https://custom.example.com/api/v1/auth/oauth/google/callback"
+			]
+		}`
+
+		var req UpdateOAuthProviderRequest
+		err := json.Unmarshal([]byte(jsonData), &req)
+		require.NoError(t, err)
+
+		assert.Nil(t, req.RedirectURL)
+		require.NotNil(t, req.RedirectURLs)
+		assert.Len(t, *req.RedirectURLs, 2)
 	})
 
 	t.Run("empty update request", func(t *testing.T) {
@@ -589,6 +638,110 @@ func TestCreateOAuthProvider_Validation(t *testing.T) {
 		var result map[string]interface{}
 		_ = json.Unmarshal(respBody, &result)
 		assert.Contains(t, result["error"], "Custom providers require")
+	})
+}
+
+// =============================================================================
+// CreateOAuthProvider Redirect URL Tests
+// =============================================================================
+
+func TestCreateOAuthProvider_RedirectURLs(t *testing.T) {
+	postProvider := func(t *testing.T, body string) (*http.Response, map[string]interface{}) {
+		t.Helper()
+		app := newTestApp(t)
+		handler := NewOAuthProviderHandler(nil, nil, []byte(""), "", nil)
+		app.Post("/oauth/providers", handler.CreateOAuthProvider)
+
+		req := httptest.NewRequest(http.MethodPost, "/oauth/providers", bytes.NewReader([]byte(body)))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = resp.Body.Close() })
+
+		respBody, _ := io.ReadAll(resp.Body)
+		var result map[string]interface{}
+		_ = json.Unmarshal(respBody, &result)
+		return resp, result
+	}
+
+	t.Run("redirect_urls list is accepted", func(t *testing.T) {
+		resp, _ := postProvider(t, `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"client_id": "id",
+			"client_secret": "secret",
+			"redirect_urls": [
+				"https://app.example.com/api/v1/auth/oauth/google/callback",
+				"https://custom.example.com/api/v1/auth/oauth/google/callback"
+			]
+		}`)
+
+		// Validation passed; request proceeds to DB (nil here) which returns 503
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+	})
+
+	t.Run("legacy redirect_url alone is accepted", func(t *testing.T) {
+		resp, _ := postProvider(t, `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"client_id": "id",
+			"client_secret": "secret",
+			"redirect_url": "https://app.example.com/api/v1/auth/oauth/google/callback"
+		}`)
+
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+	})
+
+	t.Run("missing both redirect_url and redirect_urls", func(t *testing.T) {
+		resp, result := postProvider(t, `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"client_id": "id",
+			"client_secret": "secret"
+		}`)
+
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+		assert.Contains(t, result["error"], "redirect_urls")
+	})
+
+	t.Run("invalid entry in redirect_urls", func(t *testing.T) {
+		resp, result := postProvider(t, `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"client_id": "id",
+			"client_secret": "secret",
+			"redirect_urls": ["https://app.example.com/cb", "not-a-url"]
+		}`)
+
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+		assert.Contains(t, result["error"], "invalid redirect URL")
+	})
+
+	t.Run("empty entry in redirect_urls", func(t *testing.T) {
+		resp, result := postProvider(t, `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"client_id": "id",
+			"client_secret": "secret",
+			"redirect_urls": [""]
+		}`)
+
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+		assert.Contains(t, result["error"], "empty")
+	})
+
+	t.Run("non-http scheme in redirect_urls", func(t *testing.T) {
+		resp, result := postProvider(t, `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"client_id": "id",
+			"client_secret": "secret",
+			"redirect_urls": ["javascript:alert(1)"]
+		}`)
+
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+		assert.Contains(t, result["error"], "absolute http/https URL")
 	})
 }
 

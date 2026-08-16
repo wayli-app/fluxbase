@@ -386,17 +386,21 @@ console.log(tiers) // { free: 1000, pro: 10000, enterprise: 100000 }
 
 ### getSettings()
 
-> **getSettings**(`keys`): `Promise`\<`Record`\<`string`, `any`\>\>
+> **getSettings**(`keys?`, `options?`): `Promise`\<`Record`\<`string`, `any`\>\>
 
-Get multiple custom settings' values by keys
+Get multiple custom settings' values by keys, or all under a namespace.
 
 Fetches multiple settings in a single request and returns only their values.
+Use `prefix` to fetch every visible key in a namespace (e.g. `'wayli.'`)
+without listing each key. Inaccessible/unset keys are omitted (no error).
 
 #### Parameters
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `keys` | `string`[] | Array of setting keys to fetch |
+| Parameter | Type | Default value | Description |
+| ------ | ------ | ------ | ------ |
+| `keys` | `string`[] | `[]` | Array of setting keys to fetch (omit/empty to use prefix only) |
+| `options?` | \{ `prefix?`: `string`; \} | `undefined` | Optional. `prefix` fetches every visible key under a namespace; the prefix must end with a `.`. When both `keys` and `prefix` are given, returns the intersection. |
+| `options.prefix?` | `string` | `undefined` | - |
 
 #### Returns
 
@@ -407,15 +411,14 @@ Promise resolving to object mapping keys to values
 #### Example
 
 ```typescript
+// Fetch specific keys
 const values = await client.admin.settings.app.getSettings([
   'billing.tiers',
   'features.beta_enabled'
 ])
-console.log(values)
-// {
-//   'billing.tiers': { free: 1000, pro: 10000 },
-//   'features.beta_enabled': { enabled: true }
-// }
+
+// Fetch an entire namespace in one call
+const wayli = await client.admin.settings.app.getSettings([], { prefix: 'wayli.' })
 ```
 
 ***

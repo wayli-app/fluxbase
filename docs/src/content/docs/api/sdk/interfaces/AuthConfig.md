@@ -12,6 +12,7 @@ Returns all public auth settings from the server
 
 | Property | Type | Description |
 | ------ | ------ | ------ |
+| <a id="anon_key"></a> `anon_key?` | `string` | Publishable anon key for this instance (same key the web app exposes to browsers). Lets native clients connect without manual key entry. Omitted by servers that don't publish it. |
 | <a id="captcha"></a> `captcha` | [`CaptchaConfig`](/api/sdk/interfaces/captchaconfig/) \| `null` | CAPTCHA configuration |
 | <a id="magic_link_enabled"></a> `magic_link_enabled` | `boolean` | Whether magic link authentication is enabled |
 | <a id="mfa_available"></a> `mfa_available` | `boolean` | Whether MFA/2FA is available (always true, users opt-in) |

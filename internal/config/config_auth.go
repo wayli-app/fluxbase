@@ -87,6 +87,7 @@ type OAuthProviderConfig struct {
 	ClientID     string   `mapstructure:"client_id"`               // OAuth client ID (REQUIRED)
 	ClientSecret string   `mapstructure:"client_secret,omitempty"` // Client secret (optional, can be stored in database)
 	IssuerURL    string   `mapstructure:"issuer_url,omitempty"`    // OIDC issuer URL - supports base URLs (e.g., https://auth.domain.com) with auto-discovery or full .well-known URLs (auto-detected for well-known providers)
+	RedirectURLs []string `mapstructure:"redirect_urls,omitempty"` // Additional allowed OAuth redirect URLs (the default callback URL is always included)
 	Scopes       []string `mapstructure:"scopes,omitempty"`        // OAuth scopes
 	DisplayName  string   `mapstructure:"display_name,omitempty"`  // Display name for UI
 

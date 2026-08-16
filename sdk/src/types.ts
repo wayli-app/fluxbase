@@ -1696,10 +1696,7 @@ export interface UpdateAppSettingsRequest {
  * Email template type
  */
 export type EmailTemplateType =
-  | "magic_link"
-  | "verify_email"
-  | "reset_password"
-  | "invite_user";
+  "magic_link" | "verify_email" | "reset_password" | "invite_user";
 
 /**
  * Email template structure
@@ -1850,7 +1847,8 @@ export interface OAuthProvider {
   enabled: boolean;
   client_id: string;
   client_secret?: string; // Only included in certain responses
-  redirect_url: string;
+  redirect_url: string; // First entry of redirect_urls (backward compat)
+  redirect_urls: string[]; // Full redirect URL allowlist
   scopes: string[];
   is_custom: boolean;
   authorization_url?: string;
@@ -1869,7 +1867,9 @@ export interface CreateOAuthProviderRequest {
   enabled: boolean;
   client_id: string;
   client_secret: string;
-  redirect_url: string;
+  /** @deprecated Use redirect_urls instead; treated as a single-element list */
+  redirect_url?: string;
+  redirect_urls?: string[]; // Takes precedence over redirect_url
   scopes: string[];
   is_custom: boolean;
   authorization_url?: string;
@@ -1897,7 +1897,9 @@ export interface UpdateOAuthProviderRequest {
   enabled?: boolean;
   client_id?: string;
   client_secret?: string;
+  /** @deprecated Use redirect_urls instead; sets the list to a single value */
   redirect_url?: string;
+  redirect_urls?: string[]; // Replaces the full list; takes precedence over redirect_url
   scopes?: string[];
   authorization_url?: string;
   token_url?: string;
@@ -2668,12 +2670,7 @@ export interface UpdateJobFunctionRequest {
  * Job execution status
  */
 export type JobStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "timeout";
+  "pending" | "running" | "completed" | "failed" | "cancelled" | "timeout";
 
 /**
  * Job execution record
@@ -3908,8 +3905,7 @@ export interface AdminListObjectsResponse {
  * Returns either `{ data, error: null }` on success or `{ data: null, error }` on failure
  */
 export type FluxbaseResponse<T> =
-  | { data: T; error: null }
-  | { data: null; error: Error };
+  { data: T; error: null } | { data: null; error: Error };
 
 /**
  * Response type for operations that don't return data (void operations)
@@ -4086,12 +4082,7 @@ export interface RPCProcedure extends RPCProcedureSummary {
  * RPC execution status
  */
 export type RPCExecutionStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "timeout";
+  "pending" | "running" | "completed" | "failed" | "cancelled" | "timeout";
 
 /**
  * RPC execution record
@@ -4373,12 +4364,7 @@ export interface ExecutionLogConfig {
  * Branch status
  */
 export type BranchStatus =
-  | "creating"
-  | "ready"
-  | "migrating"
-  | "error"
-  | "deleting"
-  | "deleted";
+  "creating" | "ready" | "migrating" | "error" | "deleting" | "deleted";
 
 /**
  * Branch type
@@ -4711,7 +4697,8 @@ export interface ServiceKey {
    * - `tenant_service` — elevated, tenant-scoped (RLS-enforced)
    * - `global_service` — elevated, cross-tenant, bypasses RLS
    */
-  key_type: "anon" | "publishable" | "service" | "tenant_service" | "global_service";
+  key_type:
+    "anon" | "publishable" | "service" | "tenant_service" | "global_service";
   /** Permission scopes */
   scopes: string[];
   /** Allowed table namespaces */
@@ -4807,5 +4794,3 @@ export interface DeprecateServiceKeyRequest {
   /** Grace period in hours before key is disabled */
   grace_period_hours?: number;
 }
-
-

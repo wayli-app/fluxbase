@@ -54,11 +54,12 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 	tenantID := middleware.GetTenantIDFromContext(c)
 
 	// Get OAuth provider configuration
-	oauthConfig, err := h.getProviderConfig(ctx, providerName, tenantID)
+	providerCfg, err := h.getProviderConfig(ctx, providerName, tenantID)
 	if err != nil {
 		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider config")
 		return SendBadRequest(c, "OAuth provider not configured", "PROVIDER_NOT_CONFIGURED")
 	}
+	oauthConfig := providerCfg.Config
 
 	// Determine redirect_uri to use (query parameter takes precedence over state metadata for SDK compatibility)
 	redirectURIParam := c.Query("redirect_uri")
@@ -77,6 +78,14 @@ func (h *OAuthHandler) Callback(c fiber.Ctx) error {
 		// Build full URL if relative path is provided
 		if finalRedirectURI[0] == '/' {
 			finalRedirectURI = h.baseURL + finalRedirectURI
+		}
+		// SECURITY: the redirect URI must match one of the configured redirect URLs
+		if !matchRedirectURL(providerCfg.RedirectURLs, finalRedirectURI, h.baseURL) {
+			log.Warn().
+				Str("provider", providerName).
+				Str("redirect_uri", finalRedirectURI).
+				Msg("Rejected redirect_uri not present in provider's configured redirect URLs")
+			return SendBadRequest(c, "Redirect URI is not in the provider's configured redirect URLs", "INVALID_REDIRECT_URI")
 		}
 		oauthConfig.RedirectURL = finalRedirectURI
 	}
