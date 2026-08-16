@@ -61,7 +61,7 @@ export class FluxbaseJobs {
       // Fetch user role from user_profiles table
       // Note: This assumes a standard user_profiles table with role column
       const profileResult = await this.fetch.get<Array<{ role: string }>>(
-        `/rest/v1/user_profiles?id=eq.${userId}&select=role`
+        `/api/v1/tables/user_profiles?id=eq.${userId}&select=role`
       );
 
       if (!profileResult || !profileResult[0]) {

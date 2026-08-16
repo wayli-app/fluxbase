@@ -1,0 +1,134 @@
+name: SDK Kotlin
+
+# CI quality gate for the Kotlin SDK. Runs lint + test + build on PRs and pushes
+# that touch sdk-kotlin/ source or config files. Uses dorny/paths-filter so
+# docs-only changes skip the test cycle.
+#
+# Publishing is handled by the main release.yml workflow (publish_kotlin_sdk
+# toggle), NOT by this workflow. This workflow is CI-only.
+#
+# See: .github/workflows/release.yml → publish-kotlin-sdk job.
+
+on:
+  pull_request:
+    paths:
+      - "sdk-kotlin/**"
+      - ".github/workflows/sdk-kotlin.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "sdk-kotlin/**"
+      - ".github/workflows/sdk-kotlin.yml"
+  workflow_dispatch:
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      source: ${{ steps.filter.outputs.source }}
+      config: ${{ steps.filter.outputs.config }}
+      ci-config: ${{ steps.filter.outputs.ci-config }}
+      any: ${{ steps.filter.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            source:
+              - 'sdk-kotlin/src/**'
+              - 'sdk-kotlin/build.gradle.kts'
+              - 'sdk-kotlin/settings.gradle.kts'
+              - 'sdk-kotlin/gradle/**'
+            config:
+              - 'sdk-kotlin/build.gradle.kts'
+              - 'sdk-kotlin/settings.gradle.kts'
+              - 'sdk-kotlin/gradle/**'
+              - 'sdk-kotlin/detekt.yml'
+            ci-config:
+              - '.github/workflows/sdk-kotlin.yml'
+            any:
+              - 'sdk-kotlin/**'
+              - '.github/workflows/sdk-kotlin.yml'
+
+  lint:
+    name: Lint
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.source == 'true' ||
+      needs.changes.outputs.config == 'true' ||
+      needs.changes.outputs.ci-config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: detekt
+        working-directory: sdk-kotlin
+        run: ./gradlew detekt
+
+  test:
+    name: Unit Tests
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.source == 'true' ||
+      needs.changes.outputs.config == 'true' ||
+      needs.changes.outputs.ci-config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test
+        working-directory: sdk-kotlin
+        run: ./gradlew test
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: sdk-kotlin/build/reports/tests/
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: sdk-kotlin/build/reports/kover/
+
+  build:
+    name: Build & Docs
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build (skip tests — already ran in the test job)
+        working-directory: sdk-kotlin
+        run: ./gradlew build -x test
+      - name: Generate Dokka docs
+        working-directory: sdk-kotlin
+        run: ./gradlew dokkaGfm

@@ -433,13 +433,16 @@ func TestRateLimitFactory_CreateTieredLimiter(t *testing.T) {
 
 	t.Run("prefix fallback when empty", func(t *testing.T) {
 		t.Parallel()
-		// Use a def with empty KeyPrefix to exercise the fallback; "auth_login"
-		// has a prefix, so construct a synthetic registry entry instead.
-		orig := Registry["auth_login"]
-		Registry["__test_tiered"] = RateLimitDefinition{
-			Name: "__test_tiered", KeyPrefix: "", KeyStrategy: KeyStrategyTiered,
+		// Exercise the prefix-fallback path (empty KeyPrefix → def.Name) without
+		// touching the package-level Registry, which other parallel tests read.
+		// Concurrent map writes on Registry would race with those reads; a
+		// private registry on the factory keeps this isolated and parallel-safe.
+		f := NewRateLimitFactory(nil, nil)
+		f.registry = map[string]RateLimitDefinition{
+			"__test_tiered": {
+				Name: "__test_tiered", KeyPrefix: "", KeyStrategy: KeyStrategyTiered,
+			},
 		}
-		t.Cleanup(func() { delete(Registry, "__test_tiered"); Registry["auth_login"] = orig })
 		h, err := f.CreateTieredLimiter("__test_tiered", 1, 2, 3, time.Second)
 		require.NoError(t, err)
 		assert.NotNil(t, h)

@@ -1,0 +1,13 @@
+---
+title: "message"
+editUrl: false
+next: false
+prev: false
+---
+
+//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorEnableResponse](index.md)/[message](message.md)
+
+# message
+
+[jvm]\
+val [message](message.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

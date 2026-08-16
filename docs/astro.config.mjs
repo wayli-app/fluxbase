@@ -416,6 +416,13 @@ export default defineConfig({
           ],
         },
         {
+          label: "Kotlin SDK",
+          collapsed: true,
+          items: [
+            { label: "Getting Started", link: "/sdk-kotlin/getting-started/" },
+          ],
+        },
+        {
           label: "CLI",
           collapsed: true,
           items: [
@@ -497,6 +504,11 @@ export default defineConfig({
               label: "Vue SDK",
               collapsed: true,
               items: [{ autogenerate: { directory: "api/sdk-vue" } }],
+            },
+            {
+              label: "Kotlin SDK",
+              collapsed: true,
+              items: [{ autogenerate: { directory: "api/sdk-kotlin" } }],
             },
             { label: "HTTP API", link: "/api/http/" },
             { label: "GraphQL API", link: "/api/http/graphql/" },
