@@ -111,7 +111,7 @@ func setupAuthTestServer(t *testing.T) (*fiber.App, *auth.Service, *database.Con
 	})
 
 	// Create auth handler (no captcha service in tests)
-	authHandler := NewAuthHandler(db, authService, nil, "http://localhost:3000")
+	authHandler := NewAuthHandler(db, authService, nil, "http://localhost:3000", "")
 
 	// Create optional auth middleware for routes that use JWT when available
 	optionalAuth := OptionalAuthMiddleware(authService)

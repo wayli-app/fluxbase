@@ -222,7 +222,7 @@ func TestAuthHandler_SetSAMLService(t *testing.T) {
 // =============================================================================
 
 func TestGetAccessToken_FromCookie(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -244,7 +244,7 @@ func TestGetAccessToken_FromCookie(t *testing.T) {
 }
 
 func TestGetAccessToken_FromBearerHeader(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -263,7 +263,7 @@ func TestGetAccessToken_FromBearerHeader(t *testing.T) {
 }
 
 func TestGetAccessToken_CookiePriority(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -287,7 +287,7 @@ func TestGetAccessToken_CookiePriority(t *testing.T) {
 }
 
 func TestGetAccessToken_HeaderWithoutBearer(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -306,7 +306,7 @@ func TestGetAccessToken_HeaderWithoutBearer(t *testing.T) {
 }
 
 func TestGetAccessToken_Empty(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -324,7 +324,7 @@ func TestGetAccessToken_Empty(t *testing.T) {
 }
 
 func TestGetAccessToken_ShortBearerHeader(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -349,7 +349,7 @@ func TestGetAccessToken_ShortBearerHeader(t *testing.T) {
 // =============================================================================
 
 func TestGetRefreshToken_FromCookie(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -371,7 +371,7 @@ func TestGetRefreshToken_FromCookie(t *testing.T) {
 }
 
 func TestGetRefreshToken_Empty(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -393,7 +393,7 @@ func TestGetRefreshToken_Empty(t *testing.T) {
 // =============================================================================
 
 func TestSetAuthCookies(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -430,7 +430,7 @@ func TestSetAuthCookies(t *testing.T) {
 }
 
 func TestSetAuthCookies_Secure(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 	handler.SetSecureCookie(true)
 
 	app := newTestApp(t)
@@ -452,7 +452,7 @@ func TestSetAuthCookies_Secure(t *testing.T) {
 }
 
 func TestClearAuthCookies(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -480,7 +480,7 @@ func TestClearAuthCookies(t *testing.T) {
 // =============================================================================
 
 func TestGetCSRFToken_ReturnsToken(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 
@@ -522,7 +522,7 @@ func TestGetCSRFToken_ReturnsToken(t *testing.T) {
 // =============================================================================
 
 func TestGetUser_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/user", handler.GetUser)
@@ -536,7 +536,7 @@ func TestGetUser_NoAuth(t *testing.T) {
 }
 
 func TestUpdateUser_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Patch("/auth/user", handler.UpdateUser)
@@ -552,7 +552,7 @@ func TestUpdateUser_NoAuth(t *testing.T) {
 }
 
 func TestSetupTOTP_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/2fa/setup", handler.SetupTOTP)
@@ -566,7 +566,7 @@ func TestSetupTOTP_NoAuth(t *testing.T) {
 }
 
 func TestEnableTOTP_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/2fa/enable", handler.EnableTOTP)
@@ -582,7 +582,7 @@ func TestEnableTOTP_NoAuth(t *testing.T) {
 }
 
 func TestDisableTOTP_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/2fa/disable", handler.DisableTOTP)
@@ -598,7 +598,7 @@ func TestDisableTOTP_NoAuth(t *testing.T) {
 }
 
 func TestGetTOTPStatus_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/2fa/status", handler.GetTOTPStatus)
@@ -616,7 +616,7 @@ func TestGetTOTPStatus_NoAuth(t *testing.T) {
 // =============================================================================
 
 func BenchmarkGetAccessToken_Cookie(b *testing.B) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 	app := fiber.New()
 	var captured fiber.Ctx
 
@@ -643,7 +643,7 @@ func BenchmarkGetAccessToken_Cookie(b *testing.B) {
 }
 
 func BenchmarkGetAccessToken_Header(b *testing.B) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 	app := fiber.New()
 	var captured fiber.Ctx
 
@@ -667,7 +667,7 @@ func BenchmarkGetAccessToken_Header(b *testing.B) {
 }
 
 func BenchmarkSetAuthCookies(b *testing.B) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 	app := fiber.New()
 
 	app.Get("/test", func(c fiber.Ctx) error {
@@ -687,7 +687,7 @@ func BenchmarkSetAuthCookies(b *testing.B) {
 // =============================================================================
 
 func TestSignOut_NoToken(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/signout", handler.SignOut)
@@ -702,7 +702,7 @@ func TestSignOut_NoToken(t *testing.T) {
 }
 
 func TestRefreshToken_NoToken(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/token/refresh", handler.RefreshToken)
@@ -718,7 +718,7 @@ func TestRefreshToken_NoToken(t *testing.T) {
 }
 
 func TestSendMagicLink_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/magiclink", handler.SendMagicLink)
@@ -755,7 +755,7 @@ func TestSendMagicLink_Validation(t *testing.T) {
 // VerifyMagicLink requires auth service - skipped for unit testing
 
 func TestRequestPasswordReset_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/password/reset", handler.RequestPasswordReset)
@@ -790,7 +790,7 @@ func TestRequestPasswordReset_Validation(t *testing.T) {
 }
 
 func TestResetPassword_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/password/reset/confirm", handler.ResetPassword)
@@ -835,7 +835,7 @@ func TestResetPassword_Validation(t *testing.T) {
 }
 
 func TestVerifyPasswordResetToken_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/password/reset/verify", handler.VerifyPasswordResetToken)
@@ -869,7 +869,7 @@ func TestVerifyPasswordResetToken_Validation(t *testing.T) {
 }
 
 func TestVerifyEmail_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/verify", handler.VerifyEmail)
@@ -904,7 +904,7 @@ func TestVerifyEmail_Validation(t *testing.T) {
 }
 
 func TestResendVerificationEmail_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/resend-verification", handler.ResendVerificationEmail)
@@ -939,7 +939,7 @@ func TestResendVerificationEmail_Validation(t *testing.T) {
 }
 
 func TestStartImpersonation_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/impersonation/start", handler.StartImpersonation)
@@ -956,7 +956,7 @@ func TestStartImpersonation_NoAuth(t *testing.T) {
 }
 
 func TestStopImpersonation_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/impersonation/stop", handler.StopImpersonation)
@@ -971,7 +971,7 @@ func TestStopImpersonation_NoAuth(t *testing.T) {
 }
 
 func TestGetActiveImpersonation_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/impersonation/active", handler.GetActiveImpersonation)
@@ -986,7 +986,7 @@ func TestGetActiveImpersonation_NoAuth(t *testing.T) {
 }
 
 func TestListImpersonationSessions_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/impersonation/sessions", handler.ListImpersonationSessions)
@@ -1001,7 +1001,7 @@ func TestListImpersonationSessions_NoAuth(t *testing.T) {
 }
 
 func TestGetCSRFToken_Handler(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/csrf-token", handler.GetCSRFToken)
@@ -1026,7 +1026,7 @@ func TestGetCSRFToken_Handler(t *testing.T) {
 // which requires a non-nil authService. Cannot test validation without mocking the full service.
 
 func TestUpdateUser_AuthHandlerValidation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Patch("/auth/user", handler.UpdateUser)
@@ -1072,7 +1072,7 @@ func TestUpdateUser_AuthHandlerValidation(t *testing.T) {
 // =============================================================================
 
 func TestStartAnonImpersonation_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/impersonate/anon", handler.StartAnonImpersonation)
@@ -1089,7 +1089,7 @@ func TestStartAnonImpersonation_NoAuth(t *testing.T) {
 }
 
 func TestStartAnonImpersonation_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/impersonate/anon", handler.StartAnonImpersonation)
@@ -1129,7 +1129,7 @@ func TestStartAnonImpersonation_Validation(t *testing.T) {
 }
 
 func TestStartServiceImpersonation_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/impersonate/service", handler.StartServiceImpersonation)
@@ -1146,7 +1146,7 @@ func TestStartServiceImpersonation_NoAuth(t *testing.T) {
 }
 
 func TestStartServiceImpersonation_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/impersonate/service", handler.StartServiceImpersonation)
@@ -1186,7 +1186,7 @@ func TestStartServiceImpersonation_Validation(t *testing.T) {
 }
 
 func TestGetCaptchaConfig_NilService(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/captcha/config", handler.GetCaptchaConfig)
@@ -1202,7 +1202,7 @@ func TestGetCaptchaConfig_NilService(t *testing.T) {
 }
 
 func TestCheckCaptcha_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/captcha/check", handler.CheckCaptcha)
@@ -1247,7 +1247,7 @@ func TestCheckCaptcha_Validation(t *testing.T) {
 }
 
 func TestVerifyMagicLink_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/magiclink/verify", handler.VerifyMagicLink)
@@ -1287,7 +1287,7 @@ func TestVerifyMagicLink_Validation(t *testing.T) {
 }
 
 func TestVerifyTOTP_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/2fa/verify", handler.VerifyTOTP)
@@ -1332,7 +1332,7 @@ func TestVerifyTOTP_Validation(t *testing.T) {
 }
 
 func TestSendOTP_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/otp/signin", handler.SendOTP)
@@ -1367,7 +1367,7 @@ func TestSendOTP_Validation(t *testing.T) {
 }
 
 func TestVerifyOTP_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/otp/verify", handler.VerifyOTP)
@@ -1407,7 +1407,7 @@ func TestVerifyOTP_Validation(t *testing.T) {
 }
 
 func TestResendOTP_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/otp/resend", handler.ResendOTP)
@@ -1442,7 +1442,7 @@ func TestResendOTP_Validation(t *testing.T) {
 }
 
 func TestGetUserIdentities_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/user/identities", handler.GetUserIdentities)
@@ -1456,7 +1456,7 @@ func TestGetUserIdentities_NoAuth(t *testing.T) {
 }
 
 func TestLinkIdentity_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/user/identities", handler.LinkIdentity)
@@ -1472,7 +1472,7 @@ func TestLinkIdentity_NoAuth(t *testing.T) {
 }
 
 func TestLinkIdentity_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/user/identities", handler.LinkIdentity)
@@ -1512,7 +1512,7 @@ func TestLinkIdentity_Validation(t *testing.T) {
 }
 
 func TestUnlinkIdentity_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Delete("/auth/user/identities/identity-123", handler.UnlinkIdentity)
@@ -1526,7 +1526,7 @@ func TestUnlinkIdentity_NoAuth(t *testing.T) {
 }
 
 func TestReauthenticate_NoAuth(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/reauthenticate", handler.Reauthenticate)
@@ -1540,7 +1540,7 @@ func TestReauthenticate_NoAuth(t *testing.T) {
 }
 
 func TestSignInWithIDToken_Validation(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Post("/auth/signin/idtoken", handler.SignInWithIDToken)
@@ -1594,7 +1594,7 @@ func TestSignInWithIDToken_Validation(t *testing.T) {
 // =============================================================================
 
 func TestListImpersonationSessions_QueryParameters(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
+	handler := NewAuthHandler(nil, nil, nil, "", "")
 
 	app := newTestApp(t)
 	app.Get("/auth/impersonation/sessions", handler.ListImpersonationSessions)
