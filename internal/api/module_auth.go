@@ -60,7 +60,7 @@ func (m *AuthModule) Init(ctx context.Context, registry *ServiceRegistry) error 
 	}
 	m.CaptchaService = captchaService
 
-	authHandler := NewAuthHandler(db, authService, captchaService, cfg.GetPublicBaseURL())
+	authHandler := NewAuthHandler(db, authService, captchaService, cfg.GetPublicBaseURL(), resolvePublishableAnonKey(cfg))
 
 	dashboardJWTManager, err := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
 	if err != nil {

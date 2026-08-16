@@ -163,7 +163,7 @@ func TestSAMLProviderPublic_CommonProviders(t *testing.T) {
 // =============================================================================
 
 func TestNewAuthHandler_NilDependencies(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "https://example.com")
+	handler := NewAuthHandler(nil, nil, nil, "https://example.com", "")
 
 	assert.NotNil(t, handler)
 	assert.Nil(t, handler.db)
@@ -186,14 +186,14 @@ func TestNewAuthHandler_BaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewAuthHandler(nil, nil, nil, tt.baseURL)
+			handler := NewAuthHandler(nil, nil, nil, tt.baseURL, "")
 			assert.Equal(t, tt.baseURL, handler.baseURL)
 		})
 	}
 }
 
 func TestAuthHandler_SetSecureCookie(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "https://example.com")
+	handler := NewAuthHandler(nil, nil, nil, "https://example.com", "")
 
 	// Default is false
 	assert.False(t, handler.secureCookie)
@@ -208,7 +208,7 @@ func TestAuthHandler_SetSecureCookie(t *testing.T) {
 }
 
 func TestAuthHandler_SetSAMLService(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "https://example.com")
+	handler := NewAuthHandler(nil, nil, nil, "https://example.com", "")
 
 	assert.Nil(t, handler.samlService)
 

@@ -26,7 +26,7 @@ const validTestCaptchaToken = "valid-test-token-12345"
 func createTestHandlerWithCaptcha(endpoints []string) *AuthHandler {
 	authService := auth.NewTestAuthServiceWithSettings(true, true)
 	captchaService := auth.NewTestCaptchaService(endpoints, validTestCaptchaToken)
-	return NewAuthHandler(nil, authService, captchaService, "https://example.com")
+	return NewAuthHandler(nil, authService, captchaService, "https://example.com", "")
 }
 
 // parseErrorResponse parses the JSON error response
@@ -387,7 +387,7 @@ func TestNilCaptchaService_SkipsVerification(t *testing.T) {
 
 	// We verify this behavior by checking that the handler constructor
 	// accepts nil and the handler code has proper nil checks
-	handler := NewAuthHandler(nil, nil, nil, "https://example.com")
+	handler := NewAuthHandler(nil, nil, nil, "https://example.com", "")
 	assert.Nil(t, handler.captchaService, "Handler should accept nil captcha service")
 
 	// The actual nil-safety is tested implicitly - if the handler

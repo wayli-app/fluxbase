@@ -2362,6 +2362,12 @@ export interface AuthConfig {
   saml_providers: SAMLProviderInfo[];
   /** CAPTCHA configuration */
   captcha: CaptchaConfig | null;
+  /**
+   * Publishable anon key for this instance (same key the web app exposes to
+   * browsers). Lets native clients connect without manual key entry.
+   * Omitted by servers that don't publish it.
+   */
+  anon_key?: string;
 }
 
 // ============================================================================

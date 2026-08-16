@@ -24,4 +24,10 @@ data class AuthConfig(
     @SerialName("oauth_providers") val oauthProviders: List<String> = emptyList(),
     @SerialName("saml_providers") val samlProviders: List<String> = emptyList(),
     @SerialName("email_confirmation_required") val emailConfirmationRequired: Boolean = false,
+    /**
+     * Publishable anon key for this instance (the same key the web app
+     * exposes to browsers). Lets native clients connect without manual key
+     * entry. Null on servers that don't publish it.
+     */
+    @SerialName("anon_key") val anonKey: String? = null,
 )

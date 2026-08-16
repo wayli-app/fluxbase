@@ -27,17 +27,19 @@ type AuthHandler struct {
 	captchaTrustService *auth.CaptchaTrustService
 	samlService         *auth.SAMLService
 	baseURL             string
-	secureCookie        bool // Whether to set Secure flag on cookies (true in production)
+	secureCookie        bool   // Whether to set Secure flag on cookies (true in production)
+	anonKey             string // Publishable anon key (safe to expose to clients); empty when unconfigured
 }
 
 // NewAuthHandler creates a new authentication handler
-func NewAuthHandler(db *database.Connection, authService *auth.Service, captchaService *auth.CaptchaService, baseURL string) *AuthHandler {
+func NewAuthHandler(db *database.Connection, authService *auth.Service, captchaService *auth.CaptchaService, baseURL string, anonKey string) *AuthHandler {
 	return &AuthHandler{
 		db:             db,
 		authService:    authService,
 		captchaService: captchaService,
 		baseURL:        baseURL,
 		secureCookie:   false, // Will be set based on environment
+		anonKey:        anonKey,
 	}
 }
 
@@ -71,6 +73,10 @@ type AuthConfigResponse struct {
 	OAuthProviders           []OAuthProviderPublic       `json:"oauth_providers"`
 	SAMLProviders            []SAMLProviderPublic        `json:"saml_providers"`
 	Captcha                  *auth.CaptchaConfigResponse `json:"captcha"`
+	// Publishable anon key (same key the web app exposes to browsers).
+	// Lets native clients discover their instance without manual key entry.
+	// Omitted when the server has none configured.
+	AnonKey                  string                      `json:"anon_key,omitempty"`
 }
 
 // OAuthProviderPublic represents public OAuth provider information
