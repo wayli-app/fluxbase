@@ -76,7 +76,7 @@ type AuthConfigResponse struct {
 	// Publishable anon key (same key the web app exposes to browsers).
 	// Lets native clients discover their instance without manual key entry.
 	// Omitted when the server has none configured.
-	AnonKey                  string                      `json:"anon_key,omitempty"`
+	AnonKey string `json:"anon_key,omitempty"`
 }
 
 // OAuthProviderPublic represents public OAuth provider information
