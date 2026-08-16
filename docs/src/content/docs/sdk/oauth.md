@@ -76,13 +76,25 @@ const result = await client.admin.oauth.providers.createProvider({
   enabled: true,
   client_id: process.env.GITHUB_CLIENT_ID!,
   client_secret: process.env.GITHUB_CLIENT_SECRET!,
-  redirect_url: 'https://yourapp.com/auth/callback',
+  redirect_urls: [
+    'https://yourapp.com/auth/callback', // web callback (default)
+    'wayli://oauth/callback' // mobile app deep link (optional)
+  ],
   scopes: ['user:email', 'read:user'],
   is_custom: false
 })
 
 console.log('Provider created:', result.id)
 ```
+
+#### Redirect URLs
+
+`redirect_urls` is the allowlist of OAuth callback URLs. Entries may be absolute
+`http`/`https` URLs or private-use app schemes for native apps (RFC 8252), such
+as `myapp://oauth/callback`. The first entry is the default used when no
+`redirect_uri` is passed to the authorize endpoint; any `redirect_uri` passed at
+runtime must exactly match one of the configured entries. The legacy singular
+`redirect_url` field is deprecated and treated as a single-element list.
 
 #### Built-in Provider Names
 
@@ -189,9 +201,9 @@ await client.admin.oauth.providers.updateProvider('provider-id', {
   scopes: ['user:email', 'read:user', 'read:org']
 })
 
-// Update redirect URL
+// Update redirect URLs
 await client.admin.oauth.providers.updateProvider('provider-id', {
-  redirect_url: 'https://newdomain.com/auth/callback'
+  redirect_urls: ['https://newdomain.com/auth/callback', 'myapp://oauth/callback']
 })
 
 // Rotate credentials

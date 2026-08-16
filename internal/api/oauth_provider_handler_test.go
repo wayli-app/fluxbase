@@ -731,7 +731,7 @@ func TestCreateOAuthProvider_RedirectURLs(t *testing.T) {
 		assert.Contains(t, result["error"], "empty")
 	})
 
-	t.Run("non-http scheme in redirect_urls", func(t *testing.T) {
+	t.Run("dangerous scheme in redirect_urls", func(t *testing.T) {
 		resp, result := postProvider(t, `{
 			"provider_name": "google",
 			"display_name": "Google",
@@ -741,7 +741,20 @@ func TestCreateOAuthProvider_RedirectURLs(t *testing.T) {
 		}`)
 
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
-		assert.Contains(t, result["error"], "absolute http/https URL")
+		assert.Contains(t, result["error"], "not allowed")
+	})
+
+	t.Run("private-use app scheme in redirect_urls", func(t *testing.T) {
+		resp, _ := postProvider(t, `{
+			"provider_name": "google",
+			"display_name": "Google",
+			"client_id": "id",
+			"client_secret": "secret",
+			"redirect_urls": ["https://app.example.com/cb", "wayli://oauth/callback"]
+		}`)
+
+		// Validation passed; request proceeds to DB (nil here) which returns 503
+		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
 	})
 }
 

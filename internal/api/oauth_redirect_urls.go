@@ -11,8 +11,32 @@ import (
 // maxRedirectURLs caps how many redirect URLs a single OAuth provider may configure.
 const maxRedirectURLs = 50
 
+// forbiddenRedirectSchemes lists schemes that must never appear in a redirect
+// URL allowlist. Web schemes (http/https) are validated separately; any other
+// scheme is treated as a private-use app scheme (RFC 8252, e.g.
+// "wayli://oauth/callback") and allowed unless listed here. This is safe
+// because authorize/callback enforce an exact-string match against the
+// stored allowlist, so entries only redirect where an admin explicitly
+// configured.
+var forbiddenRedirectSchemes = map[string]bool{
+	"javascript": true,
+	"data":       true,
+	"file":       true,
+	"blob":       true,
+	"vbscript":   true,
+	"ftp":        true,
+	"ftps":       true,
+	"ws":         true,
+	"wss":        true,
+	"mailto":     true,
+	"urn":        true,
+	"about":      true,
+	"intent":     true,
+}
+
 // normalizeRedirectURLs validates and normalizes a redirect URL list for storage.
-// Entries are trimmed, must be absolute http/https URLs, duplicates are removed
+// Entries are trimmed, must be absolute http/https URLs or private-use app
+// schemes (RFC 8252, e.g. "wayli://oauth/callback"), duplicates are removed
 // (order preserved), and the list is capped at maxRedirectURLs entries.
 func normalizeRedirectURLs(urls []string) ([]string, error) {
 	if len(urls) > maxRedirectURLs {
@@ -26,11 +50,22 @@ func normalizeRedirectURLs(urls []string) ([]string, error) {
 			return nil, fmt.Errorf("redirect URLs cannot contain empty entries")
 		}
 		parsed, err := url.Parse(u)
-		if err != nil || parsed.Host == "" {
-			return nil, fmt.Errorf("invalid redirect URL '%s': must be an absolute http/https URL", u)
+		if err != nil || parsed.Scheme == "" {
+			return nil, fmt.Errorf("invalid redirect URL '%s': must be an absolute http/https URL or app scheme URI", u)
 		}
-		if parsed.Scheme != "http" && parsed.Scheme != "https" {
-			return nil, fmt.Errorf("invalid redirect URL '%s': scheme must be http or https", u)
+		scheme := strings.ToLower(parsed.Scheme)
+		if scheme == "http" || scheme == "https" {
+			if parsed.Host == "" {
+				return nil, fmt.Errorf("invalid redirect URL '%s': http/https URLs must include a host", u)
+			}
+		} else {
+			if forbiddenRedirectSchemes[scheme] {
+				return nil, fmt.Errorf("invalid redirect URL '%s': scheme '%s' is not allowed", u, parsed.Scheme)
+			}
+			// Reject scheme-only URIs with nothing to match against (e.g. "wayli:")
+			if parsed.Host == "" && parsed.Opaque == "" && parsed.Path == "" {
+				return nil, fmt.Errorf("invalid redirect URL '%s': app scheme URIs must include a host or path", u)
+			}
 		}
 		if !seen[u] {
 			seen[u] = true
