@@ -735,8 +735,9 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
               <div className="mt-1 space-y-2">
                 <Label>Additional Redirect URLs (Optional)</Label>
                 <p className="text-muted-foreground text-xs">
-                  Extra allowed callback URLs (e.g., custom domains). Each URL
-                  must also be registered with the OAuth provider.
+                  Extra allowed callback URLs (e.g., custom domains or mobile
+                  app schemes like myapp://oauth/callback). Each URL must also
+                  be registered with the OAuth provider.
                 </p>
                 <div className="space-y-2">
                   {additionalRedirectUrls.map((url, index) => (
@@ -963,8 +964,10 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
             <div className="grid gap-2">
               <Label>Redirect URLs</Label>
               <p className="text-muted-foreground text-xs">
-                Allowed OAuth callback URLs. The first URL is the default; each
-                URL must also be registered with the provider.
+                Allowed OAuth callback URLs — absolute http(s) URLs or mobile
+                app schemes (e.g., myapp://oauth/callback). The first URL is
+                the default; each URL must also be registered with the
+                provider.
               </p>
               <div className="space-y-2">
                 {editRedirectUrls.map((url, index) => (
@@ -977,7 +980,7 @@ export function OAuthProvidersTab({ onProviderTest }: OAuthProvidersTabProps) {
                         setEditRedirectUrls(next);
                       }}
                       className="bg-muted font-mono text-xs"
-                      placeholder="https://app.example.com/api/v1/auth/oauth/{provider}/callback"
+                      placeholder="https://app.example.com/... or myapp://oauth/callback"
                       aria-label={`Redirect URL ${index + 1}`}
                     />
                     <Button

@@ -48,10 +48,47 @@ func TestNormalizeRedirectURLs(t *testing.T) {
 		assert.Contains(t, err.Error(), "absolute")
 	})
 
-	t.Run("rejects non-http schemes", func(t *testing.T) {
-		_, err := normalizeRedirectURLs([]string{"ftp://app.example.com/callback"})
+	t.Run("rejects scheme-less URLs", func(t *testing.T) {
+		_, err := normalizeRedirectURLs([]string{"app.example.com/callback"})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "scheme")
+		assert.Contains(t, err.Error(), "absolute")
+	})
+
+	t.Run("rejects http/https URLs without a host", func(t *testing.T) {
+		_, err := normalizeRedirectURLs([]string{"https:/callback"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "host")
+	})
+
+	t.Run("allows private-use app schemes", func(t *testing.T) {
+		urls, err := normalizeRedirectURLs([]string{"wayli://oauth/callback"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"wayli://oauth/callback"}, urls)
+	})
+
+	t.Run("allows private-use schemes without an authority", func(t *testing.T) {
+		urls, err := normalizeRedirectURLs([]string{"com.example.app:/oauth2redirect"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"com.example.app:/oauth2redirect"}, urls)
+	})
+
+	t.Run("rejects scheme-only app URIs", func(t *testing.T) {
+		_, err := normalizeRedirectURLs([]string{"wayli:"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "host or path")
+	})
+
+	t.Run("rejects dangerous and non-redirect schemes", func(t *testing.T) {
+		for _, u := range []string{
+			"javascript:alert(1)",
+			"data:text/html;base64,PHNjcmlwdD4=",
+			"ftp://app.example.com/callback",
+			"mailto:admin@example.com",
+		} {
+			_, err := normalizeRedirectURLs([]string{u})
+			require.Error(t, err, "expected %q to be rejected", u)
+			assert.Contains(t, err.Error(), "not allowed")
+		}
 	})
 
 	t.Run("rejects malformed URLs", func(t *testing.T) {
@@ -95,6 +132,12 @@ func TestMatchRedirectURL(t *testing.T) {
 
 	t.Run("empty candidate means no override and matches", func(t *testing.T) {
 		assert.True(t, matchRedirectURL(allowlist, "", baseURL))
+	})
+
+	t.Run("deep link exact match", func(t *testing.T) {
+		withDeepLink := append(allowlist, "wayli://oauth/callback")
+		assert.True(t, matchRedirectURL(withDeepLink, "wayli://oauth/callback", baseURL))
+		assert.False(t, matchRedirectURL(withDeepLink, "wayli://other", baseURL))
 	})
 
 	t.Run("empty allowlist rejects any override", func(t *testing.T) {
