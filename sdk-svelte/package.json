@@ -1,6 +1,6 @@
 {
   "name": "@nimbleflux/fluxbase-sdk-svelte",
-  "version": "2026.8.9",
+  "version": "2026.8.10",
   "description": "Svelte stores and SvelteKit SSR helpers for Fluxbase SDK",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -47,7 +47,7 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@nimbleflux/fluxbase-sdk": "^2026.8.9",
+    "@nimbleflux/fluxbase-sdk": "^2026.8.10",
     "@tanstack/svelte-query": "^6.1.36",
     "svelte": "^4.0.0 || ^5.0.0"
   },
