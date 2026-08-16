@@ -34,7 +34,7 @@ func (h *AuthHandler) GetAuthConfig(c fiber.Ctx) error {
 		PasswordRequireSpecial:   settingsCache.GetBool(ctx, "app.auth.password_require_special", false),
 		OAuthProviders:           []OAuthProviderPublic{},
 		SAMLProviders:            []SAMLProviderPublic{},
-		AnonKey:                  h.anonKey,
+		AnonKey:                  h.publishableAnonKey(),
 	}
 
 	// Fetch OAuth providers
@@ -96,6 +96,18 @@ func (h *AuthHandler) isPasswordLoginDisabled(ctx context.Context) bool {
 
 	settingsCache := h.authService.GetSettingsCache()
 	return settingsCache.GetBool(ctx, "app.auth.disable_app_password_login", false)
+}
+
+// publishableAnonKey returns the anon key to expose in /auth/config.
+// Config path first, then the FLUXBASE_ANON_KEY environment variable —
+// standard deployments (docker-compose) pass the key via env, and the
+// server itself generates one there at boot when unset (main.go), so the
+// tenants config path alone is empty in practice.
+func (h *AuthHandler) publishableAnonKey() string {
+	if h.anonKey != "" {
+		return h.anonKey
+	}
+	return os.Getenv("FLUXBASE_ANON_KEY")
 }
 
 // resolvePublishableAnonKey returns the configured anon key (publishable —
