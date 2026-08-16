@@ -967,6 +967,10 @@ jobs:
         #   full = default image (OCR + ffmpeg + libvips image transforms)
         #   lite = smaller distroless image (no OCR/ffmpeg/transforms)
         flavor: [full, lite]
+        # arch MUST be a matrix key: if it only appears in include entries, all
+        # includes merge into the same flavor combo and the last one wins
+        # (arm64), silently dropping the amd64 builds.
+        arch: [amd64, arm64]
         include:
           - flavor: full
             arch: amd64
