@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
+	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 )
 
@@ -32,6 +34,7 @@ func (h *AuthHandler) GetAuthConfig(c fiber.Ctx) error {
 		PasswordRequireSpecial:   settingsCache.GetBool(ctx, "app.auth.password_require_special", false),
 		OAuthProviders:           []OAuthProviderPublic{},
 		SAMLProviders:            []SAMLProviderPublic{},
+		AnonKey:                  h.anonKey,
 	}
 
 	// Fetch OAuth providers
@@ -93,4 +96,20 @@ func (h *AuthHandler) isPasswordLoginDisabled(ctx context.Context) bool {
 
 	settingsCache := h.authService.GetSettingsCache()
 	return settingsCache.GetBool(ctx, "app.auth.disable_app_password_login", false)
+}
+
+// resolvePublishableAnonKey returns the configured anon key (publishable —
+// safe to expose to clients, same key the web app ships in its HTML).
+// Reads the value or the key file; empty when neither is configured, in
+// which case /auth/config simply omits the field (omitempty).
+func resolvePublishableAnonKey(cfg *config.Config) string {
+	key := cfg.Tenants.Default.AnonKey
+	if cfg.Tenants.Default.AnonKeyFile != "" {
+		if data, err := os.ReadFile(cfg.Tenants.Default.AnonKeyFile); err == nil {
+			key = strings.TrimSpace(string(data))
+		} else {
+			log.Warn().Err(err).Str("file", cfg.Tenants.Default.AnonKeyFile).Msg("Failed to read anon key file")
+		}
+	}
+	return strings.TrimSpace(key)
 }
