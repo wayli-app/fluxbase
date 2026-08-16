@@ -34,9 +34,22 @@ import kotlinx.coroutines.launch
  * in [RealtimeChannel]; this class is purely the transport seam — the same SPI
  * tests fake with [FakeWebSocketTransport].
  */
-class KtorWebSocketTransport : WebSocketTransport {
+class KtorWebSocketTransport(trustAllCertificates: Boolean = false) : WebSocketTransport {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val client = HttpClient(OkHttp) { install(WebSockets) }
+    private val client = HttpClient(OkHttp) {
+        install(WebSockets)
+        if (trustAllCertificates) {
+            engine {
+                config {
+                    sslSocketFactory(
+                        io.github.nimbleflux.fluxbase.core.TrustAllCertificates.socketFactory,
+                        io.github.nimbleflux.fluxbase.core.TrustAllCertificates.trustManager,
+                    )
+                    hostnameVerifier(io.github.nimbleflux.fluxbase.core.TrustAllCertificates.hostnameVerifier)
+                }
+            }
+        }
+    }
 
     private var session: ClientWebSocketSession? = null
     private var connectionJob: Job? = null

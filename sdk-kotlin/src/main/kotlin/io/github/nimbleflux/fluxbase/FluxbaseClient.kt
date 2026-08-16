@@ -25,6 +25,13 @@ data class FluxbaseClientOptions(
     val headers: Map<String, String> = emptyMap(),
     val timeout: Long = 30_000,
     val debug: Boolean = false,
+    /**
+     * Skip TLS certificate validation for this client's engine (HTTP and
+     * realtime WebSocket). For self-hosted instances behind self-signed
+     * certificates — opt in only, validation stays the default. Scoped to
+     * this client's connections, unlike a global trust-store override.
+     */
+    val trustSslCertificates: Boolean = false,
 )
 
 /**
@@ -42,6 +49,8 @@ data class FluxbaseClientOptions(
  * ```
  */
 class FluxbaseClient internal constructor(
+    /** When true, realtime channels skip TLS validation (self-signed instances). */
+    internal val trustSslCertificates: Boolean = false,
     /** The shared HTTP client used by all modules. */
     val http: FluxbaseHttpClient,
     /** The auth module. */
@@ -92,7 +101,9 @@ class FluxbaseClient internal constructor(
         name: String,
         transport: io.github.nimbleflux.fluxbase.realtime.WebSocketTransport? = null,
     ): io.github.nimbleflux.fluxbase.realtime.RealtimeChannel {
-        val wsTransport = transport ?: io.github.nimbleflux.fluxbase.realtime.KtorWebSocketTransport()
+        val wsTransport = transport ?: io.github.nimbleflux.fluxbase.realtime.KtorWebSocketTransport(
+            trustAllCertificates = trustSslCertificates,
+        )
         val token = auth.currentSession?.accessToken
         return io.github.nimbleflux.fluxbase.realtime.RealtimeChannel(
             baseUrl = http.baseUrl,
@@ -132,7 +143,11 @@ class FluxbaseClient internal constructor(
                 ?: System.getenv("FLUXBASE_ANON_KEY")
                 ?: error("Fluxbase key is required (pass it or set FLUXBASE_ANON_KEY)")
 
-            val resolvedTransport = transport ?: KtorHttpTransport(resolvedUrl, timeoutMillis = options.timeout)
+            val resolvedTransport = transport ?: KtorHttpTransport(
+                resolvedUrl,
+                timeoutMillis = options.timeout,
+                trustAllCertificates = options.trustSslCertificates,
+            )
 
             // The HTTP client holds apikey + Authorization headers.
             // In TS, the constructor sets `apikey: key, Authorization: Bearer key`.
@@ -174,8 +189,11 @@ class FluxbaseClient internal constructor(
             val management = io.github.nimbleflux.fluxbase.management.FluxbaseManagement(http)
 
             return FluxbaseClient(
-                http, auth, functions, jobs, secrets, settings, storage, rpc,
-                graphql, vector, branching, tenant, management,
+                trustSslCertificates = options.trustSslCertificates,
+                http = http, auth = auth, functions = functions, jobs = jobs,
+                secrets = secrets, settings = settings, storage = storage, rpc = rpc,
+                graphql = graphql, vector = vector, branching = branching, tenant = tenant,
+                management = management,
             )
         }
     }
@@ -200,7 +218,10 @@ fun createFluxbaseClient(
  *
  * Port of `client.from(table)` in `client.ts:447`.
  */
-inline fun <reified T> FluxbaseClient.from(table: String, schema: String? = null): io.github.nimbleflux.fluxbase.postgrest.QueryBuilder<T> {
+inline fun <reified T> FluxbaseClient.from(
+    table: String,
+    schema: String? = null,
+): io.github.nimbleflux.fluxbase.postgrest.QueryBuilder<T> {
     val serializer = kotlinx.serialization.serializer<T>()
     return io.github.nimbleflux.fluxbase.postgrest.QueryBuilder(this.http, serializer, table, schema)
 }
