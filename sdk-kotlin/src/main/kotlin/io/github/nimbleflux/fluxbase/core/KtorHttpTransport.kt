@@ -43,14 +43,23 @@ class KtorHttpTransport(
     private val baseUrl: String,
     private val json: Json = FluxbaseHttpClient.defaultJson,
     timeoutMillis: Long = 30_000,
+    trustAllCertificates: Boolean = false,
 ) : HttpTransport {
 
-    private val client: HttpClient = HttpClient(OkHttp) {
+    private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) { json(this@KtorHttpTransport.json) }
         install(HttpTimeout) {
             requestTimeoutMillis = timeoutMillis
             connectTimeoutMillis = timeoutMillis
             socketTimeoutMillis = timeoutMillis
+        }
+        if (trustAllCertificates) {
+            engine {
+                config {
+                    sslSocketFactory(TrustAllCertificates.socketFactory, TrustAllCertificates.trustManager)
+                    hostnameVerifier(TrustAllCertificates.hostnameVerifier)
+                }
+            }
         }
         // TODO(S1): connection pool tuning.
     }
