@@ -429,10 +429,12 @@ config:
   ## Deno Runtime configuration (for edge functions and background jobs)
   ## @param config.deno.npm_registry Custom npm registry URL (air-gapped environments)
   ## @param config.deno.jsr_registry Custom JSR registry URL (air-gapped environments)
+  ## @param config.deno.cache_dir Deno cache directory (DENO_DIR). Keep it inside the deno-cache volume mount (/.cache) so runtime npm downloads — e.g. the esbuild binary fetched when bundling edge functions — stay off the container's writable layer.
   ##
   deno:
     npm_registry: ""  # e.g., "https://npm.your-company.com/"
     jsr_registry: ""  # e.g., "https://jsr.your-company.com/"
+    cache_dir: /.cache/deno
 
   ## Background Jobs configuration
   ## @param config.jobs.enabled Enable background jobs

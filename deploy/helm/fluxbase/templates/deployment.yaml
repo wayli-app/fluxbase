@@ -672,6 +672,10 @@ spec:
             - name: FLUXBASE_DENO_JSR_REGISTRY
               value: {{ .Values.config.deno.jsr_registry | quote }}
             {{- end }}
+            {{- if .Values.config.deno.cache_dir }}
+            - name: DENO_DIR
+              value: {{ .Values.config.deno.cache_dir | quote }}
+            {{- end }}
 
             # ===========================================
             # Jobs Configuration
