@@ -25,17 +25,18 @@ var kbCmd = &cobra.Command{
 }
 
 var (
-	kbNamespace      string
-	kbDescription    string
-	kbChunkSize      int
-	kbChunkOverlap   int
-	kbEmbeddingModel string
-	kbEmbeddingDims  int
-	kbChunkStrategy  string
-	kbVisibility     string
-	kbName           string
-	kbEnabled        bool
-	kbEnabledSet     bool
+	kbNamespace       string
+	kbCreateNamespace string
+	kbDescription     string
+	kbChunkSize       int
+	kbChunkOverlap    int
+	kbEmbeddingModel  string
+	kbEmbeddingDims   int
+	kbChunkStrategy   string
+	kbVisibility      string
+	kbName            string
+	kbEnabled         bool
+	kbEnabledSet      bool
 	// Entity/graph/documents flags
 	kbEntityType        string
 	kbEntitySearch      string
@@ -44,6 +45,12 @@ var (
 	kbDocTitle          string
 	kbDocTag            []string
 	kbExtractNoEntities bool
+
+	// export-table flags
+	kbExportSchema     string
+	kbExportTableName  string
+	kbExportIncludeFKs bool
+	kbExportSampleRows int
 )
 
 var kbListCmd = &cobra.Command{
@@ -173,10 +180,26 @@ Examples:
 	RunE:    runKBUpload,
 }
 
+var kbExportTableCmd = &cobra.Command{
+	Use:   "export-table [kb-id]",
+	Short: "Export a database table to a knowledge base",
+	Long: `Export a database table (schema, columns, foreign keys, sample rows)
+as a document in a knowledge base.
+
+Examples:
+  fluxbase kb export-table abc123 --table place_visits
+  fluxbase kb export-table abc123 --schema public --table place_visits --include-fks --sample-rows 3`,
+	Args:    cobra.ExactArgs(1),
+	PreRunE: requireAuth,
+	RunE:    runKBExportTable,
+}
+
 func init() {
 	kbListCmd.Flags().StringVar(&kbNamespace, "namespace", "", "Filter by namespace")
 
-	kbCreateCmd.Flags().StringVar(&kbNamespace, "namespace", "default", "Namespace")
+	// Separate variable: registering both commands' --namespace flags on one
+	// shared var left create's "default" behind, leaking into `kb list`.
+	kbCreateCmd.Flags().StringVar(&kbCreateNamespace, "namespace", "default", "Namespace")
 	kbCreateCmd.Flags().StringVar(&kbDescription, "description", "", "Description")
 	kbCreateCmd.Flags().IntVar(&kbChunkSize, "chunk-size", 0, "Chunk size in tokens (default: 512)")
 	kbCreateCmd.Flags().IntVar(&kbChunkOverlap, "chunk-overlap", 0, "Chunk overlap in tokens (default: 50)")
@@ -206,6 +229,11 @@ func init() {
 	kbUploadCmd.Flags().StringVar(&kbDocTitle, "title", "", "Document title (defaults to filename)")
 	kbUploadCmd.Flags().StringArrayVar(&kbDocTag, "tag", nil, "Tag to attach (can be repeated)")
 
+	kbExportTableCmd.Flags().StringVar(&kbExportSchema, "schema", "public", "Schema containing the table")
+	kbExportTableCmd.Flags().StringVar(&kbExportTableName, "table", "", "Table to export (required)")
+	kbExportTableCmd.Flags().BoolVar(&kbExportIncludeFKs, "include-fks", false, "Include foreign key relationships")
+	kbExportTableCmd.Flags().IntVar(&kbExportSampleRows, "sample-rows", 0, "Number of sample rows to include (0 = schema only)")
+
 	kbCmd.AddCommand(kbListCmd)
 	kbCmd.AddCommand(kbGetCmd)
 	kbCmd.AddCommand(kbCreateCmd)
@@ -216,26 +244,23 @@ func init() {
 	kbCmd.AddCommand(kbChatbotsCmd)
 	kbCmd.AddCommand(kbDocumentsCmd)
 	kbCmd.AddCommand(kbUploadCmd)
+	kbCmd.AddCommand(kbExportTableCmd)
 }
 
 func runKBList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	path := "/api/v1/admin/ai/knowledge-bases"
 	params := url.Values{}
 	if kbNamespace != "" {
 		params.Set("namespace", kbNamespace)
-	}
-	if len(params) > 0 {
-		path += "?" + params.Encode()
 	}
 
 	var response struct {
 		KnowledgeBases []map[string]interface{} `json:"knowledge_bases"`
 		Count          int                      `json:"count"`
 	}
-	if err := apiClient.DoGet(ctx, path, nil, &response); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases", params, &response); err != nil {
 		return err
 	}
 
@@ -300,7 +325,7 @@ func runKBCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Flags().Changed("namespace") {
-		body["namespace"] = kbNamespace
+		body["namespace"] = kbCreateNamespace
 	}
 	if kbDescription != "" {
 		body["description"] = kbDescription
@@ -405,22 +430,17 @@ func runKBEntities(cmd *cobra.Command, args []string) error {
 
 	var response map[string]interface{}
 
+	params := url.Values{}
+	params.Set("limit", fmt.Sprintf("%d", kbEntityLimit))
+	path := "/api/v1/admin/ai/knowledge-bases/" + url.PathEscape(kbID) + "/entities"
 	if kbEntitySearch != "" {
-		path := fmt.Sprintf("/api/v1/admin/ai/knowledge-bases/%s/entities/search?q=%s&limit=%d",
-			url.PathEscape(kbID), url.QueryEscape(kbEntitySearch), kbEntityLimit)
-		if err := apiClient.DoGet(ctx, path, nil, &response); err != nil {
-			return err
-		}
-	} else {
-		params := url.Values{}
-		params.Set("limit", fmt.Sprintf("%d", kbEntityLimit))
-		if kbEntityType != "" {
-			params.Set("type", kbEntityType)
-		}
-		path := "/api/v1/admin/ai/knowledge-bases/" + url.PathEscape(kbID) + "/entities?" + params.Encode()
-		if err := apiClient.DoGet(ctx, path, nil, &response); err != nil {
-			return err
-		}
+		path += "/search"
+		params.Set("q", kbEntitySearch)
+	} else if kbEntityType != "" {
+		params.Set("type", kbEntityType)
+	}
+	if err := apiClient.DoGet(ctx, path, params, &response); err != nil {
+		return err
 	}
 
 	entities := getSlice(response, "entities")
@@ -553,9 +573,9 @@ func runKBDocuments(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	var response map[string]interface{}
-	path := fmt.Sprintf("/api/v1/admin/ai/knowledge-bases/%s/documents?limit=%d",
-		url.PathEscape(kbID), limit)
-	if err := apiClient.DoGet(ctx, path, nil, &response); err != nil {
+	params := url.Values{}
+	params.Set("limit", fmt.Sprintf("%d", limit))
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(kbID)+"/documents", params, &response); err != nil {
 		return err
 	}
 
@@ -666,6 +686,41 @@ func runKBUpload(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Uploaded '%s' to knowledge base '%s'.\n", localFile, kbID)
 	return nil
+}
+
+// runKBExportTable exports a database table into a KB as a document.
+func runKBExportTable(cmd *cobra.Command, args []string) error {
+	kbID := args[0]
+
+	if kbExportTableName == "" {
+		return fmt.Errorf("--table is required")
+	}
+
+	// Exporting embeds the table document server-side; allow plenty of time.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	body := map[string]interface{}{
+		"knowledge_base_id": kbID,
+		"schema":            kbExportSchema,
+		"table":             kbExportTableName,
+	}
+	if kbExportIncludeFKs {
+		body["include_foreign_keys"] = true
+	}
+	if kbExportSampleRows > 0 {
+		body["include_sample_rows"] = true
+		body["sample_row_count"] = kbExportSampleRows
+	}
+
+	var result map[string]interface{}
+	path := "/api/v1/admin/ai/tables/" + url.PathEscape(kbExportSchema) + "/" + url.PathEscape(kbExportTableName) + "/export"
+	if err := apiClient.DoPost(ctx, path, body, &result); err != nil {
+		return err
+	}
+
+	formatter := GetFormatter()
+	return formatter.Print(result)
 }
 
 // getSlice returns a slice of maps from a response map, or nil if missing.
