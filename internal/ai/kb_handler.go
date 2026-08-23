@@ -140,6 +140,11 @@ func (h *KnowledgeBaseHandler) CreateKnowledgeBase(c fiber.Ctx) error {
 
 	kb, err := h.storage.CreateKnowledgeBaseFromRequest(ctx, req)
 	if err != nil {
+		if database.IsUniqueViolation(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "A knowledge base with this name already exists in the namespace",
+			})
+		}
 		log.Error().Err(err).Msg("Failed to create knowledge base")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to create knowledge base",
