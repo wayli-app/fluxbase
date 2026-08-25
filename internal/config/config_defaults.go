@@ -63,7 +63,10 @@ func setDefaults() {
 	// Auth defaults
 	viper.SetDefault("auth.jwt_secret", "your-secret-key-change-in-production")
 	viper.SetDefault("auth.jwt_expiry", "15m")
-	viper.SetDefault("auth.refresh_expiry", "168h")  // 7 days in hours
+	// 90 days: refresh tokens ROTATE on every refresh, so this is a sliding
+	// session window — mobile clients expect to reopen after weeks and stay
+	// signed in. 7 days logged users out over a vacation-length absence.
+	viper.SetDefault("auth.refresh_expiry", "2160h")
 	viper.SetDefault("auth.service_role_ttl", "24h") // Service role tokens: 24 hours (was 365 days)
 	viper.SetDefault("auth.anon_ttl", "24h")         // Anonymous tokens: 24 hours (was 365 days)
 	viper.SetDefault("auth.magic_link_expiry", "15m")
