@@ -267,4 +267,61 @@ class FluxbaseAuthTest {
         assertTrue(events.any { it.event == AuthChangeEvent.SIGNED_OUT })
         assertNull(events.first { it.event == AuthChangeEvent.SIGNED_OUT }.session)
     }
+
+    // ---- Proactive auto-refresh (refresh-on-restore) ----
+
+    private val refreshResponseJson = """
+        {
+            "user": {"id":"1","email":"user@example.com","created_at":"2024-01-01T00:00:00Z"},
+            "access_token": "fresh-access-token",
+            "refresh_token": "fresh-refresh-token",
+            "expires_in": 900
+        }
+    """.trimIndent()
+
+    @Test
+    fun `restore with a stale access token refreshes up front`() = runTest {
+        val recording = RecordingHttp(mockResponseBody = refreshResponseJson)
+        val http = FluxbaseHttpClient("http://localhost:8080", recording)
+        val storage = MemoryStorage()
+        val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+        val stale = AuthSession(
+            user = io.github.nimbleflux.fluxbase.auth.User(id = "1", email = "user@example.com"),
+            accessToken = "stale-access",
+            refreshToken = "refresh-1",
+            expiresIn = 900,
+            expiresAt = now - 3_600_000, // expired an hour ago
+        )
+        storage.setItem("fluxbase.auth.session", Json.encodeToString(AuthSession.serializer(), stale))
+
+        FluxbaseAuth(http, autoRefresh = true, storage = storage)
+
+        // The restore-time refresh runs asynchronously on the scheduler scope.
+        val deadline = System.currentTimeMillis() + 5_000
+        while (recording.lastPath == null && System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(50)
+        }
+        assertEquals("/api/v1/auth/refresh", recording.lastPath)
+        }
+
+    @Test
+    fun `restore with a live access token does not refresh`() = runTest {
+        val recording = RecordingHttp(mockResponseBody = refreshResponseJson)
+        val http = FluxbaseHttpClient("http://localhost:8080", recording)
+        val storage = MemoryStorage()
+        val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+        val live = AuthSession(
+            user = io.github.nimbleflux.fluxbase.auth.User(id = "1", email = "user@example.com"),
+            accessToken = "live-access",
+            refreshToken = "refresh-1",
+            expiresIn = 900,
+            expiresAt = now + 14 * 60_000, // refreshes at expiry - 60s
+        )
+        storage.setItem("fluxbase.auth.session", Json.encodeToString(AuthSession.serializer(), live))
+
+        FluxbaseAuth(http, autoRefresh = true, storage = storage)
+
+        kotlinx.coroutines.delay(300)
+        assertNull(recording.lastPath)
+        }
 }
