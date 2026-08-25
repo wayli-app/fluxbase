@@ -316,21 +316,38 @@ class FluxbaseAuth(
      */
     suspend fun refreshSession(): FluxbaseResponse<AuthSession> =
         fluxbaseResponse {
-            val current = currentSession ?: return@fluxbaseResponse throw FluxbaseError(message = "No active session")
-            val body = mapOf("refresh_token" to current.refreshToken)
-            // Bypass the 401-retry path so a refresh whose own token is expired
-            // can't recurse into another refresh.
-            val responseText = http.postWithoutRetry("/api/v1/auth/refresh", body).body
-            val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
-            val session = AuthSession(
-                user = authResponse.user,
-                accessToken = authResponse.accessToken,
-                refreshToken = authResponse.refreshToken,
-                expiresIn = authResponse.expiresIn,
-                expiresAt = Clock.System.now().toEpochMilliseconds() + authResponse.expiresIn * 1000,
-            )
-            setSessionInternal(session, AuthChangeEvent.TOKEN_REFRESHED)
-            session
+            val requestedRefreshToken = currentSession?.refreshToken
+                ?: return@fluxbaseResponse throw FluxbaseError(message = "No active session")
+            // Single-flight: every caller (the autoRefresh scheduler, the
+            // restore-time refresh, and the HTTP client's reactive 401-retry)
+            // funnels through this lock. Concurrent refreshes with the same
+            // token otherwise race the server's rotation — the loser's
+            // persisted refresh token stops matching the stored hash and the
+            // whole session bricks ("possible token theft" server-side).
+            refreshMutex.withLock {
+                // A sibling refreshed while we waited for the lock: its tokens
+                // are already current — return them instead of refreshing
+                // again with the now-rotated token.
+                currentSession?.let { live ->
+                    if (live.refreshToken != requestedRefreshToken) {
+                        return@fluxbaseResponse live
+                    }
+                }
+                val body = mapOf("refresh_token" to requestedRefreshToken)
+                // Bypass the 401-retry path so a refresh whose own token is expired
+                // can't recurse into another refresh.
+                val responseText = http.postWithoutRetry("/api/v1/auth/refresh", body).body
+                val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
+                val session = AuthSession(
+                    user = authResponse.user,
+                    accessToken = authResponse.accessToken,
+                    refreshToken = authResponse.refreshToken,
+                    expiresIn = authResponse.expiresIn,
+                    expiresAt = Clock.System.now().toEpochMilliseconds() + authResponse.expiresIn * 1000,
+                )
+                setSessionInternal(session, AuthChangeEvent.TOKEN_REFRESHED)
+                session
+            }
         }
 
     /**
@@ -456,9 +473,7 @@ class FluxbaseAuth(
             if (autoRefresh && session.expiresAt != null &&
                 Clock.System.now().toEpochMilliseconds() >= session.expiresAt!! - REFRESH_LEAD_MS
             ) {
-                refreshScope.launch {
-                    refreshMutex.withLock { refreshSession().getOrNull() }
-                }
+                refreshScope.launch { refreshSession().getOrNull() }
             }
         }
     }

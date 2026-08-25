@@ -2,6 +2,9 @@ package io.github.nimbleflux.fluxbase.auth
 
 import io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient
 import io.github.nimbleflux.fluxbase.core.test.RecordingHttp
+import io.github.nimbleflux.fluxbase.getOrNull
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -303,6 +306,49 @@ class FluxbaseAuthTest {
         }
         assertEquals("/api/v1/auth/refresh", recording.lastPath)
         }
+
+    @Test
+    fun `concurrent refreshes single-flight — one wire call, both get fresh tokens`() = runTest {
+        val recording = RecordingHttp()
+        recording.queueResponse(body = signInResponseJson)
+
+        val firstRefreshGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var refreshWireCalls = 0
+        val gated = object : io.github.nimbleflux.fluxbase.core.HttpTransport by recording {
+            override suspend fun request(
+                method: io.github.nimbleflux.fluxbase.core.HttpMethod,
+                path: String,
+                body: Any?,
+                headers: Map<String, String>,
+            ): io.github.nimbleflux.fluxbase.core.HttpResponse {
+                if (path.contains("/auth/refresh")) {
+                    refreshWireCalls++
+                    if (refreshWireCalls == 1) firstRefreshGate.await() // hold the first mid-flight
+                }
+                return recording.request(method, path, body, headers)
+            }
+        }
+        val http = FluxbaseHttpClient("http://localhost:8080", gated)
+        val auth = FluxbaseAuth(http, autoRefresh = false)
+        auth.signIn("user@example.com", "password123")
+
+        // Exactly ONE refresh response queued: a second wire call would fail
+        // to decode the default "[]" body and surface as an error.
+        recording.queueResponse(body = refreshResponseJson)
+
+        val results: Pair<AuthSession?, AuthSession?> = kotlinx.coroutines.coroutineScope {
+            val first = async { auth.refreshSession() }
+            val second = async { auth.refreshSession() } // piles onto the mutex while the first is mid-flight
+            launch { firstRefreshGate.complete(Unit) }
+            first.await().getOrNull() to second.await().getOrNull()
+        }
+
+        assertEquals(1, refreshWireCalls)
+        assertNotNull(results.first)
+        assertNotNull(results.second)
+        assertEquals(results.first?.refreshToken, results.second?.refreshToken)
+        assertEquals("fresh-refresh-token", auth.currentSession?.refreshToken)
+    }
 
     @Test
     fun `restore with a live access token does not refresh`() = runTest {
