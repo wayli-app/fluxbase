@@ -98,13 +98,18 @@ class FluxbaseAuth(
         if (autoRefreshRunning || currentSession == null) return
         autoRefreshRunning = true
         refreshScope.launch {
-            try {
-                while (kotlinx.coroutines.currentCoroutineContext().isActive) {
-                    val session = currentSession ?: break
-                val expiresAt = session.expiresAt ?: break
-                val refreshAt = expiresAt - REFRESH_LEAD_MS
-                val now = Clock.System.now().toEpochMilliseconds()
-                val sleepMs = (refreshAt - now).coerceIn(1_000, MAX_REFRESH_POLL_MS)
+            // One scheduler for the client's lifetime — a null session just
+            // idles the poll until the next sign-in reuses the loop. (Kept
+            // free of break/continue per detekt's LoopWithTooManyJumpStatements.)
+            while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                val expiresAt = currentSession?.expiresAt
+                val sleepMs = if (expiresAt != null) {
+                    val refreshAt = expiresAt - REFRESH_LEAD_MS
+                    val now = Clock.System.now().toEpochMilliseconds()
+                    (refreshAt - now).coerceIn(1_000, MAX_REFRESH_POLL_MS)
+                } else {
+                    MAX_REFRESH_POLL_MS
+                }
                 kotlinx.coroutines.delay(sleepMs)
                 val due = currentSession?.expiresAt
                 if (due != null && Clock.System.now().toEpochMilliseconds() >= due - REFRESH_LEAD_MS) {
@@ -112,9 +117,6 @@ class FluxbaseAuth(
                     // FluxbaseHttpClient still covers the next request.
                     refreshSession().getOrNull()
                 }
-            }
-            } finally {
-                autoRefreshRunning = false
             }
         }
     }
@@ -432,7 +434,6 @@ class FluxbaseAuth(
         currentSession = null
         http.setAuthToken(null) // Restores anon key
         storage.removeItem(AUTH_STORAGE_KEY)
-        autoRefreshRunning = false // the scheduler loop exits on null session
         emitState(AuthChangeEvent.SIGNED_OUT, null)
     }
 

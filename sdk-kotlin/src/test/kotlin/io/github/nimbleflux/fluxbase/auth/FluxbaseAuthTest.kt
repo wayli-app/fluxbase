@@ -267,20 +267,18 @@ class FluxbaseAuthTest {
         assertTrue(events.any { it.event == AuthChangeEvent.SIGNED_OUT })
         assertNull(events.first { it.event == AuthChangeEvent.SIGNED_OUT }.session)
     }
-}
 
-// ---- Proactive auto-refresh (refresh-on-restore) ----
+    // ---- Proactive auto-refresh (refresh-on-restore) ----
 
-private val refreshResponseJson = """
-    {
-        "user": {"id":"1","email":"user@example.com","created_at":"2024-01-01T00:00:00Z"},
-        "access_token": "fresh-access-token",
-        "refresh_token": "fresh-refresh-token",
-        "expires_in": 900
-    }
-""".trimIndent()
+    private val refreshResponseJson = """
+        {
+            "user": {"id":"1","email":"user@example.com","created_at":"2024-01-01T00:00:00Z"},
+            "access_token": "fresh-access-token",
+            "refresh_token": "fresh-refresh-token",
+            "expires_in": 900
+        }
+    """.trimIndent()
 
-private class AutoRefreshTest {
     @Test
     fun `restore with a stale access token refreshes up front`() = runTest {
         val recording = RecordingHttp(mockResponseBody = refreshResponseJson)
@@ -304,7 +302,7 @@ private class AutoRefreshTest {
             kotlinx.coroutines.delay(50)
         }
         assertEquals("/api/v1/auth/refresh", recording.lastPath)
-    }
+        }
 
     @Test
     fun `restore with a live access token does not refresh`() = runTest {
@@ -325,5 +323,5 @@ private class AutoRefreshTest {
 
         kotlinx.coroutines.delay(300)
         assertNull(recording.lastPath)
-    }
+        }
 }
