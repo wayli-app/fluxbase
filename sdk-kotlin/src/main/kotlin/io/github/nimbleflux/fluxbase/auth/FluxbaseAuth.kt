@@ -3,7 +3,14 @@ package io.github.nimbleflux.fluxbase.auth
 import io.github.nimbleflux.fluxbase.FluxbaseError
 import io.github.nimbleflux.fluxbase.FluxbaseResponse
 import io.github.nimbleflux.fluxbase.core.FluxbaseHttpClient
+import io.github.nimbleflux.fluxbase.getOrNull
 import io.github.nimbleflux.fluxbase.fluxbaseResponse
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -44,7 +51,7 @@ data class AuthResult(
  */
 class FluxbaseAuth(
     private val http: FluxbaseHttpClient,
-    @Suppress("unused") private val autoRefresh: Boolean = true,
+    private val autoRefresh: Boolean = true,
     private val storage: StorageAdapter = MemoryStorage(),
 ) {
     private val json: Json = FluxbaseHttpClient.defaultJson
@@ -63,11 +70,53 @@ class FluxbaseAuth(
         /** Stored while an OAuth flow is in flight (TS: auth.ts:62-63). */
         internal const val OAUTH_PROVIDER_KEY = "fluxbase.auth.oauth_provider"
         internal const val OAUTH_REDIRECT_URI_KEY = "fluxbase.auth.oauth_redirect_uri"
+
+        /** Refresh this long before the access token expires. */
+        private const val REFRESH_LEAD_MS = 60_000L
+
+        /** Cap the scheduler's sleep so session changes are picked up. */
+        private const val MAX_REFRESH_POLL_MS = 10 * 60_000L
     }
+
+    // ---- Proactive token refresh (TS autoRefresh parity) ----
+    // Declared BEFORE the init block: restore-time refresh launches on this
+    // scope, and properties initialize in declaration order.
+
+    private val refreshScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+    )
+    private val refreshMutex = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var autoRefreshRunning = false
 
     init {
         // Restore session from storage (mirrors `auth.ts:172-187`).
         restoreSession()
+        if (autoRefresh) startAutoRefresh()
+    }
+
+    private fun startAutoRefresh() {
+        if (autoRefreshRunning || currentSession == null) return
+        autoRefreshRunning = true
+        refreshScope.launch {
+            try {
+                while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                    val session = currentSession ?: break
+                val expiresAt = session.expiresAt ?: break
+                val refreshAt = expiresAt - REFRESH_LEAD_MS
+                val now = Clock.System.now().toEpochMilliseconds()
+                val sleepMs = (refreshAt - now).coerceIn(1_000, MAX_REFRESH_POLL_MS)
+                kotlinx.coroutines.delay(sleepMs)
+                val due = currentSession?.expiresAt
+                if (due != null && Clock.System.now().toEpochMilliseconds() >= due - REFRESH_LEAD_MS) {
+                    // Failure is non-fatal: the reactive 401-retry path in
+                    // FluxbaseHttpClient still covers the next request.
+                    refreshSession().getOrNull()
+                }
+            }
+            } finally {
+                autoRefreshRunning = false
+            }
+        }
     }
 
     // ---- Sign in / sign up / sign out ----
@@ -376,12 +425,14 @@ class FluxbaseAuth(
         http.setAuthToken(session.accessToken)
         saveSession(session)
         emitState(event, session)
+        if (autoRefresh) startAutoRefresh()
     }
 
     private fun clearSession() {
         currentSession = null
         http.setAuthToken(null) // Restores anon key
         storage.removeItem(AUTH_STORAGE_KEY)
+        autoRefreshRunning = false // the scheduler loop exits on null session
         emitState(AuthChangeEvent.SIGNED_OUT, null)
     }
 
@@ -398,6 +449,16 @@ class FluxbaseAuth(
             val session = json.decodeFromString(AuthSession.serializer(), stored)
             currentSession = session
             http.setAuthToken(session.accessToken)
+            // A restored access token is usually already stale (15-minute
+            // lifetime vs. days between app launches) — refresh it up front
+            // so the first API calls don't race the 401-retry path.
+            if (autoRefresh && session.expiresAt != null &&
+                Clock.System.now().toEpochMilliseconds() >= session.expiresAt!! - REFRESH_LEAD_MS
+            ) {
+                refreshScope.launch {
+                    refreshMutex.withLock { refreshSession().getOrNull() }
+                }
+            }
         }
     }
 
