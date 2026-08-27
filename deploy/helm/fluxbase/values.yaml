@@ -149,7 +149,7 @@ config:
     anon_key: "" # Pre-signed JWT for client apps. Generate with: scripts/generate-keys.sh (option 3)
     service_role_key: "" # Pre-signed JWT for backend services. Generate with: scripts/generate-keys.sh (option 3)
     jwt_expiry: "1h"
-    refresh_expiry: "168h"
+    refresh_expiry: "2160h"
     magic_link_expiry: "15m"
     password_reset_expiry: "1h"
     password_min_length: null

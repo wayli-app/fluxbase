@@ -26,8 +26,8 @@ database:
 auth:
   # CRITICAL: Generate with: openssl rand -base64 32
   jwt_secret: "your-secret-key-change-in-production"
-  jwt_expiry: "15m"
-  refresh_expiry: "168h"    # 7 days
+  jwt_expiry: "1h"
+  refresh_expiry: "2160h"   # 90 days (sliding)
   password_min_length: 12   # Increased for better security
   signup_enabled: true      # Enable user registration
 

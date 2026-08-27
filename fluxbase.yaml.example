@@ -56,8 +56,8 @@ database:
 # Authentication Configuration
 auth:
   jwt_secret: "your-secret-key-change-in-production"  # FLUXBASE_AUTH_JWT_SECRET - JWT signing secret (REQUIRED - must be changed!)
-  jwt_expiry: "15m"                     # FLUXBASE_AUTH_JWT_EXPIRY - Access token expiration
-  refresh_expiry: "168h"                # FLUXBASE_AUTH_REFRESH_EXPIRY - Refresh token expiration (7 days)
+  jwt_expiry: "1h"                     # FLUXBASE_AUTH_JWT_EXPIRY - Access token expiration
+  refresh_expiry: "2160h"               # FLUXBASE_AUTH_REFRESH_EXPIRY - Refresh token expiration (90 days, sliding)
   service_role_ttl: "24h"               # FLUXBASE_AUTH_SERVICE_ROLE_TTL - Service role JWT expiration (24 hours)
   anon_ttl: "24h"                       # FLUXBASE_AUTH_ANON_TTL - Anonymous JWT expiration (24 hours)
   magic_link_expiry: "15m"              # FLUXBASE_AUTH_MAGIC_LINK_EXPIRY - Magic link expiration
