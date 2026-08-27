@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLResponse](index.md)/[data](data.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.graphql](../../)/[GraphQLResponse](../)/[data](./)
 
 # data
 
 [jvm]\
-val [data](data.md): [T](index.md)? = null
+val [data](./): [T](../)? = null

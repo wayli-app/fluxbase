@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorDisableResponse](index.md)/[TwoFactorDisableResponse](-two-factor-disable-response.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[TwoFactorDisableResponse](../)/[TwoFactorDisableResponse](./)
 
 # TwoFactorDisableResponse
 

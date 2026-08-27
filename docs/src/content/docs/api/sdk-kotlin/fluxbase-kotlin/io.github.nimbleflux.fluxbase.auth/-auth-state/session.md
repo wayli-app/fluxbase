@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthState](index.md)/[session](session.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[AuthState](../)/[session](./)
 
 # session
 
 [jvm]\
-val [session](session.md): [AuthSession](../-auth-session/index.md)?
+val [session](./): [AuthSession](../../-auth-session/)?

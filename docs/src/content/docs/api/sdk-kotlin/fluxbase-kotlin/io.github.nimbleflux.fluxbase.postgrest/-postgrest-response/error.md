@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[PostgrestResponse](index.md)/[error](error.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.postgrest](../../)/[PostgrestResponse](../)/[error](./)
 
 # error
 
 [jvm]\
-val [error](error.md): [FluxbaseError](../../io.github.nimbleflux.fluxbase/-fluxbase-error/index.md)?
+val [error](./): [FluxbaseError](../../../iogithubnimblefluxfluxbase/-fluxbase-error/)?

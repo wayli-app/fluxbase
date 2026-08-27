@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[jobs](jobs.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[jobs](./)
 
 # jobs
 
 [jvm]\
-val [jobs](jobs.md): [FluxbaseJobs](../../io.github.nimbleflux.fluxbase.jobs/-fluxbase-jobs/index.md)
+val [jobs](./): [FluxbaseJobs](../../../iogithubnimblefluxfluxbasejobs/-fluxbase-jobs/)
 
 Background Jobs module.

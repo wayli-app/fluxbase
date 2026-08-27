@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[FileObject](index.md)/[lastAccessedAt](last-accessed-at.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.storage](../../)/[FileObject](../)/[lastAccessedAt](./)
 
 # lastAccessedAt
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;last_accessed_at&quot;)
 
-val [lastAccessedAt](last-accessed-at.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [lastAccessedAt](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

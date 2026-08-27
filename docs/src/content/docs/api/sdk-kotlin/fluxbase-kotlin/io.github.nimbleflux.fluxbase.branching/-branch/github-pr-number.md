@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[Branch](index.md)/[githubPrNumber](github-pr-number.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[Branch](../)/[githubPrNumber](./)
 
 # githubPrNumber
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;github_pr_number&quot;)
 
-val [githubPrNumber](github-pr-number.md): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html)? = null
+val [githubPrNumber](./): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html)? = null

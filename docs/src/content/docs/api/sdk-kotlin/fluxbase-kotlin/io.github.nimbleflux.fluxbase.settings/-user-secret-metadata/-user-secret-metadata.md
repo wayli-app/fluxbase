@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[UserSecretMetadata](index.md)/[UserSecretMetadata](-user-secret-metadata.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.settings](../../)/[UserSecretMetadata](../)/[UserSecretMetadata](./)
 
 # UserSecretMetadata
 

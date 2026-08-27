@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[Branch](index.md)/[githubRepo](github-repo.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[Branch](../)/[githubRepo](./)
 
 # githubRepo
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;github_repo&quot;)
 
-val [githubRepo](github-repo.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [githubRepo](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

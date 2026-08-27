@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[KtorWebSocketTransport](index.md)/[close](close.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.realtime](../../)/[KtorWebSocketTransport](../)/[close](./)
 
 # close
 
 [jvm]\
-open override fun [close](close.md)()
+open override fun [close](./)()
 
 Close the connection.

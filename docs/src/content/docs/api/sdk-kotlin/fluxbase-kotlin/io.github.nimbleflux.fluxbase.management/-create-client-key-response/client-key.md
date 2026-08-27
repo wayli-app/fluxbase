@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[CreateClientKeyResponse](index.md)/[clientKey](client-key.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[CreateClientKeyResponse](../)/[clientKey](./)
 
 # clientKey
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;client_key&quot;)
 
-val [clientKey](client-key.md): [ClientKey](../-client-key/index.md)
+val [clientKey](./): [ClientKey](../../-client-key/)

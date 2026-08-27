@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[branching](branching.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[branching](./)
 
 # branching
 
 [jvm]\
-val [branching](branching.md): [FluxbaseBranching](../../io.github.nimbleflux.fluxbase.branching/-fluxbase-branching/index.md)
+val [branching](./): [FluxbaseBranching](../../../iogithubnimblefluxfluxbasebranching/-fluxbase-branching/)
 
 Database branching (admin).

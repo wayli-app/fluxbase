@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[auth](auth.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[auth](./)
 
 # auth
 
 [jvm]\
-val [auth](auth.md): [FluxbaseAuth](../../io.github.nimbleflux.fluxbase.auth/-fluxbase-auth/index.md)
+val [auth](./): [FluxbaseAuth](../../../iogithubnimblefluxfluxbaseauth/-fluxbase-auth/)
 
 The auth module.

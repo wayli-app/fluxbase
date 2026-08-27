@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLError](index.md)/[path](path.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.graphql](../../)/[GraphQLError](../)/[path](./)
 
 # path
 
 [jvm]\
-val [path](path.md): [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;JsonElement&gt;? = null
+val [path](./): [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;JsonElement&gt;? = null

@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[tenant](tenant.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[tenant](./)
 
 # tenant
 
 [jvm]\
-val [tenant](tenant.md): [FluxbaseTenant](../../io.github.nimbleflux.fluxbase.tenant/-fluxbase-tenant/index.md)
+val [tenant](./): [FluxbaseTenant](../../../iogithubnimblefluxfluxbasetenant/-fluxbase-tenant/)
 
 Multi-tenancy management (admin).

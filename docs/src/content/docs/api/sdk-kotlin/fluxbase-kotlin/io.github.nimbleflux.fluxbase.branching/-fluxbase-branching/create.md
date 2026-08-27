@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[FluxbaseBranching](index.md)/[create](create.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[FluxbaseBranching](../)/[create](./)
 
 # create
 
 [jvm]\
-suspend fun [create](create.md)(name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), options: [CreateBranchOptions](../-create-branch-options/index.md) = CreateBranchOptions()): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[Branch](../-branch/index.md)&gt;
+suspend fun [create](./)(name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), options: [CreateBranchOptions](../../-create-branch-options/) = CreateBranchOptions()): [FluxbaseResponse](../../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[Branch](../../-branch/)&gt;
 
 Create a new branch. POSTs `/api/v1/admin/branches`.

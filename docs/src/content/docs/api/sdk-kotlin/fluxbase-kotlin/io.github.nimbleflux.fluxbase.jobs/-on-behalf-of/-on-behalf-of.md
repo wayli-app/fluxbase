@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[OnBehalfOf](index.md)/[OnBehalfOf](-on-behalf-of.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.jobs](../../)/[OnBehalfOf](../)/[OnBehalfOf](./)
 
 # OnBehalfOf
 

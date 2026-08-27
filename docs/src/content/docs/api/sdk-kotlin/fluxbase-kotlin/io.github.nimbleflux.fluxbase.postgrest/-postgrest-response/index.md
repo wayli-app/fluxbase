@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[PostgrestResponse](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.postgrest](../)/[PostgrestResponse](./)
 
 # PostgrestResponse
 
 [jvm]\
-data class [PostgrestResponse](index.md)&lt;[T](index.md)&gt;(val data: [T](index.md)?, val error: [FluxbaseError](../../io.github.nimbleflux.fluxbase/-fluxbase-error/index.md)?, val count: [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)?, val status: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html), val statusText: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html))
+data class [PostgrestResponse](./)&lt;[T](./)&gt;(val data: [T](./)?, val error: [FluxbaseError](../../iogithubnimblefluxfluxbase/-fluxbase-error/)?, val count: [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)?, val status: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html), val statusText: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html))
 
 Result of a PostgREST query. Port of `PostgrestResponse<T>` from `sdk/src/types.ts:257`.
 
@@ -18,14 +18,14 @@ Result of a PostgREST query. Port of `PostgrestResponse<T>` from `sdk/src/types.
 
 | | |
 |---|---|
-| [PostgrestResponse](-postgrest-response.md) | [jvm]<br>constructor(data: [T](index.md)?, error: [FluxbaseError](../../io.github.nimbleflux.fluxbase/-fluxbase-error/index.md)?, count: [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)?, status: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html), statusText: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)) |
+| [PostgrestResponse](-postgrest-response/) | [jvm]<br>constructor(data: [T](./)?, error: [FluxbaseError](../../iogithubnimblefluxfluxbase/-fluxbase-error/)?, count: [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)?, status: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html), statusText: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)) |
 
 ## Properties
 
 | Name | Summary |
 |---|---|
-| [count](count.md) | [jvm]<br>val [count](count.md): [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)? |
-| [data](data.md) | [jvm]<br>val [data](data.md): [T](index.md)? |
-| [error](error.md) | [jvm]<br>val [error](error.md): [FluxbaseError](../../io.github.nimbleflux.fluxbase/-fluxbase-error/index.md)? |
-| [status](status.md) | [jvm]<br>val [status](status.md): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) |
-| [statusText](status-text.md) | [jvm]<br>val [statusText](status-text.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html) |
+| [count](count/) | [jvm]<br>val [count](count/): [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)? |
+| [data](data/) | [jvm]<br>val [data](data/): [T](./)? |
+| [error](error/) | [jvm]<br>val [error](error/): [FluxbaseError](../../iogithubnimblefluxfluxbase/-fluxbase-error/)? |
+| [status](status/) | [jvm]<br>val [status](status/): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) |
+| [statusText](status-text/) | [jvm]<br>val [statusText](status-text/): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html) |

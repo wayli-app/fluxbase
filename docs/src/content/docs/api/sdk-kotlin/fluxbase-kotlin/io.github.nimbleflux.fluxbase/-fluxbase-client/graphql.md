@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[graphql](graphql.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[graphql](./)
 
 # graphql
 
 [jvm]\
-val [graphql](graphql.md): [FluxbaseGraphQL](../../io.github.nimbleflux.fluxbase.graphql/-fluxbase-graph-q-l/index.md)
+val [graphql](./): [FluxbaseGraphQL](../../../iogithubnimblefluxfluxbasegraphql/-fluxbase-graph-q-l/)
 
 GraphQL module.

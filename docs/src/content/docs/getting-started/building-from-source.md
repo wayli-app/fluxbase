@@ -11,12 +11,12 @@ platforms where the official Docker images don't fit.
 
 <CardGrid stagger>
   <Card title="Just want to run it?" icon="rocket">
-    Use the [official Docker image](../deployment/docker/) or the prebuilt
+    Use the [official Docker image](../../deployment/docker/) or the prebuilt
     release binary — no build step needed.
   </Card>
   <Card title="Building the CLI only?" icon="terminal">
     The CLI is pure Go with no C dependencies. See
-    [CLI installation → From Source](../cli/installation/).
+    [CLI installation → From Source](../../cli/installation/).
   </Card>
 </CardGrid>
 
@@ -239,14 +239,14 @@ stub compiled in. To enable:
 
 You can check which capabilities a running server has via the knowledge-bases
 capabilities endpoint (`ocr_available`) — see
-[Knowledge Bases](../guides/knowledge-bases/).
+[Knowledge Bases](../../guides/knowledge-bases/).
 
 ## What you lose without each feature
 
 - **Without `ocr`** — scanned PDFs and image-only files in AI knowledge bases
-  are not text-extracted. See [Knowledge Bases](../guides/knowledge-bases/).
+  are not text-extracted. See [Knowledge Bases](../../guides/knowledge-bases/).
 - **Without `vips`** — storage image transformations (resize, reformat, rotate)
   return an error. Digital-native files and OCR on text PDFs are unaffected.
-  See [Image Transformations](../guides/image-transformations/).
+  See [Image Transformations](../../guides/image-transformations/).
 - **Neither tag** — the server is fully functional for everything except OCR
-  ingestion and image transforms. This is exactly the [lite Docker image](../deployment/docker/#image-variants).
+  ingestion and image transforms. This is exactly the [lite Docker image](../../deployment/docker/#image-variants).

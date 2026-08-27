@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[FluxbaseStorage](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.storage](../)/[FluxbaseStorage](./)
 
 # FluxbaseStorage
 
 [jvm]\
-class [FluxbaseStorage](index.md)(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md))
+class [FluxbaseStorage](./)(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/))
 
 Storage module — port of `FluxbaseStorage` from `sdk/src/storage.ts`.
 
@@ -30,10 +30,10 @@ NOTE: The TS SDK's chunked/resumable upload (custom init/upload/complete protoco
 
 | | |
 |---|---|
-| [FluxbaseStorage](-fluxbase-storage.md) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md)) |
+| [FluxbaseStorage](-fluxbase-storage/) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/)) |
 
 ## Functions
 
 | Name | Summary |
 |---|---|
-| [from](from.md) | [jvm]<br>fun [from](from.md)(bucket: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [StorageBucket](../-storage-bucket/index.md)<br>Start operating on a bucket. Port of `from(bucket)` in `storage.ts`. |
+| [from](from/) | [jvm]<br>fun [from](from/)(bucket: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [StorageBucket](../-storage-bucket/)<br>Start operating on a bucket. Port of `from(bucket)` in `storage.ts`. |

@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[FluxbaseManagement](index.md)/[clientKeys](client-keys.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[FluxbaseManagement](../)/[clientKeys](./)
 
 # clientKeys
 
 [jvm]\
-val [clientKeys](client-keys.md): [ClientKeysManager](../-client-keys-manager/index.md)
+val [clientKeys](./): [ClientKeysManager](../../-client-keys-manager/)

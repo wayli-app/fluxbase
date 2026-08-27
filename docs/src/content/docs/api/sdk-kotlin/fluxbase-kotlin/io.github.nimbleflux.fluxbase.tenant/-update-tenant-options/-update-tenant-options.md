@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[UpdateTenantOptions](index.md)/[UpdateTenantOptions](-update-tenant-options.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[UpdateTenantOptions](../)/[UpdateTenantOptions](./)
 
 # UpdateTenantOptions
 

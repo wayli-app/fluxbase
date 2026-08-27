@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[Branch](index.md)/[parentBranchId](parent-branch-id.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[Branch](../)/[parentBranchId](./)
 
 # parentBranchId
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;parent_branch_id&quot;)
 
-val [parentBranchId](parent-branch-id.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [parentBranchId](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

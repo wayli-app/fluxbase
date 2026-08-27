@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.core](../index.md)/[HttpMethod](index.md)/[values](values.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.core](../../)/[HttpMethod](../)/[values](./)
 
 # values
 
 [jvm]\
-fun [values](values.md)(): [Array](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-array/index.html)&lt;[HttpMethod](index.md)&gt;
+fun [values](./)(): [Array](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-array/index.html)&lt;[HttpMethod](../)&gt;
 
 Returns an array containing the constants of this enum type, in the order they're declared.
 

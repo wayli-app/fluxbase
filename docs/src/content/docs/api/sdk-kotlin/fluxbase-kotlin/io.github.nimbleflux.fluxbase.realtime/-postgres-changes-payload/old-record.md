@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[PostgresChangesPayload](index.md)/[oldRecord](old-record.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.realtime](../../)/[PostgresChangesPayload](../)/[oldRecord](./)
 
 # oldRecord
 
 [jvm]\
-val [oldRecord](old-record.md): JsonElement? = null
+val [oldRecord](./): JsonElement? = null

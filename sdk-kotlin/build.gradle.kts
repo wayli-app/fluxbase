@@ -111,12 +111,60 @@ tasks.withType<org.jetbrains.dokka.gradle.DokkaTask>().configureEach {
     // In Dokka 1.9.x, dokkaHtml / dokkaGfm / dokkaJavadoc are all DokkaTask instances.
 }
 
+/**
+ * Slug a Dokka path segment the way Starlight slugifies content-collection
+ * routes: lowercase, camelCase boundaries become dashes, dots are dropped,
+ * [a-z0-9_-] survives. e.g. "io.github.nimbleflux.fluxbase.auth" →
+ * "iogithubnimblefluxfluxbaseauth", "PostgresChangesConfig" →
+ * "-postgres-changes-config", "-i-n-n-e-r_PRODUCT" keeps its underscores.
+ */
+fun slugSegment(segment: String): String {
+    val sb = StringBuilder()
+    segment.forEachIndexed { i, ch ->
+        when {
+            ch.isUpperCase() -> {
+                val prevIsUpper = i > 0 && segment[i - 1].isUpperCase()
+                val nextIsLower = i + 1 < segment.length && segment[i + 1].isLowerCase()
+                if (sb.isNotEmpty() && (!prevIsUpper || nextIsLower)) sb.append('-')
+                sb.append(ch.lowercaseChar())
+            }
+            ch == '.' || (!ch.isLetterOrDigit() && ch != '_' && ch != '-') -> { /* dropped */ }
+            else -> sb.append(ch.lowercaseChar())
+        }
+    }
+    var s = sb.toString().trim('-')
+    if (s.isNotEmpty() && segment.startsWith("-")) s = "-$s"
+    return s
+}
+
+/** Normalize a POSIX-ish relative path (resolve "." and ".." segments). */
+fun normalizeRelative(path: String): String {
+    val out = ArrayDeque<String>()
+    for (part in path.split('/')) {
+        when (part) {
+            "", "." -> {}
+            ".." -> if (out.isNotEmpty() && out.last() != "..") out.removeLast() else out.addLast("..")
+            else -> out.addLast(part)
+        }
+    }
+    return if (out.isEmpty()) "." else out.joinToString("/")
+}
+
 tasks.named<org.jetbrains.dokka.gradle.DokkaTask>("dokkaGfm").configure {
     outputDirectory.set(file("../docs/src/content/docs/api/sdk-kotlin"))
-    // Post-process: inject Starlight frontmatter into every generated .md file.
-    // Dokka GFM output has no frontmatter, but Starlight's content schema requires
-    // a `title` field. This extracts the first H1 heading as the title and prepends
-    // the frontmatter block — matching what starlight-typedoc does for the TS SDK docs.
+    // Post-process: inject Starlight frontmatter into every generated .md file,
+    // then rewrite Dokka's GitHub-flavored .md links to Starlight directory URLs.
+    //
+    // Frontmatter: Dokka GFM output has none, but Starlight's content schema
+    // requires a `title` field. This extracts the first H1 heading as the title
+    // and prepends the block — matching what starlight-typedoc does for the TS
+    // SDK docs.
+    //
+    // Links: Dokka emits [text](path.md) links that work on GitHub but are dead
+    // in the built site — Astro keeps them verbatim, so the docs link checker
+    // (and users) 404 on them. Every page renders to <route>/index.html, so
+    // each link becomes a relative path between the two route directories
+    // (trailing slash, slugified segments).
     doLast {
         val outputDir = file("../docs/src/content/docs/api/sdk-kotlin")
         var processed = 0
@@ -146,6 +194,72 @@ tasks.named<org.jetbrains.dokka.gradle.DokkaTask>("dokkaGfm").configure {
             processed++
         }
         logger.lifecycle("Injected Starlight frontmatter into $processed Dokka files.")
+
+        // Built route directory of a source .md file, or null when [relPath]
+        // is not one of the generated files.
+        val mdFiles = outputDir.walkTopDown().filter { it.isFile && it.extension == "md" }.toList()
+        val relSet = mdFiles.map { it.relativeTo(outputDir).invariantSeparatorsPath }.toSet()
+        fun routeDirFor(relPath: String): String? {
+            if (relPath !in relSet) return null
+            val segs = relPath.removeSuffix(".md").split('/')
+                .map { slugSegment(it) }
+                .filter { it.isNotEmpty() }
+                .toMutableList()
+            if (segs.isNotEmpty() && segs.last() == "index") segs.removeAt(segs.size - 1)
+            return if (segs.isEmpty()) "." else segs.joinToString("/")
+        }
+
+        val linkRegex = Regex("(\\]\\()([^)#\\s]+?\\.md)(#[^)\\s]*)?(\\))")
+        var filesChanged = 0
+        var linksRewritten = 0
+        var linksUnresolved = 0
+        mdFiles.forEach { mdFile ->
+            val rel = mdFile.relativeTo(outputDir).invariantSeparatorsPath
+            val fromDir = routeDirFor(rel) ?: return@forEach
+            val text = mdFile.readText()
+            val matches = linkRegex.findAll(text).toList()
+            if (matches.isEmpty()) return@forEach
+
+            val sb = StringBuilder()
+            var last = 0
+            var fileChanged = false
+            for (m in matches) {
+                val link = m.groupValues[2]
+                val anchor = m.groupValues[3]
+                val dir = rel.substringBeforeLast('/', "")
+                val targetRel = normalizeRelative(if (dir.isEmpty()) link else "$dir/$link")
+                val toDir = routeDirFor(targetRel)
+                sb.append(text, last, m.range.first)
+                if (toDir != null) {
+                    // Relative path from one route directory to another.
+                    val fromSegs = if (fromDir == ".") emptyList() else fromDir.split('/')
+                    val toSegs = if (toDir == ".") emptyList() else toDir.split('/')
+                    var common = 0
+                    while (common < fromSegs.size && common < toSegs.size && fromSegs[common] == toSegs[common]) common++
+                    val parts = buildList {
+                        repeat(fromSegs.size - common) { add("..") }
+                        addAll(toSegs.subList(common, toSegs.size))
+                    }
+                    val url = if (parts.isEmpty()) "./" else parts.joinToString("/") + "/"
+                    sb.append("](").append(url).append(anchor).append(")")
+                    linksRewritten++
+                    fileChanged = true
+                } else {
+                    linksUnresolved++
+                    sb.append(m.value)
+                }
+                last = m.range.last + 1
+            }
+            sb.append(text, last, text.length)
+            if (fileChanged) {
+                mdFile.writeText(sb.toString())
+                filesChanged++
+            }
+        }
+        logger.lifecycle("Rewrote $linksRewritten Dokka .md links in $filesChanged files ($linksUnresolved unresolved).")
+        if (linksUnresolved > 0) {
+            logger.warn("Dokka docs: $linksUnresolved .md links could not be resolved to generated pages — check for broken cross-references.")
+        }
     }
 }
 

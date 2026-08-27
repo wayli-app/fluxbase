@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[MemoryStorage](index.md)/[MemoryStorage](-memory-storage.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[MemoryStorage](../)/[MemoryStorage](./)
 
 # MemoryStorage
 

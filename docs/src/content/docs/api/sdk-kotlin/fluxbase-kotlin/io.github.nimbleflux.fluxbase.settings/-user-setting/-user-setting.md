@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[UserSetting](index.md)/[UserSetting](-user-setting.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.settings](../../)/[UserSetting](../)/[UserSetting](./)
 
 # UserSetting
 

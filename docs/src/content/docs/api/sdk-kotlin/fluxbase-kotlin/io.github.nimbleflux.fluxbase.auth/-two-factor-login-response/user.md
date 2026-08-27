@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorLoginResponse](index.md)/[user](user.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[TwoFactorLoginResponse](../)/[user](./)
 
 # user
 
 [jvm]\
-val [user](user.md): [User](../-user/index.md)
+val [user](./): [User](../../-user/)

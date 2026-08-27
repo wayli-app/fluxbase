@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[FluxbaseManagement](index.md)/[invitations](invitations.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[FluxbaseManagement](../)/[invitations](./)
 
 # invitations
 
 [jvm]\
-val [invitations](invitations.md): [InvitationsManager](../-invitations-manager/index.md)
+val [invitations](./): [InvitationsManager](../../-invitations-manager/)

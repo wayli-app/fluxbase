@@ -134,7 +134,7 @@ WebSocket-based AI chatbot integration:
 - PostgreSQL 16+ (with pgvector)
 
 For the full build dependency list (including the macOS/Linux C libraries that
-`make build` needs for OCR), see [Building from Source](./getting-started/building-from-source/).
+`make build` needs for OCR), see [Building from Source](../getting-started/building-from-source/).
 
 ### Quick Install
 

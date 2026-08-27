@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcInvokeOptions](index.md)/[RpcInvokeOptions](-rpc-invoke-options.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.rpc](../../)/[RpcInvokeOptions](../)/[RpcInvokeOptions](./)
 
 # RpcInvokeOptions
 

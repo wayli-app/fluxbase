@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[currentUser](current-user.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[FluxbaseAuth](../)/[currentUser](./)
 
 # currentUser
 
 [jvm]\
-val [currentUser](current-user.md): [User](../-user/index.md)?
+val [currentUser](./): [User](../../-user/)?
 
 The current user, or null if not authenticated.

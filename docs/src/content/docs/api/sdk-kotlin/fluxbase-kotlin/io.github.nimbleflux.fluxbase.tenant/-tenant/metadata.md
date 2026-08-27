@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[Tenant](index.md)/[metadata](metadata.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[Tenant](../)/[metadata](./)
 
 # metadata
 
 [jvm]\
-val [metadata](metadata.md): JsonElement? = null
+val [metadata](./): JsonElement? = null

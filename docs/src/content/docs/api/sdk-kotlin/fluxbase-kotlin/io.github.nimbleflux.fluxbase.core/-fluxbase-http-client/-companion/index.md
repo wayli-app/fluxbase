@@ -5,15 +5,15 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.core](../../index.md)/[FluxbaseHttpClient](../index.md)/[Companion](index.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.core](../../)/[FluxbaseHttpClient](../)/[Companion](./)
 
 # Companion
 
 [jvm]\
-object [Companion](index.md)
+object [Companion](./)
 
 ## Properties
 
 | Name | Summary |
 |---|---|
-| [defaultJson](default-json.md) | [jvm]<br>val [defaultJson](default-json.md): Json<br>Shared JSON config — lenient to tolerate Fluxbase's varied response shapes. |
+| [defaultJson](default-json/) | [jvm]<br>val [defaultJson](default-json/): Json<br>Shared JSON config — lenient to tolerate Fluxbase's varied response shapes. |

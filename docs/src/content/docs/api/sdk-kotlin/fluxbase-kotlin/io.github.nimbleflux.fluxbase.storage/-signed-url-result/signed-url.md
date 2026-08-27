@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[SignedUrlResult](index.md)/[signedUrl](signed-url.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.storage](../../)/[SignedUrlResult](../)/[signedUrl](./)
 
 # signedUrl
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;signed_url&quot;)
 
-val [signedUrl](signed-url.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+val [signedUrl](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

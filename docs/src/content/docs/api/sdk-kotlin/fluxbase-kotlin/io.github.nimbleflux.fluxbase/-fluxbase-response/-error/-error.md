@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase](../../index.md)/[FluxbaseResponse](../index.md)/[Error](index.md)/[Error](-error.md)
+//[fluxbase-kotlin](../../../../../)/[io.github.nimbleflux.fluxbase](../../../)/[FluxbaseResponse](../../)/[Error](../)/[Error](./)
 
 # Error
 
 [jvm]\
-constructor(error: [FluxbaseError](../../-fluxbase-error/index.md))
+constructor(error: [FluxbaseError](../../../-fluxbase-error/))

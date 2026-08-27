@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[FluxbaseTenant](index.md)/[create](create.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[FluxbaseTenant](../)/[create](./)
 
 # create
 
 [jvm]\
-suspend fun [create](create.md)(options: [CreateTenantOptions](../-create-tenant-options/index.md)): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[Tenant](../-tenant/index.md)&gt;
+suspend fun [create](./)(options: [CreateTenantOptions](../../-create-tenant-options/)): [FluxbaseResponse](../../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[Tenant](../../-tenant/)&gt;
 
 Create a tenant. POSTs `/api/v1/admin/tenants`.

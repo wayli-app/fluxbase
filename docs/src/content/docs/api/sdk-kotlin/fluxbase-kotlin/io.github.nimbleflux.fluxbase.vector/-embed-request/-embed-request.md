@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[EmbedRequest](index.md)/[EmbedRequest](-embed-request.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.vector](../../)/[EmbedRequest](../)/[EmbedRequest](./)
 
 # EmbedRequest
 

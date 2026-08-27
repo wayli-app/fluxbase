@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthChangeEvent](index.md)/[entries](entries.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[AuthChangeEvent](../)/[entries](./)
 
 # entries
 
 [jvm]\
-val [entries](entries.md): [EnumEntries](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.enums/-enum-entries/index.html)&lt;[AuthChangeEvent](index.md)&gt;
+val [entries](./): [EnumEntries](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.enums/-enum-entries/index.html)&lt;[AuthChangeEvent](../)&gt;
 
 Returns a representation of an immutable list of all enum entries, in the order they're declared.
 

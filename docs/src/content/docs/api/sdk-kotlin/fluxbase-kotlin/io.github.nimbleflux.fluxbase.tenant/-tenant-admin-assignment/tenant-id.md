@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[TenantAdminAssignment](index.md)/[tenantId](tenant-id.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[TenantAdminAssignment](../)/[tenantId](./)
 
 # tenantId
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;tenant_id&quot;)
 
-val [tenantId](tenant-id.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+val [tenantId](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

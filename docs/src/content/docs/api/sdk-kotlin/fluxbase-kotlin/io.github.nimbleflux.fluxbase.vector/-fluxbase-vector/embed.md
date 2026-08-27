@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[FluxbaseVector](index.md)/[embed](embed.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.vector](../../)/[FluxbaseVector](../)/[embed](./)
 
 # embed
 
 [jvm]\
-suspend fun [embed](embed.md)(request: [EmbedRequest](../-embed-request/index.md)): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[EmbedResponse](../-embed-response/index.md)&gt;
+suspend fun [embed](./)(request: [EmbedRequest](../../-embed-request/)): [FluxbaseResponse](../../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[EmbedResponse](../../-embed-response/)&gt;
 
 POST `/api/v1/vector/embed` — generate embeddings for text.

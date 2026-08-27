@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[getAuthConfig](get-auth-config.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[FluxbaseAuth](../)/[getAuthConfig](./)
 
 # getAuthConfig
 
 [jvm]\
-suspend fun [getAuthConfig](get-auth-config.md)(): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[AuthConfig](../-auth-config/index.md)&gt;
+suspend fun [getAuthConfig](./)(): [FluxbaseResponse](../../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[AuthConfig](../../-auth-config/)&gt;
 
 Get the server's auth configuration (signup enabled, OAuth providers, password rules). GETs `/api/v1/auth/config`. Port of `getAuthConfig()` in `auth.ts`.

@@ -5,24 +5,24 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[CreateClientKeyResponse](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.management](../)/[CreateClientKeyResponse](./)
 
 # CreateClientKeyResponse
 
 [jvm]\
 @Serializable
 
-data class [CreateClientKeyResponse](index.md)(val clientKey: [ClientKey](../-client-key/index.md), val key: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html))
+data class [CreateClientKeyResponse](./)(val clientKey: [ClientKey](../-client-key/), val key: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html))
 
 ## Constructors
 
 | | |
 |---|---|
-| [CreateClientKeyResponse](-create-client-key-response.md) | [jvm]<br>constructor(clientKey: [ClientKey](../-client-key/index.md), key: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)) |
+| [CreateClientKeyResponse](-create-client-key-response/) | [jvm]<br>constructor(clientKey: [ClientKey](../-client-key/), key: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)) |
 
 ## Properties
 
 | Name | Summary |
 |---|---|
-| [clientKey](client-key.md) | [jvm]<br>@SerialName(value = &quot;client_key&quot;)<br>val [clientKey](client-key.md): [ClientKey](../-client-key/index.md) |
-| [key](key.md) | [jvm]<br>val [key](key.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html) |
+| [clientKey](client-key/) | [jvm]<br>@SerialName(value = &quot;client_key&quot;)<br>val [clientKey](client-key/): [ClientKey](../-client-key/) |
+| [key](key/) | [jvm]<br>val [key](key/): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html) |

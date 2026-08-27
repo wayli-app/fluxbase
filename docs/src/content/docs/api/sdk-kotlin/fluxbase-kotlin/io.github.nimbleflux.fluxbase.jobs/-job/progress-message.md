@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[Job](index.md)/[progressMessage](progress-message.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.jobs](../../)/[Job](../)/[progressMessage](./)
 
 # progressMessage
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;progress_message&quot;)
 
-val [progressMessage](progress-message.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [progressMessage](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

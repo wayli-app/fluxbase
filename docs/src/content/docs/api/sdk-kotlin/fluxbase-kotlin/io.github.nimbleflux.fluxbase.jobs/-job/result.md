@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[Job](index.md)/[result](result.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.jobs](../../)/[Job](../)/[result](./)
 
 # result
 
 [jvm]\
-val [result](result.md): JsonElement? = null
+val [result](./): JsonElement? = null

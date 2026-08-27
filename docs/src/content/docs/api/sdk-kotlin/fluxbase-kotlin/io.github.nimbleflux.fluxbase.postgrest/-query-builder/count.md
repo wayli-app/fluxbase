@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[count](count.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.postgrest](../../)/[QueryBuilder](../)/[count](./)
 
 # count
 
 [jvm]\
-fun [count](count.md)(countType: [CountType](../-count-type/index.md) = CountType.EXACT): [QueryBuilder](index.md)&lt;[T](index.md)&gt;
+fun [count](./)(countType: [CountType](../../-count-type/) = CountType.EXACT): [QueryBuilder](../)&lt;[T](../)&gt;
 
 Request a count of total matching rows.

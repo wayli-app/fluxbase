@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[delete](delete.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.postgrest](../../)/[QueryBuilder](../)/[delete](./)
 
 # delete
 
 [jvm]\
-suspend fun [delete](delete.md)(): [PostgrestResponse](../-postgrest-response/index.md)&lt;[T](index.md)&gt;
+suspend fun [delete](./)(): [PostgrestResponse](../../-postgrest-response/)&lt;[T](../)&gt;
 
 DELETE (requires filters).

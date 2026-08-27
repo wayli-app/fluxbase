@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../../index.md)/[QueryBuilder](../index.md)/[Filter](index.md)/[Filter](-filter.md)
+//[fluxbase-kotlin](../../../../../)/[io.github.nimbleflux.fluxbase.postgrest](../../../)/[QueryBuilder](../../)/[Filter](../)/[Filter](./)
 
 # Filter
 

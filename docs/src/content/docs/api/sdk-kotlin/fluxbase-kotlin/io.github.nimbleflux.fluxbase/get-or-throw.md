@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase](index.md)/[getOrThrow](get-or-throw.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase](../)/[getOrThrow](./)
 
 # getOrThrow
 
 [jvm]\
-fun &lt;[T](get-or-throw.md)&gt; [FluxbaseResponse](-fluxbase-response/index.md)&lt;[T](get-or-throw.md)&gt;.[getOrThrow](get-or-throw.md)(): [T](get-or-throw.md)
+fun &lt;[T](./)&gt; [FluxbaseResponse](../-fluxbase-response/)&lt;[T](./)&gt;.[getOrThrow](./)(): [T](./)
 
 Returns the data on success, or throws the error on failure.

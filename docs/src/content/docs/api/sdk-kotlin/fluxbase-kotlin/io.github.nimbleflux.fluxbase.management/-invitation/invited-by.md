@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[Invitation](index.md)/[invitedBy](invited-by.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[Invitation](../)/[invitedBy](./)
 
 # invitedBy
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;invited_by&quot;)
 
-val [invitedBy](invited-by.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+val [invitedBy](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

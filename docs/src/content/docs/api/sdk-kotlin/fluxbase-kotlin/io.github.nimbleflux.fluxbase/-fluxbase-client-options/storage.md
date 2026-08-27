@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClientOptions](index.md)/[storage](storage.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClientOptions](../)/[storage](./)
 
 # storage
 
 [jvm]\
-val [storage](storage.md): [StorageAdapter](../../io.github.nimbleflux.fluxbase.auth/-storage-adapter/index.md)
+val [storage](./): [StorageAdapter](../../../iogithubnimblefluxfluxbaseauth/-storage-adapter/)
 
 #### Parameters
 
@@ -18,4 +18,4 @@ jvm
 
 | | |
 |---|---|
-| storage | custom session persistence (default: [MemoryStorage](../../io.github.nimbleflux.fluxbase.auth/-memory-storage/index.md)). |
+| storage | custom session persistence (default: [MemoryStorage](../../../iogithubnimblefluxfluxbaseauth/-memory-storage/)). |

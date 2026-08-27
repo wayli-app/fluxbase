@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ClientKey](index.md)/[expiresAt](expires-at.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[ClientKey](../)/[expiresAt](./)
 
 # expiresAt
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;expires_at&quot;)
 
-val [expiresAt](expires-at.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [expiresAt](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

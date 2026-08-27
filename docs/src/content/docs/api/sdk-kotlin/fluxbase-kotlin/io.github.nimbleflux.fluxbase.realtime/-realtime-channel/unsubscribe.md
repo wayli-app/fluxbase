@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[RealtimeChannel](index.md)/[unsubscribe](unsubscribe.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.realtime](../../)/[RealtimeChannel](../)/[unsubscribe](./)
 
 # unsubscribe
 
 [jvm]\
-suspend fun [unsubscribe](unsubscribe.md)()
+suspend fun [unsubscribe](./)()
 
 Unsubscribe and close the connection. Port of `unsubscribe()` in `realtime.ts`.

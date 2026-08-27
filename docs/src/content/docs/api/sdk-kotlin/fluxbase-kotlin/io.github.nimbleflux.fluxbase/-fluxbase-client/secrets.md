@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[secrets](secrets.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[secrets](./)
 
 # secrets
 
 [jvm]\
-val [secrets](secrets.md): [FluxbaseSecrets](../../io.github.nimbleflux.fluxbase.secrets/-fluxbase-secrets/index.md)
+val [secrets](./): [FluxbaseSecrets](../../../iogithubnimblefluxfluxbasesecrets/-fluxbase-secrets/)
 
 Encrypted Secrets module.
