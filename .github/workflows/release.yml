@@ -536,12 +536,36 @@ jobs:
           Write the summary now (1-2 sentences only):
           PROMPT_EOF
 
+          # Groq decommissions models regularly (llama-3.3-70b-versatile was
+          # shut down for non-Enterprise tiers on 2026-08-16 and has 404ed
+          # since). Discover what this API key can actually use and pick a
+          # preferred model instead of hard-coding one that breaks again.
+          AVAILABLE_MODELS=$(curl -sf https://api.groq.com/openai/v1/models \
+            -H "Authorization: Bearer $GROQ_API_KEY" | jq -r '.data[].id' || true)
+          MODEL=""
+          for candidate in openai/gpt-oss-120b openai/gpt-oss-20b moonshotai/kimi-k2-instruct meta-llama/llama-4-scout-17b-16e-instruct; do
+            if echo "$AVAILABLE_MODELS" | grep -qx "$candidate"; then
+              MODEL="$candidate"
+              break
+            fi
+          done
+          # Preference list exhausted or discovery failed: take any chat model.
+          if [ -z "$MODEL" ]; then
+            MODEL=$(echo "$AVAILABLE_MODELS" | grep -vE 'whisper|tts|guard|embed' | head -n1)
+          fi
+          if [ -z "$MODEL" ]; then
+            echo "::warning::No usable Groq model for this API key, skipping AI summary"
+            echo "summary=This release includes bug fixes, improvements, and new features. See the changelog below for details." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "Using Groq model: $MODEL"
+
           # Call Groq API (OpenAI-compatible) and capture both response and HTTP status
           HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" https://api.groq.com/openai/v1/chat/completions \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $GROQ_API_KEY" \
             -d "{
-              \"model\": \"llama-3.3-70b-versatile\",
+              \"model\": \"$MODEL\",
               \"max_tokens\": 300,
               \"messages\": [{
                 \"role\": \"user\",
