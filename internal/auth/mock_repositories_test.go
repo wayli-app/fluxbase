@@ -195,7 +195,7 @@ func TestMockSessionRepository_UpdateTokens(t *testing.T) {
 	newRefresh := "new-refresh"
 	newExpiry := time.Now().Add(2 * time.Hour)
 
-	err := repo.UpdateTokens(ctx, session.ID, newAccess, newRefresh, newExpiry)
+	err := repo.UpdateTokens(ctx, session.ID, "old-refresh", newAccess, newRefresh, newExpiry)
 	if err != nil {
 		t.Fatalf("UpdateTokens failed: %v", err)
 	}

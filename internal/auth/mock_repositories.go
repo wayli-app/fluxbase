@@ -375,13 +375,18 @@ func (m *MockSessionRepository) GetByUserID(ctx context.Context, userID string) 
 	return activeSessions, nil
 }
 
-func (m *MockSessionRepository) UpdateTokens(ctx context.Context, id, accessToken, refreshToken string, expiresAt time.Time) error {
+func (m *MockSessionRepository) UpdateTokens(ctx context.Context, id, expectedRefreshToken, accessToken, refreshToken string, expiresAt time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	session, exists := m.sessions[id]
 	if !exists {
 		return ErrSessionNotFound
+	}
+
+	// Compare-and-swap: reject a refresh token that was already rotated.
+	if session.RefreshToken != expectedRefreshToken {
+		return ErrRefreshTokenRotated
 	}
 
 	// Remove old token mappings

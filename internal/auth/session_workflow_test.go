@@ -220,7 +220,7 @@ func TestRefreshSession_Success(t *testing.T) {
 	newRefreshToken := "new-refresh-token"
 	newExpiry := time.Now().Add(2 * time.Hour)
 
-	err = repo.UpdateTokens(ctx, session.ID, newAccessToken, newRefreshToken, newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, oldRefreshToken, newAccessToken, newRefreshToken, newExpiry)
 	require.NoError(t, err)
 
 	// Verify old tokens no longer work
@@ -248,7 +248,7 @@ func TestRefreshSession_Expired(t *testing.T) {
 	newRefreshToken := "new-refresh-token"
 	newExpiry := time.Now().Add(2 * time.Hour)
 
-	err = repo.UpdateTokens(ctx, session.ID, newAccessToken, newRefreshToken, newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, "expired-refresh", newAccessToken, newRefreshToken, newExpiry)
 	require.NoError(t, err)
 
 	// Verify session can still be refreshed even if expired
@@ -268,7 +268,7 @@ func TestRefreshSession_InvalidToken(t *testing.T) {
 	newRefreshToken := "new-refresh-token"
 	newExpiry := time.Now().Add(2 * time.Hour)
 
-	err := repo.UpdateTokens(ctx, "invalid-session-id", newAccessToken, newRefreshToken, newExpiry)
+	err := repo.UpdateTokens(ctx, "invalid-session-id", "old-refresh", newAccessToken, newRefreshToken, newExpiry)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrSessionNotFound)
@@ -293,7 +293,7 @@ func TestRefreshSession_RevokedSession(t *testing.T) {
 	newRefreshToken := "new-refresh-token"
 	newExpiry := time.Now().Add(2 * time.Hour)
 
-	err = repo.UpdateTokens(ctx, session.ID, newAccessToken, newRefreshToken, newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, "refresh-token", newAccessToken, newRefreshToken, newExpiry)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrSessionNotFound)
@@ -578,7 +578,7 @@ func TestSession_TokenRotation(t *testing.T) {
 	newExpiry := time.Now().Add(1 * time.Hour)
 
 	// Step 3: Update session with new tokens
-	err = repo.UpdateTokens(ctx, session.ID, newAccess, newRefresh, newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, oldRefresh, newAccess, newRefresh, newExpiry)
 	require.NoError(t, err)
 
 	// Step 4: Verify old tokens no longer work
@@ -660,7 +660,7 @@ func TestSession_Workflow_CompleteLifecycle(t *testing.T) {
 	newRefreshToken := "new-refresh-token"
 	newExpiry := time.Now().Add(2 * time.Hour)
 
-	err = repo.UpdateTokens(ctx, session.ID, newAccessToken, newRefreshToken, newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, refreshToken, newAccessToken, newRefreshToken, newExpiry)
 	require.NoError(t, err)
 
 	// Step 6: Verify new tokens work
