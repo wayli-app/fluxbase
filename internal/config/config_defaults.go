@@ -62,7 +62,7 @@ func setDefaults() {
 
 	// Auth defaults
 	viper.SetDefault("auth.jwt_secret", "your-secret-key-change-in-production")
-	viper.SetDefault("auth.jwt_expiry", "15m")
+	viper.SetDefault("auth.jwt_expiry", "1h")
 	// 90 days: refresh tokens ROTATE on every refresh, so this is a sliding
 	// session window — mobile clients expect to reopen after weeks and stay
 	// signed in. 7 days logged users out over a vacation-length absence.
