@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[QueryBuilder](index.md)/[limit](limit.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.postgrest](../../)/[QueryBuilder](../)/[limit](./)
 
 # limit
 
 [jvm]\
-fun [limit](limit.md)(limit: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html)): [QueryBuilder](index.md)&lt;[T](index.md)&gt;
+fun [limit](./)(limit: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html)): [QueryBuilder](../)&lt;[T](../)&gt;

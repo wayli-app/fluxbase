@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase](../../index.md)/[FluxbaseResponse](../index.md)/[Error](index.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseResponse](../)/[Error](./)
 
 # Error
 
 [jvm]\
-data class [Error](index.md)(val error: [FluxbaseError](../../-fluxbase-error/index.md)) : [FluxbaseResponse](../index.md)&lt;[Nothing](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-nothing/index.html)&gt; 
+data class [Error](./)(val error: [FluxbaseError](../../-fluxbase-error/)) : [FluxbaseResponse](../)&lt;[Nothing](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-nothing/index.html)&gt; 
 
 Failed result.
 
@@ -18,19 +18,19 @@ Failed result.
 
 | | |
 |---|---|
-| [Error](-error.md) | [jvm]<br>constructor(error: [FluxbaseError](../../-fluxbase-error/index.md)) |
+| [Error](-error/) | [jvm]<br>constructor(error: [FluxbaseError](../../-fluxbase-error/)) |
 
 ## Properties
 
 | Name | Summary |
 |---|---|
-| [data](data.md) | [jvm]<br>open override val [data](data.md): [Nothing](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-nothing/index.html)?<br>The data payload on success, or null on error. In the TS SDK this is the `data` field. |
-| [error](error.md) | [jvm]<br>open override val [error](error.md): [FluxbaseError](../../-fluxbase-error/index.md)<br>The error on failure. Null on success. |
+| [data](data/) | [jvm]<br>open override val [data](data/): [Nothing](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-nothing/index.html)?<br>The data payload on success, or null on error. In the TS SDK this is the `data` field. |
+| [error](error/) | [jvm]<br>open override val [error](error/): [FluxbaseError](../../-fluxbase-error/)<br>The error on failure. Null on success. |
 
 ## Functions
 
 | Name | Summary |
 |---|---|
-| [component2](../component2.md) | [jvm]<br>open operator fun [component2](../component2.md)(): [FluxbaseError](../../-fluxbase-error/index.md)? |
-| [getOrNull](../../get-or-null.md) | [jvm]<br>fun &lt;[T](../../get-or-null.md)&gt; [FluxbaseResponse](../index.md)&lt;[T](../../get-or-null.md)&gt;.[getOrNull](../../get-or-null.md)(): [T](../../get-or-null.md)?<br>Returns the data on success, or null on error. Equivalent to `result.data` in the TS SDK. |
-| [getOrThrow](../../get-or-throw.md) | [jvm]<br>fun &lt;[T](../../get-or-throw.md)&gt; [FluxbaseResponse](../index.md)&lt;[T](../../get-or-throw.md)&gt;.[getOrThrow](../../get-or-throw.md)(): [T](../../get-or-throw.md)<br>Returns the data on success, or throws the error on failure. |
+| [component2](../component2/) | [jvm]<br>open operator fun [component2](../component2/)(): [FluxbaseError](../../-fluxbase-error/)? |
+| [getOrNull](../../get-or-null/) | [jvm]<br>fun &lt;[T](../../get-or-null/)&gt; [FluxbaseResponse](../)&lt;[T](../../get-or-null/)&gt;.[getOrNull](../../get-or-null/)(): [T](../../get-or-null/)?<br>Returns the data on success, or null on error. Equivalent to `result.data` in the TS SDK. |
+| [getOrThrow](../../get-or-throw/) | [jvm]<br>fun &lt;[T](../../get-or-throw/)&gt; [FluxbaseResponse](../)&lt;[T](../../get-or-throw/)&gt;.[getOrThrow](../../get-or-throw/)(): [T](../../get-or-throw/)<br>Returns the data on success, or throws the error on failure. |

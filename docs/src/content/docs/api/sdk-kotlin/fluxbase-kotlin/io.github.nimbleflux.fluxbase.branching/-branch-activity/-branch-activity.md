@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[BranchActivity](index.md)/[BranchActivity](-branch-activity.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[BranchActivity](../)/[BranchActivity](./)
 
 # BranchActivity
 

@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[InvitationsManager](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.management](../)/[InvitationsManager](./)
 
 # InvitationsManager
 
 [jvm]\
-class [InvitationsManager](index.md)(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md))
+class [InvitationsManager](./)(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/))
 
 Invitations. Public methods: validate, accept. Admin methods: create, list, revoke.
 
@@ -18,11 +18,11 @@ Invitations. Public methods: validate, accept. Admin methods: create, list, revo
 
 | | |
 |---|---|
-| [InvitationsManager](-invitations-manager.md) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md)) |
+| [InvitationsManager](-invitations-manager/) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/)) |
 
 ## Functions
 
 | Name | Summary |
 |---|---|
-| [accept](accept.md) | [jvm]<br>suspend fun [accept](accept.md)(token: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), password: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[Unit](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-unit/index.html)&gt;<br>Accept an invitation (public). POSTs `/api/v1/invitations/{token}/accept`. |
-| [validate](validate.md) | [jvm]<br>suspend fun [validate](validate.md)(token: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[ValidateInvitationResponse](../-validate-invitation-response/index.md)&gt;<br>Validate an invitation token (public). GETs `/api/v1/invitations/{token}/validate`. |
+| [accept](accept/) | [jvm]<br>suspend fun [accept](accept/)(token: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), password: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[Unit](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-unit/index.html)&gt;<br>Accept an invitation (public). POSTs `/api/v1/invitations/{token}/accept`. |
+| [validate](validate/) | [jvm]<br>suspend fun [validate](validate/)(token: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[ValidateInvitationResponse](../-validate-invitation-response/)&gt;<br>Validate an invitation token (public). GETs `/api/v1/invitations/{token}/validate`. |

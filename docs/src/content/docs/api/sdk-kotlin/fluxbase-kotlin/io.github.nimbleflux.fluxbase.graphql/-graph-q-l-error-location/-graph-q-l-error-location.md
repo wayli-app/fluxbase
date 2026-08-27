@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLErrorLocation](index.md)/[GraphQLErrorLocation](-graph-q-l-error-location.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.graphql](../../)/[GraphQLErrorLocation](../)/[GraphQLErrorLocation](./)
 
 # GraphQLErrorLocation
 

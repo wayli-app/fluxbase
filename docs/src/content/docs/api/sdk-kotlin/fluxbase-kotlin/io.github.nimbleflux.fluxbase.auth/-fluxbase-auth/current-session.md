@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[currentSession](current-session.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[FluxbaseAuth](../)/[currentSession](./)
 
 # currentSession
 
 [jvm]\
-var [currentSession](current-session.md): [AuthSession](../-auth-session/index.md)?
+var [currentSession](./): [AuthSession](../../-auth-session/)?
 
 The current session, or null if not authenticated.

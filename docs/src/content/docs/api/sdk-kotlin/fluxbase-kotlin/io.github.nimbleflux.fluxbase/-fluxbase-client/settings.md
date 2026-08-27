@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[settings](settings.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[settings](./)
 
 # settings
 
 [jvm]\
-val [settings](settings.md): [FluxbaseSettings](../../io.github.nimbleflux.fluxbase.settings/-fluxbase-settings/index.md)
+val [settings](./): [FluxbaseSettings](../../../iogithubnimblefluxfluxbasesettings/-fluxbase-settings/)
 
 App/system settings + user secrets.

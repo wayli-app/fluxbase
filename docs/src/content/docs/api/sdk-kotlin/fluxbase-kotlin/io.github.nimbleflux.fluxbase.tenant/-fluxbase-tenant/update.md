@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[FluxbaseTenant](index.md)/[update](update.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[FluxbaseTenant](../)/[update](./)
 
 # update
 
 [jvm]\
-suspend fun [update](update.md)(id: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), options: [UpdateTenantOptions](../-update-tenant-options/index.md)): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[Tenant](../-tenant/index.md)&gt;
+suspend fun [update](./)(id: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), options: [UpdateTenantOptions](../../-update-tenant-options/)): [FluxbaseResponse](../../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[Tenant](../../-tenant/)&gt;
 
 Update a tenant. PATCHes `/api/v1/admin/tenants/{id}`.

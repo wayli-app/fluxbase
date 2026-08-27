@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[storage](storage.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[storage](./)
 
 # storage
 
 [jvm]\
-val [storage](storage.md): [FluxbaseStorage](../../io.github.nimbleflux.fluxbase.storage/-fluxbase-storage/index.md)
+val [storage](./): [FluxbaseStorage](../../../iogithubnimblefluxfluxbasestorage/-fluxbase-storage/)
 
 Storage module — file upload/download/list.

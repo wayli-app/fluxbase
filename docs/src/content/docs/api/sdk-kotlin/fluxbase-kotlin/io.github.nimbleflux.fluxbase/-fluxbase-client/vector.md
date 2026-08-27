@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[vector](vector.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[vector](./)
 
 # vector
 
 [jvm]\
-val [vector](vector.md): [FluxbaseVector](../../io.github.nimbleflux.fluxbase.vector/-fluxbase-vector/index.md)
+val [vector](./): [FluxbaseVector](../../../iogithubnimblefluxfluxbasevector/-fluxbase-vector/)
 
 Vector embedding + similarity search.

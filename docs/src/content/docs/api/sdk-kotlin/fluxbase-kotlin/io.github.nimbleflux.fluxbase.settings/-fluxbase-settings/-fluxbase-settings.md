@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[FluxbaseSettings](index.md)/[FluxbaseSettings](-fluxbase-settings.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.settings](../../)/[FluxbaseSettings](../)/[FluxbaseSettings](./)
 
 # FluxbaseSettings
 
 [jvm]\
-constructor(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md))
+constructor(http: [FluxbaseHttpClient](../../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/))

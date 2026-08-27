@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseResponse](index.md)/[error](error.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseResponse](../)/[error](./)
 
 # error
 
 [jvm]\
-abstract val [error](error.md): [FluxbaseError](../-fluxbase-error/index.md)?
+abstract val [error](./): [FluxbaseError](../../-fluxbase-error/)?
 
 The error on failure. Null on success.

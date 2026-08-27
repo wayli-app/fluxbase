@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[User](index.md)/[emailVerified](email-verified.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[User](../)/[emailVerified](./)
 
 # emailVerified
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;email_verified&quot;)
 
-val [emailVerified](email-verified.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false
+val [emailVerified](./): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false

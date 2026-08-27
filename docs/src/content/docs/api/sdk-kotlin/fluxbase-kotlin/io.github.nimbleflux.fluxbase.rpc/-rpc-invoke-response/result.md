@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcInvokeResponse](index.md)/[result](result.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.rpc](../../)/[RpcInvokeResponse](../)/[result](./)
 
 # result
 
 [jvm]\
-val [result](result.md): JsonElement? = null
+val [result](./): JsonElement? = null

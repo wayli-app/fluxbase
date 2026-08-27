@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[FluxbaseRpc](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.rpc](../)/[FluxbaseRpc](./)
 
 # FluxbaseRpc
 
 [jvm]\
-class [FluxbaseRpc](index.md)(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md))
+class [FluxbaseRpc](./)(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/))
 
 RPC (Remote Procedure Call) module — port of `FluxbaseRPC` from `sdk/src/rpc.ts`.
 
@@ -31,14 +31,14 @@ val (final, _) = client.rpc.waitForCompletion(started!!.executionId!!)
 
 | | |
 |---|---|
-| [FluxbaseRpc](-fluxbase-rpc.md) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md)) |
+| [FluxbaseRpc](-fluxbase-rpc/) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/)) |
 
 ## Functions
 
 | Name | Summary |
 |---|---|
-| [getLogs](get-logs.md) | [jvm]<br>suspend fun [getLogs](get-logs.md)(executionId: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), afterLine: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html)? = null): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[RpcExecutionLog](../-rpc-execution-log/index.md)&gt;&gt;<br>Get execution logs. GETs `/api/v1/rpc/executions/{id}/logs`. Port of `getLogs()` in `rpc.ts:177`. |
-| [getStatus](get-status.md) | [jvm]<br>suspend fun [getStatus](get-status.md)(executionId: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[RpcExecution](../-rpc-execution/index.md)&gt;<br>Get the status of an async RPC execution. GETs `/api/v1/rpc/executions/{id}`. Port of `getStatus()` in `rpc.ts:148`. |
-| [invoke](invoke.md) | [jvm]<br>suspend fun [invoke](invoke.md)(name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), params: [Map](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-map/index.html)&lt;[String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), [Any](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-any/index.html)?&gt;? = null, options: [RpcInvokeOptions](../-rpc-invoke-options/index.md) = RpcInvokeOptions()): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[RpcInvokeResponse](../-rpc-invoke-response/index.md)&gt;<br>Invoke an RPC procedure. POSTs `/api/v1/rpc/{namespace}/{name}`. Port of `invoke()` in `rpc.ts:111`. |
-| [list](list.md) | [jvm]<br>suspend fun [list](list.md)(namespace: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[RpcProcedureSummary](../-rpc-procedure-summary/index.md)&gt;&gt;<br>List available RPC procedures. GETs `/api/v1/rpc/procedures`. Port of `list()` in `rpc.ts:69`. |
-| [waitForCompletion](wait-for-completion.md) | [jvm]<br>suspend fun [waitForCompletion](wait-for-completion.md)(executionId: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), options: [WaitForCompletionOptions](../-wait-for-completion-options/index.md) = WaitForCompletionOptions()): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[RpcExecution](../-rpc-execution/index.md)&gt;<br>Poll for execution completion with exponential backoff. Port of `waitForCompletion()` in `rpc.ts:212`. |
+| [getLogs](get-logs/) | [jvm]<br>suspend fun [getLogs](get-logs/)(executionId: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), afterLine: [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html)? = null): [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[RpcExecutionLog](../-rpc-execution-log/)&gt;&gt;<br>Get execution logs. GETs `/api/v1/rpc/executions/{id}/logs`. Port of `getLogs()` in `rpc.ts:177`. |
+| [getStatus](get-status/) | [jvm]<br>suspend fun [getStatus](get-status/)(executionId: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[RpcExecution](../-rpc-execution/)&gt;<br>Get the status of an async RPC execution. GETs `/api/v1/rpc/executions/{id}`. Port of `getStatus()` in `rpc.ts:148`. |
+| [invoke](invoke/) | [jvm]<br>suspend fun [invoke](invoke/)(name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), params: [Map](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-map/index.html)&lt;[String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), [Any](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-any/index.html)?&gt;? = null, options: [RpcInvokeOptions](../-rpc-invoke-options/) = RpcInvokeOptions()): [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[RpcInvokeResponse](../-rpc-invoke-response/)&gt;<br>Invoke an RPC procedure. POSTs `/api/v1/rpc/{namespace}/{name}`. Port of `invoke()` in `rpc.ts:111`. |
+| [list](list/) | [jvm]<br>suspend fun [list](list/)(namespace: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null): [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[RpcProcedureSummary](../-rpc-procedure-summary/)&gt;&gt;<br>List available RPC procedures. GETs `/api/v1/rpc/procedures`. Port of `list()` in `rpc.ts:69`. |
+| [waitForCompletion](wait-for-completion/) | [jvm]<br>suspend fun [waitForCompletion](wait-for-completion/)(executionId: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), options: [WaitForCompletionOptions](../-wait-for-completion-options/) = WaitForCompletionOptions()): [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[RpcExecution](../-rpc-execution/)&gt;<br>Poll for execution completion with exponential backoff. Port of `waitForCompletion()` in `rpc.ts:212`. |

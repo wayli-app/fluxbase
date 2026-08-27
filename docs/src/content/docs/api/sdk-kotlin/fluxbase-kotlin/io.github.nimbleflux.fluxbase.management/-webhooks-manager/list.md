@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[WebhooksManager](index.md)/[list](list.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[WebhooksManager](../)/[list](./)
 
 # list
 
 [jvm]\
-suspend fun [list](list.md)(): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[ListWebhooksResponse](../-list-webhooks-response/index.md)&gt;
+suspend fun [list](./)(): [FluxbaseResponse](../../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[ListWebhooksResponse](../../-list-webhooks-response/)&gt;

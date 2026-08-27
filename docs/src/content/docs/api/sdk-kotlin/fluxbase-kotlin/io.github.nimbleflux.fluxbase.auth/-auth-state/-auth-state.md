@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthState](index.md)/[AuthState](-auth-state.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[AuthState](../)/[AuthState](./)
 
 # AuthState
 
 [jvm]\
-constructor(event: [AuthChangeEvent](../-auth-change-event/index.md), session: [AuthSession](../-auth-session/index.md)?)
+constructor(event: [AuthChangeEvent](../../-auth-change-event/), session: [AuthSession](../../-auth-session/)?)

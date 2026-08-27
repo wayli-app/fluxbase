@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[ListBranchesResponse](index.md)/[limit](limit.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[ListBranchesResponse](../)/[limit](./)
 
 # limit
 
 [jvm]\
-val [limit](limit.md): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 0
+val [limit](./): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 0

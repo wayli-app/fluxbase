@@ -5,16 +5,16 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[FluxbaseManagement](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.management](../)/[FluxbaseManagement](./)
 
 # FluxbaseManagement
 
 [jvm]\
-class [FluxbaseManagement](index.md)(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md))
+class [FluxbaseManagement](./)(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/))
 
 Management module — port of `FluxbaseManagement` from `sdk/src/management.ts`.
 
-Aggregate of three sub-managers: client keys, webhooks, invitations. Unlike most modules which wrap in `{data, error}`, the TS management managers throw on error. The Kotlin port wraps them in [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md) for consistency.
+Aggregate of three sub-managers: client keys, webhooks, invitations. Unlike most modules which wrap in `{data, error}`, the TS management managers throw on error. The Kotlin port wraps them in [FluxbaseResponse](../../iogithubnimblefluxfluxbase/-fluxbase-response/) for consistency.
 
 Usage:
 
@@ -27,12 +27,12 @@ val (hooks, _) = client.management.webhooks.list()
 
 | | |
 |---|---|
-| [FluxbaseManagement](-fluxbase-management.md) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md)) |
+| [FluxbaseManagement](-fluxbase-management/) | [jvm]<br>constructor(http: [FluxbaseHttpClient](../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/)) |
 
 ## Properties
 
 | Name | Summary |
 |---|---|
-| [clientKeys](client-keys.md) | [jvm]<br>val [clientKeys](client-keys.md): [ClientKeysManager](../-client-keys-manager/index.md) |
-| [invitations](invitations.md) | [jvm]<br>val [invitations](invitations.md): [InvitationsManager](../-invitations-manager/index.md) |
-| [webhooks](webhooks.md) | [jvm]<br>val [webhooks](webhooks.md): [WebhooksManager](../-webhooks-manager/index.md) |
+| [clientKeys](client-keys/) | [jvm]<br>val [clientKeys](client-keys/): [ClientKeysManager](../-client-keys-manager/) |
+| [invitations](invitations/) | [jvm]<br>val [invitations](invitations/): [InvitationsManager](../-invitations-manager/) |
+| [webhooks](webhooks/) | [jvm]<br>val [webhooks](webhooks/): [WebhooksManager](../-webhooks-manager/) |

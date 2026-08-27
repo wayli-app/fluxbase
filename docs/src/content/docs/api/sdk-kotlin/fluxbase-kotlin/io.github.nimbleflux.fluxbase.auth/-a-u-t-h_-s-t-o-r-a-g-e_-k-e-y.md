@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase.auth](index.md)/[AUTH_STORAGE_KEY](-a-u-t-h_-s-t-o-r-a-g-e_-k-e-y.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.auth](../)/[AUTH_STORAGE_KEY](./)
 
 # AUTH_STORAGE_KEY
 
 [jvm]\
-const val [AUTH_STORAGE_KEY](-a-u-t-h_-s-t-o-r-a-g-e_-k-e-y.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+const val [AUTH_STORAGE_KEY](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
 
 The storage key under which the session JSON is persisted.

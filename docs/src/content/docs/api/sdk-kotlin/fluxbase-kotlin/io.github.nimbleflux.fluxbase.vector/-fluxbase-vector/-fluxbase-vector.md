@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[FluxbaseVector](index.md)/[FluxbaseVector](-fluxbase-vector.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.vector](../../)/[FluxbaseVector](../)/[FluxbaseVector](./)
 
 # FluxbaseVector
 
 [jvm]\
-constructor(http: [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md))
+constructor(http: [FluxbaseHttpClient](../../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/))

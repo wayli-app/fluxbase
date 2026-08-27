@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[FluxbaseAuth](index.md)/[signOut](sign-out.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[FluxbaseAuth](../)/[signOut](./)
 
 # signOut
 
 [jvm]\
-suspend fun [signOut](sign-out.md)()
+suspend fun [signOut](./)()
 
 Sign out. POSTs to `/api/v1/auth/signout`, clears the session, and restores the anon key on the HTTP client.
 

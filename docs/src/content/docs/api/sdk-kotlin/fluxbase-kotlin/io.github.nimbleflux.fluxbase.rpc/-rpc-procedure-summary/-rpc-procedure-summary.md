@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[RpcProcedureSummary](index.md)/[RpcProcedureSummary](-rpc-procedure-summary.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.rpc](../../)/[RpcProcedureSummary](../)/[RpcProcedureSummary](./)
 
 # RpcProcedureSummary
 

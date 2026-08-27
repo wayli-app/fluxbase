@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.storage](../index.md)/[FileObject](index.md)/[contentType](content-type.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.storage](../../)/[FileObject](../)/[contentType](./)
 
 # contentType
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;content_type&quot;)
 
-val [contentType](content-type.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [contentType](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[PostgresChangesConfig](index.md)/[PostgresChangesConfig](-postgres-changes-config.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.realtime](../../)/[PostgresChangesConfig](../)/[PostgresChangesConfig](./)
 
 # PostgresChangesConfig
 

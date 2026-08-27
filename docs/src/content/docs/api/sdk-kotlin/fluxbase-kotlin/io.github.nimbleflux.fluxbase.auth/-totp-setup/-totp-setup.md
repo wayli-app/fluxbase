@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TotpSetup](index.md)/[TotpSetup](-totp-setup.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[TotpSetup](../)/[TotpSetup](./)
 
 # TotpSetup
 

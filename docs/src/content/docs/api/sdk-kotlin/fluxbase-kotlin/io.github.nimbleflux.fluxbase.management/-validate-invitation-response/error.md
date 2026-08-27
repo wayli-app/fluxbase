@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ValidateInvitationResponse](index.md)/[error](error.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[ValidateInvitationResponse](../)/[error](./)
 
 # error
 
 [jvm]\
-val [error](error.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [error](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

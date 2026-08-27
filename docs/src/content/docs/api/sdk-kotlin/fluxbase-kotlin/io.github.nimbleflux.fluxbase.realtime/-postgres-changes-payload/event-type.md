@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[PostgresChangesPayload](index.md)/[eventType](event-type.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.realtime](../../)/[PostgresChangesPayload](../)/[eventType](./)
 
 # eventType
 
 [jvm]\
-val [eventType](event-type.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+val [eventType](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[ListBranchesOptions](index.md)/[type](type.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[ListBranchesOptions](../)/[type](./)
 
 # type
 
 [jvm]\
-val [type](type.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [type](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

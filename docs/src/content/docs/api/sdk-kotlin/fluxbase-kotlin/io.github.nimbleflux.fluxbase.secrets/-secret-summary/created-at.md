@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.secrets](../index.md)/[SecretSummary](index.md)/[createdAt](created-at.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.secrets](../../)/[SecretSummary](../)/[createdAt](./)
 
 # createdAt
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;created_at&quot;)
 
-val [createdAt](created-at.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+val [createdAt](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[http](http.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[http](./)
 
 # http
 
 [jvm]\
-val [http](http.md): [FluxbaseHttpClient](../../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md)
+val [http](./): [FluxbaseHttpClient](../../../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/)
 
 The shared HTTP client used by all modules.

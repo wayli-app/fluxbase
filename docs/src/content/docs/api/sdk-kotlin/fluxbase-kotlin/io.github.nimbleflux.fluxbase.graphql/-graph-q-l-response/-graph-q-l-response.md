@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLResponse](index.md)/[GraphQLResponse](-graph-q-l-response.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.graphql](../../)/[GraphQLResponse](../)/[GraphQLResponse](./)
 
 # GraphQLResponse
 
 [jvm]\
-constructor(data: [T](index.md)? = null, errors: [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../-graph-q-l-error/index.md)&gt;? = null)
+constructor(data: [T](../)? = null, errors: [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../../-graph-q-l-error/)&gt;? = null)

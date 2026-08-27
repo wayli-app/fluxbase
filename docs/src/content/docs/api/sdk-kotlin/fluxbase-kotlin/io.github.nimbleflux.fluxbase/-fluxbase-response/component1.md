@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseResponse](index.md)/[component1](component1.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseResponse](../)/[component1](./)
 
 # component1
 
 [jvm]\
-open operator fun [component1](component1.md)(): [T](index.md)?
+open operator fun [component1](./)(): [T](../)?
 
 Destructuring support: `val (data, error) = result`. Matches the TS `const { data, error } = await ...` pattern. These must be members (not extensions) for Kotlin to recognize them in destructuring declarations.

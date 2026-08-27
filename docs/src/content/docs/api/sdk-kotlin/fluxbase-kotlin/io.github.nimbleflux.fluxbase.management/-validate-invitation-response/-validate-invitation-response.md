@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ValidateInvitationResponse](index.md)/[ValidateInvitationResponse](-validate-invitation-response.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[ValidateInvitationResponse](../)/[ValidateInvitationResponse](./)
 
 # ValidateInvitationResponse
 
 [jvm]\
-constructor(valid: [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html), invitation: [Invitation](../-invitation/index.md)? = null, error: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null)
+constructor(valid: [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html), invitation: [Invitation](../../-invitation/)? = null, error: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null)

@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.settings](../index.md)/[UserSetting](index.md)/[value](value.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.settings](../../)/[UserSetting](../)/[value](./)
 
 # value
 
 [jvm]\
-val [value](value.md): JsonElement
+val [value](./): JsonElement

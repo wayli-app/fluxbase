@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.secrets](../index.md)/[SecretSummary](index.md)/[SecretSummary](-secret-summary.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.secrets](../../)/[SecretSummary](../)/[SecretSummary](./)
 
 # SecretSummary
 

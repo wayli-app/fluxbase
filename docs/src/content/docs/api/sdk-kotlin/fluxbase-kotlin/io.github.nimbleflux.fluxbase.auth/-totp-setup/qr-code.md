@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TotpSetup](index.md)/[qrCode](qr-code.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[TotpSetup](../)/[qrCode](./)
 
 # qrCode
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;qr_code&quot;)
 
-val [qrCode](qr-code.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+val [qrCode](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

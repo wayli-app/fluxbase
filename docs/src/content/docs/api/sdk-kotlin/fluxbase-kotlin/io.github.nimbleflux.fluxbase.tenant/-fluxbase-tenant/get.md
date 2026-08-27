@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[FluxbaseTenant](index.md)/[get](get.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[FluxbaseTenant](../)/[get](./)
 
 # get
 
 [jvm]\
-suspend fun [get](get.md)(id: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../io.github.nimbleflux.fluxbase/-fluxbase-response/index.md)&lt;[Tenant](../-tenant/index.md)&gt;
+suspend fun [get](./)(id: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)): [FluxbaseResponse](../../../iogithubnimblefluxfluxbase/-fluxbase-response/)&lt;[Tenant](../../-tenant/)&gt;
 
 Get a tenant by ID.

@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[EmbedResponse](index.md)/[model](model.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.vector](../../)/[EmbedResponse](../)/[model](./)
 
 # model
 
 [jvm]\
-val [model](model.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)
+val [model](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)

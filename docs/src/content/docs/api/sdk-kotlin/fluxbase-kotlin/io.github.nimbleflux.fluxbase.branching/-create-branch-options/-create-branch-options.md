@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[CreateBranchOptions](index.md)/[CreateBranchOptions](-create-branch-options.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[CreateBranchOptions](../)/[CreateBranchOptions](./)
 
 # CreateBranchOptions
 

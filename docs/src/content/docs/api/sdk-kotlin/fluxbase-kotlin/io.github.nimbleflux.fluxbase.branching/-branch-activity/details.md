@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[BranchActivity](index.md)/[details](details.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[BranchActivity](../)/[details](./)
 
 # details
 
 [jvm]\
-val [details](details.md): JsonElement? = null
+val [details](./): JsonElement? = null

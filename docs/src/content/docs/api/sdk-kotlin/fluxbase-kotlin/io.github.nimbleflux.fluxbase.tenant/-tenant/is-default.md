@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[Tenant](index.md)/[isDefault](is-default.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[Tenant](../)/[isDefault](./)
 
 # isDefault
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;is_default&quot;)
 
-val [isDefault](is-default.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false
+val [isDefault](./): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false

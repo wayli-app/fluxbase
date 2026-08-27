@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[WebSocketTransport](index.md)/[close](close.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.realtime](../../)/[WebSocketTransport](../)/[close](./)
 
 # close
 
 [jvm]\
-abstract fun [close](close.md)()
+abstract fun [close](./)()
 
 Close the connection.

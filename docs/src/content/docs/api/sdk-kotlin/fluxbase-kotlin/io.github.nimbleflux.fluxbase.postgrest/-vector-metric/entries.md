@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.postgrest](../index.md)/[VectorMetric](index.md)/[entries](entries.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.postgrest](../../)/[VectorMetric](../)/[entries](./)
 
 # entries
 
 [jvm]\
-val [entries](entries.md): [EnumEntries](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.enums/-enum-entries/index.html)&lt;[VectorMetric](index.md)&gt;
+val [entries](./): [EnumEntries](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.enums/-enum-entries/index.html)&lt;[VectorMetric](../)&gt;
 
 Returns a representation of an immutable list of all enum entries, in the order they're declared.
 

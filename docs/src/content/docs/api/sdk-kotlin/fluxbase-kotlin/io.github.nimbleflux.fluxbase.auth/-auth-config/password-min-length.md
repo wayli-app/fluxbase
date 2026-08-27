@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthConfig](index.md)/[passwordMinLength](password-min-length.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[AuthConfig](../)/[passwordMinLength](./)
 
 # passwordMinLength
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;password_min_length&quot;)
 
-val [passwordMinLength](password-min-length.md): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 8
+val [passwordMinLength](./): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 8

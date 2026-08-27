@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthConfig](index.md)/[emailConfirmationRequired](email-confirmation-required.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[AuthConfig](../)/[emailConfirmationRequired](./)
 
 # emailConfirmationRequired
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;email_confirmation_required&quot;)
 
-val [emailConfirmationRequired](email-confirmation-required.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false
+val [emailConfirmationRequired](./): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false

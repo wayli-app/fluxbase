@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[Tenant](index.md)/[dbName](db-name.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[Tenant](../)/[dbName](./)
 
 # dbName
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;db_name&quot;)
 
-val [dbName](db-name.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [dbName](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

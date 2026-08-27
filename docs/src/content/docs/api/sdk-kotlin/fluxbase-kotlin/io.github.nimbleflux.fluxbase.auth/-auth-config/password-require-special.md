@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthConfig](index.md)/[passwordRequireSpecial](password-require-special.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[AuthConfig](../)/[passwordRequireSpecial](./)
 
 # passwordRequireSpecial
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;password_require_special&quot;)
 
-val [passwordRequireSpecial](password-require-special.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false
+val [passwordRequireSpecial](./): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false

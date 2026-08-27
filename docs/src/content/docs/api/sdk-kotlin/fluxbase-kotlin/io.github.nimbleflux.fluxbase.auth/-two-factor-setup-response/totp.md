@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[TwoFactorSetupResponse](index.md)/[totp](totp.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[TwoFactorSetupResponse](../)/[totp](./)
 
 # totp
 
 [jvm]\
-val [totp](totp.md): [TotpSetup](../-totp-setup/index.md)
+val [totp](./): [TotpSetup](../../-totp-setup/)

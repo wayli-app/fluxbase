@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.branching](../index.md)/[BranchActivity](index.md)/[executedBy](executed-by.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.branching](../../)/[BranchActivity](../)/[executedBy](./)
 
 # executedBy
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;executed_by&quot;)
 
-val [executedBy](executed-by.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [executedBy](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.rpc](../index.md)/[WaitForCompletionOptions](index.md)/[maxIntervalMs](max-interval-ms.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.rpc](../../)/[WaitForCompletionOptions](../)/[maxIntervalMs](./)
 
 # maxIntervalMs
 
 [jvm]\
-val [maxIntervalMs](max-interval-ms.md): [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)
+val [maxIntervalMs](./): [Long](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html)

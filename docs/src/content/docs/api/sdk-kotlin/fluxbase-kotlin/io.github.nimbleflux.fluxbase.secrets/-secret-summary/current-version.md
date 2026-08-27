@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.secrets](../index.md)/[SecretSummary](index.md)/[currentVersion](current-version.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.secrets](../../)/[SecretSummary](../)/[currentVersion](./)
 
 # currentVersion
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;current_version&quot;)
 
-val [currentVersion](current-version.md): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 1
+val [currentVersion](./): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 1

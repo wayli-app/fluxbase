@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[ListWebhooksResponse](index.md)/[total](total.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[ListWebhooksResponse](../)/[total](./)
 
 # total
 
 [jvm]\
-val [total](total.md): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 0
+val [total](./): [Int](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html) = 0

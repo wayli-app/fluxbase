@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[Factor](index.md)/[friendlyName](friendly-name.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[Factor](../)/[friendlyName](./)
 
 # friendlyName
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;friendly_name&quot;)
 
-val [friendlyName](friendly-name.md): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null
+val [friendlyName](./): [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html)? = null

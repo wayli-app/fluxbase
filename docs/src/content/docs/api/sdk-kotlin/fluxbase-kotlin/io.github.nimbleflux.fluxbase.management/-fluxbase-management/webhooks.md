@@ -5,9 +5,9 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.management](../index.md)/[FluxbaseManagement](index.md)/[webhooks](webhooks.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.management](../../)/[FluxbaseManagement](../)/[webhooks](./)
 
 # webhooks
 
 [jvm]\
-val [webhooks](webhooks.md): [WebhooksManager](../-webhooks-manager/index.md)
+val [webhooks](./): [WebhooksManager](../../-webhooks-manager/)

@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[BroadcastCallback](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.realtime](../)/[BroadcastCallback](./)
 
 # BroadcastCallback
 
 [jvm]\
-typealias [BroadcastCallback](index.md) = (JsonElement) -&gt; [Unit](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-unit/index.html)
+typealias [BroadcastCallback](./) = (JsonElement) -&gt; [Unit](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-unit/index.html)
 
 Callback type for broadcast events.

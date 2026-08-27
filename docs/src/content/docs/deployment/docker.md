@@ -337,7 +337,7 @@ AWS_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 > This section covers building the **Docker image** from source. To build a
 > **native binary** (no Docker) on macOS or Linux instead, see
-> [Building from Source](../getting-started/building-from-source/).
+> [Building from Source](../../getting-started/building-from-source/).
 
 ```bash
 # Clone the repository

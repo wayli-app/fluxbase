@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase.functions](index.md)
+//[fluxbase-kotlin](../../)/[io.github.nimbleflux.fluxbase.functions](./)
 
 # Package-level declarations
 
@@ -13,4 +13,4 @@ prev: false
 
 | Name | Summary |
 |---|---|
-| [FluxbaseFunctions](-fluxbase-functions/index.md) | [jvm]<br>class [FluxbaseFunctions](-fluxbase-functions/index.md)(http: [FluxbaseHttpClient](../io.github.nimbleflux.fluxbase.core/-fluxbase-http-client/index.md))<br>Edge Functions module — port of `FluxbaseFunctions` from `sdk/src/functions.ts`. |
+| [FluxbaseFunctions](-fluxbase-functions/) | [jvm]<br>class [FluxbaseFunctions](-fluxbase-functions/)(http: [FluxbaseHttpClient](../iogithubnimblefluxfluxbasecore/-fluxbase-http-client/))<br>Edge Functions module — port of `FluxbaseFunctions` from `sdk/src/functions.ts`. |

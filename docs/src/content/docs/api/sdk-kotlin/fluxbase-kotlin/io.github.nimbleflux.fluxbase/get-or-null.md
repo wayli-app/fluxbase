@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase](index.md)/[getOrNull](get-or-null.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase](../)/[getOrNull](./)
 
 # getOrNull
 
 [jvm]\
-fun &lt;[T](get-or-null.md)&gt; [FluxbaseResponse](-fluxbase-response/index.md)&lt;[T](get-or-null.md)&gt;.[getOrNull](get-or-null.md)(): [T](get-or-null.md)?
+fun &lt;[T](./)&gt; [FluxbaseResponse](../-fluxbase-response/)&lt;[T](./)&gt;.[getOrNull](./)(): [T](./)?
 
 Returns the data on success, or null on error. Equivalent to `result.data` in the TS SDK.

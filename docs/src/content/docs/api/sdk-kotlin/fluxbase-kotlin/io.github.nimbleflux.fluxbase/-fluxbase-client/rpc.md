@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[rpc](rpc.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[rpc](./)
 
 # rpc
 
 [jvm]\
-val [rpc](rpc.md): [FluxbaseRpc](../../io.github.nimbleflux.fluxbase.rpc/-fluxbase-rpc/index.md)
+val [rpc](./): [FluxbaseRpc](../../../iogithubnimblefluxfluxbaserpc/-fluxbase-rpc/)
 
 RPC module — namespaced stored procedures.

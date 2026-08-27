@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase](../../index.md)/[FluxbaseResponse](../index.md)/[Error](index.md)/[error](error.md)
+//[fluxbase-kotlin](../../../../../)/[io.github.nimbleflux.fluxbase](../../../)/[FluxbaseResponse](../../)/[Error](../)/[error](./)
 
 # error
 
 [jvm]\
-open override val [error](error.md): [FluxbaseError](../../-fluxbase-error/index.md)
+open override val [error](./): [FluxbaseError](../../../-fluxbase-error/)
 
 The error on failure. Null on success.

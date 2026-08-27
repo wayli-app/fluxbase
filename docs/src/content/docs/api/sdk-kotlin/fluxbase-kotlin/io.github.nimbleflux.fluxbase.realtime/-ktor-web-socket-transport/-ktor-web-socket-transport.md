@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.realtime](../index.md)/[KtorWebSocketTransport](index.md)/[KtorWebSocketTransport](-ktor-web-socket-transport.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.realtime](../../)/[KtorWebSocketTransport](../)/[KtorWebSocketTransport](./)
 
 # KtorWebSocketTransport
 

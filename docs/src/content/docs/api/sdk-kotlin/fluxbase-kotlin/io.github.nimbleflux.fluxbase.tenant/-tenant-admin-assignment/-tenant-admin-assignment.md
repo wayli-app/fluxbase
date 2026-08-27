@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.tenant](../index.md)/[TenantAdminAssignment](index.md)/[TenantAdminAssignment](-tenant-admin-assignment.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.tenant](../../)/[TenantAdminAssignment](../)/[TenantAdminAssignment](./)
 
 # TenantAdminAssignment
 

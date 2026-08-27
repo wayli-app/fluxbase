@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../index.md)/[io.github.nimbleflux.fluxbase](index.md)/[fluxbaseResponse](fluxbase-response.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase](../)/[fluxbaseResponse](./)
 
 # fluxbaseResponse
 
 [jvm]\
-suspend fun &lt;[T](fluxbase-response.md)&gt; [fluxbaseResponse](fluxbase-response.md)(block: suspend () -&gt; [T](fluxbase-response.md)): [FluxbaseResponse](-fluxbase-response/index.md)&lt;[T](fluxbase-response.md)&gt;
+suspend fun &lt;[T](./)&gt; [fluxbaseResponse](./)(block: suspend () -&gt; [T](./)): [FluxbaseResponse](../-fluxbase-response/)&lt;[T](./)&gt;
 
-Wraps a suspending block, catching exceptions and converting them to [FluxbaseResponse.Error](-fluxbase-response/-error/index.md). The TS SDK uses `wrapAsync` for the same purpose (`sdk/src/utils/error-handling.ts`).
+Wraps a suspending block, catching exceptions and converting them to [FluxbaseResponse.Error](../-fluxbase-response/-error/). The TS SDK uses `wrapAsync` for the same purpose (`sdk/src/utils/error-handling.ts`).

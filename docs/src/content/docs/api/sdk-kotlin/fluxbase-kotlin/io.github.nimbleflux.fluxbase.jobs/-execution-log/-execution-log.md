@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.jobs](../index.md)/[ExecutionLog](index.md)/[ExecutionLog](-execution-log.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.jobs](../../)/[ExecutionLog](../)/[ExecutionLog](./)
 
 # ExecutionLog
 

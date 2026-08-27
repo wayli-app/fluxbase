@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.auth](../index.md)/[AuthConfig](index.md)/[passwordRequireLowercase](password-require-lowercase.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.auth](../../)/[AuthConfig](../)/[passwordRequireLowercase](./)
 
 # passwordRequireLowercase
 
@@ -13,4 +13,4 @@ prev: false
 
 @SerialName(value = &quot;password_require_lowercase&quot;)
 
-val [passwordRequireLowercase](password-require-lowercase.md): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false
+val [passwordRequireLowercase](./): [Boolean](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html) = false

@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.core](../index.md)/[HttpMethod](index.md)/[entries](entries.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.core](../../)/[HttpMethod](../)/[entries](./)
 
 # entries
 
 [jvm]\
-val [entries](entries.md): [EnumEntries](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.enums/-enum-entries/index.html)&lt;[HttpMethod](index.md)&gt;
+val [entries](./): [EnumEntries](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.enums/-enum-entries/index.html)&lt;[HttpMethod](../)&gt;
 
 Returns a representation of an immutable list of all enum entries, in the order they're declared.
 

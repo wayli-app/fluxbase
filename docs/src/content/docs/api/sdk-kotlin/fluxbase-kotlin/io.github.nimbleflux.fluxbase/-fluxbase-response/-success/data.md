@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../../index.md)/[io.github.nimbleflux.fluxbase](../../index.md)/[FluxbaseResponse](../index.md)/[Success](index.md)/[data](data.md)
+//[fluxbase-kotlin](../../../../../)/[io.github.nimbleflux.fluxbase](../../../)/[FluxbaseResponse](../../)/[Success](../)/[data](./)
 
 # data
 
 [jvm]\
-open override val [data](data.md): [T](index.md)
+open override val [data](./): [T](../)
 
 The data payload on success, or null on error. In the TS SDK this is the `data` field.

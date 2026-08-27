@@ -5,11 +5,11 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[management](management.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[management](./)
 
 # management
 
 [jvm]\
-val [management](management.md): [FluxbaseManagement](../../io.github.nimbleflux.fluxbase.management/-fluxbase-management/index.md)
+val [management](./): [FluxbaseManagement](../../../iogithubnimblefluxfluxbasemanagement/-fluxbase-management/)
 
 Client keys, webhooks, invitations.

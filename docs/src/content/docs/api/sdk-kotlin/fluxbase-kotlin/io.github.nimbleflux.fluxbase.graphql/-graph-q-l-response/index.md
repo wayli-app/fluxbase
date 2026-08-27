@@ -5,14 +5,14 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.graphql](../index.md)/[GraphQLResponse](index.md)
+//[fluxbase-kotlin](../../../)/[io.github.nimbleflux.fluxbase.graphql](../)/[GraphQLResponse](./)
 
 # GraphQLResponse
 
 [jvm]\
 @Serializable
 
-data class [GraphQLResponse](index.md)&lt;[T](index.md)&gt;(val data: [T](index.md)? = null, val errors: [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../-graph-q-l-error/index.md)&gt;? = null)
+data class [GraphQLResponse](./)&lt;[T](./)&gt;(val data: [T](./)? = null, val errors: [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../-graph-q-l-error/)&gt;? = null)
 
 A GraphQL response. Port of `GraphQLResponse<T>` from `sdk/src/types.ts`.
 
@@ -20,11 +20,11 @@ A GraphQL response. Port of `GraphQLResponse<T>` from `sdk/src/types.ts`.
 
 | | |
 |---|---|
-| [GraphQLResponse](-graph-q-l-response.md) | [jvm]<br>constructor(data: [T](index.md)? = null, errors: [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../-graph-q-l-error/index.md)&gt;? = null) |
+| [GraphQLResponse](-graph-q-l-response/) | [jvm]<br>constructor(data: [T](./)? = null, errors: [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../-graph-q-l-error/)&gt;? = null) |
 
 ## Properties
 
 | Name | Summary |
 |---|---|
-| [data](data.md) | [jvm]<br>val [data](data.md): [T](index.md)? = null |
-| [errors](errors.md) | [jvm]<br>val [errors](errors.md): [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../-graph-q-l-error/index.md)&gt;? = null |
+| [data](data/) | [jvm]<br>val [data](data/): [T](./)? = null |
+| [errors](errors/) | [jvm]<br>val [errors](errors/): [List](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html)&lt;[GraphQLError](../-graph-q-l-error/)&gt;? = null |

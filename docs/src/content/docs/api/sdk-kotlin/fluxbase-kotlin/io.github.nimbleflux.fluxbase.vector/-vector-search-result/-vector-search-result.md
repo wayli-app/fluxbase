@@ -5,7 +5,7 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase.vector](../index.md)/[VectorSearchResult](index.md)/[VectorSearchResult](-vector-search-result.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase.vector](../../)/[VectorSearchResult](../)/[VectorSearchResult](./)
 
 # VectorSearchResult
 

@@ -5,12 +5,12 @@ next: false
 prev: false
 ---
 
-//[fluxbase-kotlin](../../../index.md)/[io.github.nimbleflux.fluxbase](../index.md)/[FluxbaseClient](index.md)/[channel](channel.md)
+//[fluxbase-kotlin](../../../../)/[io.github.nimbleflux.fluxbase](../../)/[FluxbaseClient](../)/[channel](./)
 
 # channel
 
 [jvm]\
-fun [channel](channel.md)(name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), transport: [WebSocketTransport](../../io.github.nimbleflux.fluxbase.realtime/-web-socket-transport/index.md)? = null): [RealtimeChannel](../../io.github.nimbleflux.fluxbase.realtime/-realtime-channel/index.md)
+fun [channel](./)(name: [String](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html), transport: [WebSocketTransport](../../../iogithubnimblefluxfluxbaserealtime/-web-socket-transport/)? = null): [RealtimeChannel](../../../iogithubnimblefluxfluxbaserealtime/-realtime-channel/)
 
 Create a realtime channel for postgres_changes/broadcast/presence subscriptions. Port of `channel()` in `client.ts:654-674`.
 
