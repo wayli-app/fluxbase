@@ -25,6 +25,9 @@ var (
 	ErrSessionNotFound = errors.New("session not found")
 	// ErrSessionExpired is returned when a session has expired
 	ErrSessionExpired = errors.New("session has expired")
+	// ErrRefreshTokenRotated is returned when a refresh token no longer matches
+	// the stored hash because a concurrent refresh already rotated it
+	ErrRefreshTokenRotated = errors.New("refresh token already rotated")
 )
 
 // Session represents a user session
@@ -215,9 +218,12 @@ func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*
 	return sessions, err
 }
 
-// UpdateTokens updates the tokens for a session
-// SECURITY: Tokens are hashed before storage.
-func (r *SessionRepository) UpdateTokens(ctx context.Context, id, accessToken, refreshToken string, expiresAt time.Time) error {
+// UpdateTokens rotates the tokens for a session (compare-and-swap).
+// SECURITY: Tokens are hashed before storage. The update only applies when the
+// stored refresh-token hash still matches the caller's pre-rotation token, so
+// two racing refreshes can never clobber each other's rotated tokens — the
+// loser gets ErrRefreshTokenRotated while the winner's session stays valid.
+func (r *SessionRepository) UpdateTokens(ctx context.Context, id, expectedRefreshToken, accessToken, refreshToken string, expiresAt time.Time) error {
 	// Hash tokens before storage
 	accessTokenHash := hashToken(accessToken)
 	var refreshTokenHash *string
@@ -225,21 +231,24 @@ func (r *SessionRepository) UpdateTokens(ctx context.Context, id, accessToken, r
 		h := hashToken(refreshToken)
 		refreshTokenHash = &h
 	}
+	expectedRefreshTokenHash := hashToken(expectedRefreshToken)
 
 	query := `
 		UPDATE auth.sessions
-		SET access_token_hash = $2, refresh_token_hash = $3, expires_at = $4
-		WHERE id = $1
+		SET access_token_hash = $3, refresh_token_hash = $4, expires_at = $5
+		WHERE id = $1 AND refresh_token_hash = $2
 	`
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		result, err := tx.Exec(ctx, query, id, accessTokenHash, refreshTokenHash, expiresAt)
+		result, err := tx.Exec(ctx, query, id, expectedRefreshTokenHash, accessTokenHash, refreshTokenHash, expiresAt)
 		if err != nil {
 			return err
 		}
 
 		if result.RowsAffected() == 0 {
-			return ErrSessionNotFound
+			// The session was just fetched by this refresh token, so a miss
+			// means the token was rotated (or the session deleted) meanwhile.
+			return ErrRefreshTokenRotated
 		}
 
 		return nil

@@ -91,8 +91,11 @@ type SessionRepositoryInterface interface {
 	// GetByUserID retrieves all sessions for a user
 	GetByUserID(ctx context.Context, userID string) ([]*Session, error)
 
-	// UpdateTokens updates the tokens and expiry for a session
-	UpdateTokens(ctx context.Context, id, accessToken, refreshToken string, expiresAt time.Time) error
+	// UpdateTokens rotates the tokens and expiry for a session.
+	// Compare-and-swap: it only applies while the stored refresh-token hash
+	// still matches expectedRefreshToken; otherwise ErrRefreshTokenRotated.
+	// Note: Tokens should be hashed before storage
+	UpdateTokens(ctx context.Context, id, expectedRefreshToken, accessToken, refreshToken string, expiresAt time.Time) error
 
 	// Delete removes a session by ID
 	Delete(ctx context.Context, id string) error

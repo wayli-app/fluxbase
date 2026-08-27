@@ -107,12 +107,18 @@ func (h *AuthHandler) setAuthCookies(c fiber.Ctx, accessToken, refreshToken stri
 		SameSite: "Lax",
 	})
 
-	// Refresh token cookie - longer expiry (7 days default)
+	// Refresh token cookie - aligned with auth.refresh_expiry (the same
+	// lifetime the server slides on every refresh); fall back to 7 days if
+	// unset so the cookie can never outlive (or cut short) the session.
+	refreshMaxAge := 7 * 24 * 60 * 60
+	if h.authService != nil && h.authService.RefreshExpiry() > 0 {
+		refreshMaxAge = int(h.authService.RefreshExpiry().Seconds())
+	}
 	c.Cookie(&fiber.Cookie{
 		Name:     RefreshTokenCookieName,
 		Value:    refreshToken,
-		Path:     "/api/v1/auth",   // Only sent to auth endpoints
-		MaxAge:   7 * 24 * 60 * 60, // 7 days
+		Path:     "/api/v1/auth", // Only sent to auth endpoints
+		MaxAge:   refreshMaxAge,
 		Secure:   h.secureCookie,
 		HTTPOnly: true,
 		SameSite: "Strict",

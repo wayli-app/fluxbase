@@ -185,7 +185,7 @@ func TestMockSessionRepository_UpdateTokens_WithValidation(t *testing.T) {
 
 	// Update tokens
 	newExpiry := time.Now().Add(2 * time.Hour)
-	err = repo.UpdateTokens(ctx, session.ID, "new-access", "new-refresh", newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, "old-refresh", "new-access", "new-refresh", newExpiry)
 	require.NoError(t, err)
 
 	// Verify old tokens no longer work
@@ -202,8 +202,31 @@ func TestMockSessionRepository_UpdateTokens_NotFound(t *testing.T) {
 	repo := NewMockSessionRepository()
 	ctx := context.Background()
 
-	err := repo.UpdateTokens(ctx, "nonexistent-id", "access", "refresh", time.Now().Add(time.Hour))
+	err := repo.UpdateTokens(ctx, "nonexistent-id", "old-refresh", "access", "refresh", time.Now().Add(time.Hour))
 
+	assert.ErrorIs(t, err, ErrSessionNotFound)
+}
+
+func TestMockSessionRepository_UpdateTokens_ReplayRejected(t *testing.T) {
+	repo := NewMockSessionRepository()
+	ctx := context.Background()
+
+	// A session whose refresh token has already been rotated once.
+	session, err := repo.Create(ctx, "user-123", "old-access", "old-refresh", time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	err = repo.UpdateTokens(ctx, session.ID, "old-refresh", "new-access", "new-refresh", time.Now().Add(2*time.Hour))
+	require.NoError(t, err)
+
+	// A replay of the pre-rotation token must be rejected…
+	err = repo.UpdateTokens(ctx, session.ID, "old-refresh", "replay-access", "replay-refresh", time.Now().Add(3*time.Hour))
+	assert.ErrorIs(t, err, ErrRefreshTokenRotated)
+
+	// …without clobbering the winner's rotated tokens.
+	retrieved, err := repo.GetByRefreshToken(ctx, "new-refresh")
+	require.NoError(t, err)
+	assert.Equal(t, session.ID, retrieved.ID)
+
+	_, err = repo.GetByAccessToken(ctx, "replay-access")
 	assert.ErrorIs(t, err, ErrSessionNotFound)
 }
 
@@ -544,7 +567,7 @@ func TestMockSessionRepository_UpdateTokens_NoRefreshToken(t *testing.T) {
 
 	// Update tokens with new refresh token
 	newExpiry := time.Now().Add(2 * time.Hour)
-	err = repo.UpdateTokens(ctx, session.ID, "new-access", "new-refresh", newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, "", "new-access", "new-refresh", newExpiry)
 	require.NoError(t, err)
 
 	// Verify new tokens work
@@ -563,7 +586,7 @@ func TestMockSessionRepository_UpdateTokens_ClearRefreshToken(t *testing.T) {
 
 	// Update to clear refresh token
 	newExpiry := time.Now().Add(2 * time.Hour)
-	err = repo.UpdateTokens(ctx, session.ID, "new-access", "", newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, "refresh-token", "new-access", "", newExpiry)
 	require.NoError(t, err)
 
 	// Verify session was updated
@@ -654,7 +677,7 @@ func TestMockSessionRepository_UpdateTokens_RotateRefreshToken(t *testing.T) {
 
 	// Simulate token rotation (generate new tokens)
 	newExpiry := time.Now().Add(2 * time.Hour)
-	err = repo.UpdateTokens(ctx, session.ID, "new-access", "new-refresh", newExpiry)
+	err = repo.UpdateTokens(ctx, session.ID, "old-refresh", "new-access", "new-refresh", newExpiry)
 	require.NoError(t, err)
 
 	// Verify old tokens are invalidated

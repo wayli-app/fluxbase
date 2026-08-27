@@ -51,6 +51,13 @@ func (s *Service) SetEncryptionKey(key []byte) {
 	}
 }
 
+// RefreshExpiry returns the configured refresh-token/session lifetime — the
+// same value RefreshToken uses to slide a session's expiry, so callers (e.g.
+// the web refresh-cookie MaxAge) stay consistent with the stored session.
+func (s *Service) RefreshExpiry() time.Duration {
+	return s.config.RefreshExpiry
+}
+
 // SetTOTPRateLimiter sets the TOTP rate limiter for protecting against brute force attacks
 func (s *Service) SetTOTPRateLimiter(limiter *TOTPRateLimiter) {
 	if s.mfaService != nil {
@@ -621,8 +628,20 @@ func (s *Service) RefreshToken(ctx context.Context, req RefreshTokenRequest) (*R
 	// Calculate new expiry (extend session)
 	newExpiresAt := time.Now().Add(s.config.RefreshExpiry)
 
-	// Update session with new tokens (rotation)
-	if err := s.sessionRepo.UpdateTokens(ctx, session.ID, newAccessToken, newRefreshToken, newExpiresAt); err != nil {
+	// Update session with new tokens (rotation). Compare-and-swap on the old
+	// refresh-token hash: if a concurrent refresh already rotated it, keep the
+	// winner's session intact instead of clobbering it with this (older) token.
+	if err := s.sessionRepo.UpdateTokens(ctx, session.ID, req.RefreshToken, newAccessToken, newRefreshToken, newExpiresAt); err != nil {
+		if errors.Is(err, ErrRefreshTokenRotated) {
+			// SECURITY: a valid refresh token replayed after rotation usually
+			// means either a racing client or a stolen token. The stored
+			// (rotated) credentials win; this request is rejected.
+			log.Warn().
+				Str("user_id", claims.UserID).
+				Str("session_id", claims.SessionID).
+				Msg("Refresh token already rotated - rejecting replayed refresh, existing session kept")
+			return nil, ErrSessionNotFound
+		}
 		return nil, fmt.Errorf("failed to update session: %w", err)
 	}
 
