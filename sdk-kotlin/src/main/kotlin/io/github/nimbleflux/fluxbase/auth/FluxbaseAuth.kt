@@ -76,6 +76,9 @@ class FluxbaseAuth(
 
         /** Cap the scheduler's sleep so session changes are picked up. */
         private const val MAX_REFRESH_POLL_MS = 10 * 60_000L
+
+        /** Minimum spacing between refresh attempts (retry backoff floor). */
+        private const val REFRESH_RETRY_MS = 5_000L
     }
 
     // ---- Proactive token refresh (TS autoRefresh parity) ----
@@ -106,7 +109,9 @@ class FluxbaseAuth(
                 val sleepMs = if (expiresAt != null) {
                     val refreshAt = expiresAt - REFRESH_LEAD_MS
                     val now = Clock.System.now().toEpochMilliseconds()
-                    (refreshAt - now).coerceIn(1_000, MAX_REFRESH_POLL_MS)
+                    // Floor at REFRESH_RETRY_MS: an overdue token (e.g. after
+                    // a failed refresh) otherwise spins the loop every second.
+                    (refreshAt - now).coerceIn(REFRESH_RETRY_MS, MAX_REFRESH_POLL_MS)
                 } else {
                     MAX_REFRESH_POLL_MS
                 }
