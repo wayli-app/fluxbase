@@ -41,7 +41,9 @@ data class AuthSession(
  */
 @Serializable
 internal data class AuthResponse(
-    val user: User,
+    // Nullable: some server versions omit `user` from the /auth/refresh
+    // response — the caller then carries the signed-in user forward.
+    val user: User? = null,
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String,
     @SerialName("expires_in") val expiresIn: Long,

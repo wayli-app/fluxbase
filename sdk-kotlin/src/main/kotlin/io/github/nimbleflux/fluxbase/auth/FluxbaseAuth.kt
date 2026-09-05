@@ -155,7 +155,7 @@ class FluxbaseAuth(
             // Normal sign-in: parse as AuthResponse and build session.
             val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
             val session = AuthSession(
-                user = authResponse.user,
+                user = authResponse.user ?: User(id = "", email = ""),
                 accessToken = authResponse.accessToken,
                 refreshToken = authResponse.refreshToken,
                 expiresIn = authResponse.expiresIn,
@@ -234,7 +234,7 @@ class FluxbaseAuth(
 
             val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
             val session = AuthSession(
-                user = authResponse.user,
+                user = authResponse.user ?: User(id = "", email = ""),
                 accessToken = authResponse.accessToken,
                 refreshToken = authResponse.refreshToken,
                 expiresIn = authResponse.expiresIn,
@@ -264,8 +264,11 @@ class FluxbaseAuth(
             // If tokens are present, email confirmation is disabled → establish session.
             if (parsed["access_token"] != null && parsed["refresh_token"] != null) {
                 val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
+                // The refresh response may omit `user` (older servers) —
+                // keep the signed-in user so callers depending on
+                // session.user.id keep working across refreshes.
                 val session = AuthSession(
-                    user = authResponse.user,
+                    user = authResponse.user ?: currentSession?.user ?: User(id = "", email = ""),
                     accessToken = authResponse.accessToken,
                     refreshToken = authResponse.refreshToken,
                     expiresIn = authResponse.expiresIn,
@@ -343,8 +346,10 @@ class FluxbaseAuth(
                 // can't recurse into another refresh.
                 val responseText = http.postWithoutRetry("/api/v1/auth/refresh", body).body
                 val authResponse = json.decodeFromString(AuthResponse.serializer(), responseText)
+                // Older servers omit `user` from the refresh response —
+                // keep the signed-in user instead of nulling it out.
                 val session = AuthSession(
-                    user = authResponse.user,
+                    user = authResponse.user ?: currentSession?.user ?: User(id = "", email = ""),
                     accessToken = authResponse.accessToken,
                     refreshToken = authResponse.refreshToken,
                     expiresIn = authResponse.expiresIn,
