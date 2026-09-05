@@ -147,14 +147,17 @@ class KtorHttpTransport(
 
     /**
      * Convert an arbitrary Kotlin object to a [kotlinx.serialization.json.JsonElement].
-     * Handles Maps, Lists, primitives. @Serializable types are handled by the
-     * `else` branch via reflection-free `encodeToJsonElement` extension. Mirrors
-     * how the TS SDK passes plain objects through `JSON.stringify`. Note: binary
-     * payloads are NOT routed through here — [rawRequest] sends [ByteArray] verbatim.
+     * Handles Maps, Lists, primitives, and passes pre-built [JsonElement] bodies
+     * through untouched (RPC bodies are built as JsonObjects by the caller —
+     * re-wrapping their leaves via `toString()` would corrupt booleans into
+     * "false" strings and quote string values, which servers reject). Mirrors
+     * how the TS SDK passes plain JS objects through `JSON.stringify`. Note:
+     * binary payloads are NOT routed through here — [rawRequest] sends
+     * [ByteArray] verbatim.
      */
-    @Suppress("UNCHECKED_CAST")
-    private fun encodeToJsonElement(value: Any?): kotlinx.serialization.json.JsonElement = when (value) {
+    internal fun encodeToJsonElement(value: Any?): kotlinx.serialization.json.JsonElement = when (value) {
         null -> kotlinx.serialization.json.JsonNull
+        is kotlinx.serialization.json.JsonElement -> value
         is String -> kotlinx.serialization.json.JsonPrimitive(value)
         is Number -> kotlinx.serialization.json.JsonPrimitive(value)
         is Boolean -> kotlinx.serialization.json.JsonPrimitive(value)
