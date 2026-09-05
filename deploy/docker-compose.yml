@@ -86,7 +86,7 @@ services:
   #                    ffmpeg, or image transforms. Capabilities self-disable
   #                    at runtime. e.g. FLUXBASE_VERSION=2026.8.7-lite
   fluxbase:
-    image: ghcr.io/nimbleflux/fluxbase:${FLUXBASE_VERSION:-2026.8.14}
+    image: ghcr.io/nimbleflux/fluxbase:${FLUXBASE_VERSION:-2026.9.1}
     container_name: fluxbase
     ports:
       - "8080:8080"
