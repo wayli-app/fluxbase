@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
@@ -741,6 +742,11 @@ func convertValue(v interface{}) interface{} {
 		return string(val)
 	case time.Time:
 		return val.Format(time.RFC3339)
+	case [16]byte:
+		// Native uuid columns decode to a 16-byte array, which json.Marshal
+		// would emit as an array of numbers — clients expect the canonical
+		// hyphenated string (same treatment as time.Time above).
+		return pgtype.UUID{Bytes: val, Valid: true}.String()
 	case pgx.Rows:
 		return nil // Skip complex types
 	default:
