@@ -859,7 +859,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.7"
 
       - name: Install native dependencies
         run: |
@@ -944,7 +944,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.7"
 
       - name: Build CLI binary
         env:
@@ -1455,7 +1455,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.5"
+          go-version: "1.26.7"
 
       - name: Publish Go module
         run: |

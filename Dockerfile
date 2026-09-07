@@ -81,7 +81,7 @@ RUN cd /build/admin && bunx tsc -b && npx vite build
 # ------------------------------------------------------------------------------
 # Stage 2: Build Go Binary
 # ------------------------------------------------------------------------------
-FROM golang:1.26.1-bookworm AS go-builder
+FROM golang:1.26.6-bookworm AS go-builder
 
 ARG FLAVOR=full
 
