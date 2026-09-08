@@ -219,7 +219,13 @@ class QueryBuilder<T> @PublishedApi internal constructor(
             } else {
                 json.decodeFromString(ListSerializer(serializer), rawResponse.body)
             }
-            val parsedCount = parseCountFromRange(rawResponse.headers["Content-Range"])
+            // HTTP/2 delivers header names lowercase ("content-range") while
+            // HTTP/1.1 canonicalizes ("Content-Range") — the headers map is
+            // case-sensitive, so look the name up case-insensitively or the
+            // count silently reads as null over TLS.
+            val parsedCount = rawResponse.headers.entries
+                .firstOrNull { it.key.equals("Content-Range", ignoreCase = true) }
+                ?.let { parseCountFromRange(it.value) }
             PostgrestResponse(
                 data = data,
                 error = null,
