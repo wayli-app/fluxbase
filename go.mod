@@ -3,61 +3,61 @@ module github.com/nimbleflux/fluxbase
 go 1.26.1
 
 require (
-	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
-	github.com/aws/aws-sdk-go-v2 v1.41.5
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.14
-	github.com/aws/aws-sdk-go-v2/service/ses v1.34.22
-	github.com/beevik/etree v1.6.0
-	github.com/coreos/go-oidc/v3 v3.17.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.48.0
+	github.com/aws/aws-sdk-go-v2 v1.43.8
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.38
+	github.com/aws/aws-sdk-go-v2/service/ses v1.37.8
+	github.com/beevik/etree v1.7.1
+	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/crewjam/saml v0.5.1
 	github.com/davidbyttow/govips/v2 v2.18.0
 	github.com/elastic/go-elasticsearch/v8 v8.19.3
-	github.com/elastic/go-elasticsearch/v9 v9.3.1
-	github.com/evanw/esbuild v0.28.0
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/elastic/go-elasticsearch/v9 v9.5.1
+	github.com/evanw/esbuild v0.28.2
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
-	github.com/gofiber/contrib/v3/websocket v1.1.0
-	github.com/gofiber/fiber/v3 v3.4.0
-	github.com/gofiber/storage/memory/v2 v2.1.1
+	github.com/gofiber/contrib/v3/websocket v1.2.3
+	github.com/gofiber/fiber/v3 v3.5.0
+	github.com/gofiber/storage/memory/v2 v2.1.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/graphql-go/graphql v0.8.1
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kapmahc/epub v0.1.1
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
-	github.com/mailgun/mailgun-go/v5 v5.15.0
-	github.com/minio/minio-go/v7 v7.0.100
+	github.com/mailgun/mailgun-go/v5 v5.19.3
+	github.com/minio/minio-go/v7 v7.3.0
 	github.com/nguyenthenguyen/docx v0.0.0-20230621112118-9c8e795a11db
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/otiai10/gosseract/v2 v2.4.1
 	github.com/pganalyze/pg_query_go/v6 v6.2.2
 	github.com/pgplex/pgparser v0.2.0
 	github.com/pquerna/otp v1.5.0
-	github.com/prometheus/client_golang v1.23.2
-	github.com/redis/go-redis/v9 v9.18.0
+	github.com/prometheus/client_golang v1.24.1
+	github.com/redis/go-redis/v9 v9.22.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/rs/zerolog v1.35.0
-	github.com/russellhaering/goxmldsig v1.6.0
+	github.com/rs/zerolog v1.35.1
+	github.com/russellhaering/goxmldsig v1.6.1
 	github.com/sendgrid/sendgrid-go v3.16.1+incompatible
-	github.com/shirou/gopsutil/v4 v4.26.3
+	github.com/shirou/gopsutil/v4 v4.26.7
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	github.com/twpayne/go-geom v1.6.1
-	github.com/valyala/fasthttp v1.72.0
+	github.com/valyala/fasthttp v1.73.0
 	github.com/xuri/excelize/v2 v2.11.0
 	github.com/zalando/go-keyring v0.2.8
-	go.opentelemetry.io/otel v1.44.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0
-	go.opentelemetry.io/otel/sdk v1.44.0
-	go.opentelemetry.io/otel/trace v1.44.0
+	go.opentelemetry.io/otel v1.46.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
+	go.opentelemetry.io/otel/sdk v1.46.0
+	go.opentelemetry.io/otel/trace v1.46.0
 	golang.org/x/crypto v0.56.0
-	golang.org/x/oauth2 v0.36.0
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/term v0.45.0
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 	google.golang.org/grpc v1.83.2
 	gopkg.in/yaml.v3 v3.0.1
 )
