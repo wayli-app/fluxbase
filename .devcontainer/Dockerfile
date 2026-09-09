@@ -89,7 +89,7 @@ RUN ARCH=$(dpkg --print-architecture) \
 # =============================================================================
 # LAYER 6: pgschema - Declarative schema migration tool
 # =============================================================================
-ARG PGSCHEMA_VERSION=1.7.4
+ARG PGSCHEMA_VERSION=1.12.4
 RUN ARCH=$(dpkg --print-architecture) \
     && if [ "$ARCH" = "amd64" ]; then PGSCHEMA_ARCH="linux-amd64"; \
     elif [ "$ARCH" = "arm64" ]; then PGSCHEMA_ARCH="linux-arm64"; \

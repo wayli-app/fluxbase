@@ -48,26 +48,26 @@
   },
   "peerDependencies": {
     "@nimbleflux/fluxbase-sdk": "^2026.9.2",
-    "@tanstack/svelte-query": "^6.1.36",
+    "@tanstack/svelte-query": "^6.1.45",
     "svelte": "^4.0.0 || ^5.0.0"
   },
   "devDependencies": {
     "@nimbleflux/fluxbase-sdk": "workspace:*",
-    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@testing-library/svelte": "^5.4.2",
-    "@tanstack/svelte-query": "^6.1.36",
-    "@types/node": "^26.1.1",
-    "@vitest/coverage-v8": "^4.1.10",
-    "jsdom": "^29.1.1",
-    "prettier": "^3.9.5",
-    "svelte": "^5.56.5",
-    "svelte-check": "^4.7.2",
+    "@tanstack/svelte-query": "^6.1.45",
+    "@types/node": "^26.3.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "svelte": "^5.56.10",
+    "svelte-check": "^4.7.6",
     "tsup": "^8.5.1",
     "typedoc": "^0.28.20",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "engines": {
-    "node": ">=24.18.0"
+    "node": ">=24.20.0"
   }
 }

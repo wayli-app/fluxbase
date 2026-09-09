@@ -100,7 +100,7 @@ services:
 
   # Elasticsearch Service (for logging backend testing)
   elasticsearch:
-    image: elasticsearch:9.4.2
+    image: elasticsearch:9.5.1
     container_name: fluxbase-elasticsearch-dev
     restart: unless-stopped
     environment:
@@ -145,7 +145,7 @@ services:
 
   # Grafana Loki Service (for logging backend testing)
   loki:
-    image: grafana/loki:3.7.3
+    image: grafana/loki:3.7.6
     container_name: fluxbase-loki-dev
     restart: unless-stopped
     ports:

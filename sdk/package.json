@@ -60,7 +60,7 @@
     "cross-fetch": "^4.1.0"
   },
   "peerDependencies": {
-    "esbuild": ">=0.28.1"
+    "esbuild": ">=0.28.2"
   },
   "peerDependenciesMeta": {
     "esbuild": {
@@ -68,21 +68,21 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@types/node": "^26.3.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "docusaurus-plugin-typedoc": "^1.4.2",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.1",
     "typedoc": "^0.28.20",
-    "typedoc-plugin-markdown": "^4.12.0",
-    "typescript": "^6.0.3",
+    "typedoc-plugin-markdown": "^4.13.0",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "engines": {
-    "node": ">=24.18.0"
+    "node": ">=24.20.0"
   },
   "optionalDependencies": {
-    "@rollup/rollup-darwin-arm64": "^4.62.2"
+    "@rollup/rollup-darwin-arm64": "^4.63.0"
   }
 }

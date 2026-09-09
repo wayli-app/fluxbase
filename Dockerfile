@@ -40,7 +40,7 @@ FROM denoland/deno:bin-2.6.4 AS deno-bin
 # ------------------------------------------------------------------------------
 # Stage 1: Build SDKs and Admin UI
 # ------------------------------------------------------------------------------
-FROM oven/bun:1.3.14-debian AS admin-builder
+FROM oven/bun:1.4.0-debian AS admin-builder
 
 WORKDIR /build
 
@@ -159,7 +159,7 @@ FROM debian:bookworm-slim AS pgschema-fetcher
 # Bumped from 1.7.4 to 1.12.1: fixes plan validation for LANGUAGE sql functions
 # with SET search_path that use extension operators (e.g. pgvector <=>), plus
 # schema-qualified function-body references (pgplex/pgschema#399).
-ARG PGSCHEMA_VERSION=1.12.1
+ARG PGSCHEMA_VERSION=1.12.4
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/* \
     && ARCH=$(dpkg --print-architecture) \
     && if [ "$ARCH" = "amd64" ]; then PGSCHEMA_ARCH="linux-amd64"; \

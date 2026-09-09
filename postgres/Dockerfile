@@ -8,7 +8,7 @@
 # Usage:
 #   docker build --build-arg POSTGRES_VERSION=18.1 --build-arg POSTGRES_MAJOR=18 -t fluxbase-postgres:18.1 .
 
-ARG POSTGRES_VERSION=18.3
+ARG POSTGRES_VERSION=18.4
 FROM postgres:${POSTGRES_VERSION}
 
 ARG POSTGRES_MAJOR=18
