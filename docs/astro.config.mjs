@@ -108,7 +108,7 @@ export default defineConfig({
         // Preconnect for external resources
         {
           tag: "link",
-          attrs: { rel: "preconnect", href: "https://umami.wayli.app" },
+          attrs: { rel: "preconnect", href: "https://umami.nimbleflux.nl" },
         },
         {
           tag: "link",
@@ -118,9 +118,9 @@ export default defineConfig({
         {
           tag: "script",
           attrs: {
-            src: "https://umami.wayli.app/umami",
+            src: "https://umami.nimbleflux.nl/umami",
             defer: true,
-            "data-website-id": "846445c5-4f05-4ec7-a3ec-46f06f94a314",
+            "data-website-id": "c975d4af-9454-4d87-bd46-7d6426ee68fe",
           },
         },
         {
